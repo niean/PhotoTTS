@@ -43,7 +43,7 @@ PhotoTTS 是一款智能拍照文字转语音iOS应用。通过拍照或选择�
 
 1. 克隆项目
    ```
-   git clone https://github.com/your-username/PhotoTTS.git
+   git clone https://github.com/niean/PhotoTTS.git
    cd PhotoTTS
    ```
 
