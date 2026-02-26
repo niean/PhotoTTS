@@ -495,14 +495,6 @@ struct MakeView: View {
         clearDataAndState()
     }
 
-    // 图片清理
-    private func clearImage() {
-        capturedImage = nil
-        selectedImages.removeAll()
-        onImagesChanged()
-        currentImageIndex = 0
-    }
-    
     /// 播放：用 PlayView 全屏播放当前制作数据
     private func togglePlayback() {
         guard audioData != nil else {
@@ -512,26 +504,6 @@ struct MakeView: View {
         if let record = buildCurrentSessionRecord() {
             currentSessionToPlay = record
         }
-    }
-    
-    // 重置处理状态
-    private func resetProcessingState() {
-        isProcessing = false
-        processingProgress = 0.0
-        currentOperation = ""
-        ocrResult = ""
-        audioData = nil
-        error = nil
-        
-        // 重置计时器
-        ocrDuration = 0.0
-        ttsDuration = 0.0
-        ocrStartTime = nil
-        ttsStartTime = nil
-        
-        // 清理文本分段信息
-        ocrTextSegments = []
-        textSegmentRanges = []
     }
     
     // 解析OCR结果，保存文本分段信息用于音频播放同步
@@ -707,18 +679,6 @@ struct MakeView: View {
     }
 
     // MARK: - 批量处理相关函数
-    
-    // 添加图片到批量队列
-    private func addImageToBatch() {
-        if let image = capturedImage {
-            let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
-            let capped = SessionRecordManager.downsampleImageToMaxPixel(image, maxPixelLength: maxP) ?? image
-            selectedImages.append(capped)
-            onImagesChanged()
-            currentImageIndex = selectedImages.count - 1
-            capturedImage = nil
-        }
-    }
     
     // 从批量队列中删除图片
     private func removeImageFromBatch(at index: Int) {

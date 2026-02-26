@@ -43,16 +43,6 @@ struct AppPageView: View {
         }
     }
     
-    private func loadBackgroundImage() -> UIImage? {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let imagePath = documentsPath.appendingPathComponent("custom_background.jpg")
-        
-        if FileManager.default.fileExists(atPath: imagePath.path) {
-            return UIImage(contentsOfFile: imagePath.path)
-        }
-        return nil
-    }
-    
     private func getBackgroundImage() -> UIImage? {
         return IntroAvatarImage.load()
     }
@@ -115,12 +105,6 @@ struct AppPageView: View {
                 pageContent
                     .padding(.top, (pageType == .intro && onDismiss != nil) ? 0 : 45) // push 时由外层提供导航栏，不占位
                     
-                VStack(spacing: 0) {
-                    if pageType == .intro {
-                        // 顶部导航栏
-                        // TODO
-                    }
-                }
             }
         }
     }

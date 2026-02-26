@@ -76,6 +76,7 @@ secrets.json
 
 # IDE
 .vscode/
+buildServer.json
 .idea/
 .cursor/
 
@@ -90,3 +91,4 @@ Thumbs.db
 
 # PhotoTTS
 PhotoTTS/Resources/config_local.json
+context/feat-*.md

@@ -568,6 +568,33 @@ class SessionRecordManager {
         }
     }
     
+    // MARK: - 清空所有会话记录
+
+    /// 清空所有会话记录
+    /// - Returns: 结果，包含是否全部成功、成功数量、错误描述
+    func clearAllSessions() -> (success: Bool, count: Int, errorMessage: String?) {
+        let allMetadata = getAllSessionMetadata()
+        var successCount = 0
+        var failedCount = 0
+
+        for metadata in allMetadata {
+            let sessionDir = sessionsDirectory.appendingPathComponent(metadata.id, isDirectory: true)
+            do {
+                try fileManager.removeItem(at: sessionDir)
+                successCount += 1
+            } catch {
+                logger.error("删除会话记录失败: \(metadata.id), 错误: \(error.localizedDescription)")
+                failedCount += 1
+            }
+        }
+
+        logger.info("清空会话记录完成: 成功 \(successCount) 个，失败 \(failedCount) 个")
+        if failedCount > 0 {
+            return (false, successCount, "共 \(allMetadata.count) 个，清空成功 \(successCount) 个，失败 \(failedCount) 个")
+        }
+        return (true, successCount, nil)
+    }
+
     // MARK: - 获取存储统计信息
     
     /// 获取所有会话记录的总大小（字节）
@@ -626,70 +653,6 @@ class SessionRecordManager {
     
     // MARK: - 修复目录权限
     
-    /// 修复所有现有会话记录目录的权限，使它们可以通过"文件"应用访问
-    /// - Returns: 修复的会话记录数量
-    func fixExistingSessionPermissions() -> Int {
-        var fixedCount = 0
-        
-        do {
-            // 首先检查并修复Sessions根目录的权限
-            var mutableSessionsDir = sessionsDirectory
-            if let currentValues = try? mutableSessionsDir.resourceValues(forKeys: [.isExcludedFromBackupKey]) {
-                // 如果权限不正确，才进行修复
-                if currentValues.isExcludedFromBackup == true {
-                    var resourceValues = URLResourceValues()
-                    resourceValues.isExcludedFromBackup = false
-                    try? mutableSessionsDir.setResourceValues(resourceValues)
-                }
-            }
-            
-            // 获取所有会话记录目录
-            let sessionDirs = try fileManager.contentsOfDirectory(
-                at: sessionsDirectory,
-                includingPropertiesForKeys: [.isDirectoryKey, .isExcludedFromBackupKey],
-                options: []
-            ).filter { url in
-                guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                      resourceValues.isDirectory == true else {
-                    return false
-                }
-                return true
-            }
-            
-            // 为每个会话记录目录设置正确的权限
-            for sessionDir in sessionDirs {
-                // 先检查当前权限
-                if let currentValues = try? sessionDir.resourceValues(forKeys: [.isExcludedFromBackupKey]),
-                   currentValues.isExcludedFromBackup == false {
-                    // 权限已经正确，跳过
-                    continue
-                }
-                
-                // 权限不正确，需要修复
-                var mutableSessionDir = sessionDir
-                var dirResourceValues = URLResourceValues()
-                dirResourceValues.isExcludedFromBackup = false
-                
-                if (try? mutableSessionDir.setResourceValues(dirResourceValues)) != nil {
-                    fixedCount += 1
-                    logger.info("✅ 修复会话记录目录权限: \(sessionDir.lastPathComponent)")
-                    
-                    // 同时修复目录内所有文件和子目录的权限
-                    fixSessionDirectoryPermissions(sessionDir)
-                }
-            }
-            
-            if fixedCount > 0 {
-                logger.info("✅ 权限修复完成，共修复 \(fixedCount) 个会话记录目录")
-            }
-            
-        } catch {
-            logger.error("❌ 修复目录权限失败: \(error.localizedDescription)")
-        }
-        
-        return fixedCount
-    }
-    
     /// 修复会话记录目录内所有文件和子目录的权限
     /// - Parameter sessionDir: 会话记录目录
     private func fixSessionDirectoryPermissions(_ sessionDir: URL) {
@@ -715,169 +678,6 @@ class SessionRecordManager {
             resourceValues.isExcludedFromBackup = false
             try? mutableURL.setResourceValues(resourceValues)
         }
-    }
-    
-    // MARK: - 数据迁移
-    
-    /// 清理所有会话记录的 record.json 文件中的图片数据，减小文件大小
-    /// 图片数据已单独保存为文件，不需要在JSON中重复存储
-    /// - Returns: 清理的会话记录数量
-    func cleanupImageDataFromRecords() -> Int {
-        var cleanedCount = 0
-        
-        do {
-            let sessionDirs = try fileManager.contentsOfDirectory(
-                at: sessionsDirectory,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: []
-            ).filter { url in
-                guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                      resourceValues.isDirectory == true else {
-                    return false
-                }
-                return true
-            }
-            
-            for sessionDir in sessionDirs {
-                let recordURL = sessionDir.appendingPathComponent("record.json")
-                
-                guard fileManager.fileExists(atPath: recordURL.path) else {
-                    continue
-                }
-                
-                // 读取现有记录
-                guard let data = try? Data(contentsOf: recordURL),
-                      let record = try? JSONDecoder().decode(SessionRecord.self, from: data) else {
-                    logger.warning("⚠️ 无法解析会话记录: \(sessionDir.lastPathComponent)")
-                    continue
-                }
-                
-                // 检查是否包含图片数据（如果 imageDataList 不为空，说明需要清理）
-                if !record.imageDataList.isEmpty {
-                    // 检查图片文件是否存在（如果存在，说明可以安全删除JSON中的图片数据）
-                    let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
-                    let hasImageFiles = fileManager.fileExists(atPath: imagesDir.path)
-                    
-                    if hasImageFiles {
-                        // 重新编码记录（会自动排除图片数据）
-                        let cleanedData = try JSONEncoder().encode(record)
-                        try cleanedData.write(to: recordURL)
-                        
-                        cleanedCount += 1
-                        logger.info("✅ 清理会话记录图片数据: \(sessionDir.lastPathComponent)")
-                    } else {
-                        logger.warning("⚠️ 跳过清理（图片文件不存在）: \(sessionDir.lastPathComponent)")
-                    }
-                }
-            }
-            
-            if cleanedCount > 0 {
-                logger.info("✅ 图片数据清理完成，共清理 \(cleanedCount) 个会话记录")
-            }
-            
-        } catch {
-            logger.error("❌ 清理图片数据失败: \(error.localizedDescription)")
-        }
-        
-        return cleanedCount
-    }
-    
-    // MARK: - 清理临时文件
-    
-    /// 清理会话记录导出用的zip文件
-    /// 在Documents目录和临时目录中查找并删除所有.zip文件
-    /// - Returns: 清理的zip文件数量
-    func cleanupZipFiles() -> Int {
-        var cleanedCount = 0
-        
-        // 清理Documents目录下的zip文件
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        cleanedCount += cleanupZipFilesInDirectory(documentsPath)
-        
-        // 清理临时目录下的zip文件
-        let tempPath = fileManager.temporaryDirectory
-        cleanedCount += cleanupZipFilesInDirectory(tempPath)
-        
-        if cleanedCount > 0 {
-            logger.info("✅ 清理zip文件完成，共清理 \(cleanedCount) 个文件")
-        }
-        
-        return cleanedCount
-    }
-    
-    /// 在指定目录中清理zip文件
-    /// - Parameter directory: 要清理的目录
-    /// - Returns: 清理的文件数量
-    private func cleanupZipFilesInDirectory(_ directory: URL) -> Int {
-        var cleanedCount = 0
-        
-        do {
-            let contents = try fileManager.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .isWritableKey],
-                options: [.skipsHiddenFiles]
-            )
-            
-            for url in contents {
-                // 检查是否为zip文件
-                if url.pathExtension.lowercased() == "zip" {
-                    // 检查文件是否存在
-                    guard fileManager.fileExists(atPath: url.path) else {
-                        logger.debug("📝 zip文件不存在，跳过: \(url.lastPathComponent)")
-                        continue
-                    }
-                    
-                    // 尝试获取文件属性
-                    var resourceValues: URLResourceValues?
-                    do {
-                        resourceValues = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .isWritableKey])
-                    } catch {
-                        logger.warning("⚠️ 无法获取zip文件属性: \(url.lastPathComponent), 错误: \(error.localizedDescription)")
-                    }
-                    
-                    // 检查文件大小（如果文件大小为0或异常，可能是损坏的文件）
-                    if let size = resourceValues?.fileSize, size > 0 {
-                        logger.debug("📦 发现zip文件: \(url.lastPathComponent), 大小: \(self.formatStorageSize(Int64(size)))")
-                    }
-                    
-                    // 尝试删除文件
-                    do {
-                        // 先尝试检查文件是否可写（某些情况下文件可能被锁定）
-                        if let isWritable = resourceValues?.isWritable, !isWritable {
-                            logger.warning("⚠️ zip文件不可写，可能被锁定: \(url.lastPathComponent)")
-                            // 即使不可写，也尝试删除（某些情况下仍然可以删除）
-                        }
-                        
-                        try fileManager.removeItem(at: url)
-                        cleanedCount += 1
-                        logger.info("🗑️ 删除zip文件成功: \(url.lastPathComponent)")
-                    } catch {
-                        // 详细记录错误信息
-                        let errorDescription = error.localizedDescription
-                        let errorDomain = (error as NSError).domain
-                        let errorCode = (error as NSError).code
-                        
-                        logger.warning("⚠️ 删除zip文件失败: \(url.lastPathComponent)")
-                        logger.warning("   错误域: \(errorDomain), 错误码: \(errorCode)")
-                        logger.warning("   错误描述: \(errorDescription)")
-                        logger.warning("   文件路径: \(url.path)")
-                        
-                        // 如果是权限问题或文件被占用，记录更详细的信息
-                        if errorCode == 513 || errorCode == 516 { // 权限错误
-                            logger.warning("   可能原因: 文件权限不足或文件被系统锁定")
-                        } else if errorCode == 260 { // 文件不存在（虽然我们已经检查过，但可能在检查后被删除）
-                            logger.debug("   文件可能已被其他进程删除")
-                        } else {
-                            logger.warning("   可能原因: 文件正在被其他进程使用或系统限制")
-                        }
-                    }
-                }
-            }
-        } catch {
-            logger.warning("⚠️ 扫描目录失败: \(directory.path), 错误: \(error.localizedDescription)")
-        }
-        
-        return cleanedCount
     }
     
     // MARK: - 导出会话记录
@@ -911,16 +711,25 @@ class SessionRecordManager {
             var totalSize: Int64 = 0
             var exportedSessions: [ExportSessionInfo] = []
             
-            // 复制每个会话记录目录
+            // 确保 Sessions 导出目录存在
+            let sessionsExportDir = exportDir.appendingPathComponent("Sessions", isDirectory: true)
+            if !fileManager.fileExists(atPath: sessionsExportDir.path) {
+                try fileManager.createDirectory(at: sessionsExportDir, withIntermediateDirectories: true)
+            }
+            
+            // 复制每个会话记录目录（文件夹名使用经合法性校验的记录名称）
             for metadata in allMetadata {
                 let sourceSessionDir = sessionsDirectory.appendingPathComponent(metadata.id, isDirectory: true)
-                let targetSessionDir = exportDir.appendingPathComponent("Sessions", isDirectory: true)
-                    .appendingPathComponent(metadata.id, isDirectory: true)
                 
-                // 确保Sessions目录存在
-                if !fileManager.fileExists(atPath: targetSessionDir.deletingLastPathComponent().path) {
-                    try fileManager.createDirectory(at: targetSessionDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+                // 计算合法的文件夹名，处理名称冲突
+                let baseFolderName = sanitizeFolderName(metadata.name)
+                var folderName = baseFolderName
+                var collisionIndex = 1
+                while fileManager.fileExists(atPath: sessionsExportDir.appendingPathComponent(folderName).path) {
+                    folderName = "\(baseFolderName)_\(collisionIndex)"
+                    collisionIndex += 1
                 }
+                let targetSessionDir = sessionsExportDir.appendingPathComponent(folderName, isDirectory: true)
                 
                 // 复制整个会话目录
                 if fileManager.fileExists(atPath: sourceSessionDir.path) {
@@ -935,10 +744,11 @@ class SessionRecordManager {
                         id: metadata.id,
                         name: metadata.name,
                         createdAt: metadata.createdAt,
-                        size: sessionSize
+                        size: sessionSize,
+                        folderName: folderName
                     ))
                     
-                    logger.info("✅ 导出会话记录: \(metadata.name) (\(self.formatStorageSize(sessionSize)))")
+                    logger.info("✅ 导出会话记录: \(metadata.name), 文件夹: \(folderName) (\(self.formatStorageSize(sessionSize)))")
                 }
             }
             
@@ -1010,7 +820,7 @@ class SessionRecordManager {
     /// 根据所选目录自动识别并导入：若为导出包(含 export_manifest.json) 则全量导入，若为单个会话目录(含 record.json) 则仅导入该条
     /// - Parameter sourceURL: 用户选择的目录（导出包根目录 或 单个会话目录）
     /// - Returns: 导入结果
-    func importSessions(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importSessions(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
         let manifestURL = sourceURL.appendingPathComponent("export_manifest.json")
         let recordURL = sourceURL.appendingPathComponent("record.json")
         if fileManager.fileExists(atPath: manifestURL.path) {
@@ -1019,7 +829,7 @@ class SessionRecordManager {
         if fileManager.fileExists(atPath: recordURL.path) {
             return importOneSession(from: sourceURL)
         }
-        return (false, 0, 0, 0, "请选择导出包目录(含 export_manifest.json) 或单个会话目录(含 record.json)")
+        return (false, 0, 0, 0, 0, "请选择导出包目录(含 export_manifest.json) 或单个会话目录(含 record.json)")
     }
     
     /// 从导出包目录全量导入会话记录
@@ -1032,71 +842,59 @@ class SessionRecordManager {
     ///       - ...
     /// - Parameter sourceURL: 源目录URL（用户选择的导出目录）
     /// - Returns: 导入结果
-    func importAllSessions(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importAllSessions(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
         // 注意：调用此方法前，调用方应该已经获取了sourceURL的安全作用域资源访问权限
         do {
             // 检查是否存在export_manifest.json
             let manifestURL = sourceURL.appendingPathComponent("export_manifest.json")
             guard fileManager.fileExists(atPath: manifestURL.path) else {
-                return (false, 0, 0, 0, "未找到导出清单文件(export_manifest.json)，请确保选择了正确的导出目录")
+                return (false, 0, 0, 0, 0, "未找到导出清单文件(export_manifest.json)，请确保选择了正确的导出目录")
             }
             
             // 解析导出清单
             let manifestData = try Data(contentsOf: manifestURL)
             let manifest = try JSONDecoder().decode(ExportManifest.self, from: manifestData)
             
-            logger.info("📦 开始导入会话记录，导出时间: \(manifest.formattedExportDate)，会话数量: \(manifest.totalSessions)")
+            logger.info("开始导入会话记录，导出时间: \(manifest.formattedExportDate)，会话数量: \(manifest.totalSessions)")
             
             // 检查Sessions目录是否存在
             let sourceSessionsDir = sourceURL.appendingPathComponent("Sessions", isDirectory: true)
             guard fileManager.fileExists(atPath: sourceSessionsDir.path) else {
-                return (false, 0, 0, 0, "未找到Sessions目录，导出包可能已损坏")
+                return (false, 0, 0, 0, 0, "未找到Sessions目录，导出包可能已损坏")
             }
             
-            // 获取所有现有会话ID，用于检测冲突
+            // 获取所有现有会话ID，用于去重检测
             let existingMetadata = getAllSessionMetadata()
             let existingIDs = Set(existingMetadata.map { $0.id })
             
             var importedCount = 0
             var skippedCount = 0
+            var duplicateCount = 0
             var totalSize: Int64 = 0
             
-            // 导入每个会话记录
+            // 导入每个会话记录（folderName 为实际目录名；旧版包无此字段时回退为 id）
             for sessionInfo in manifest.sessions {
-                let sourceSessionDir = sourceSessionsDir.appendingPathComponent(sessionInfo.id, isDirectory: true)
+                let sourceSessionDir = sourceSessionsDir.appendingPathComponent(sessionInfo.folderName, isDirectory: true)
                 
                 // 检查源会话目录是否存在
                 guard fileManager.fileExists(atPath: sourceSessionDir.path) else {
-                    logger.warning("⚠️ 跳过会话记录（目录不存在）: \(sessionInfo.name) (ID: \(sessionInfo.id))")
+                    logger.warning("跳过会话记录（目录不存在）: \(sessionInfo.name) (ID: \(sessionInfo.id), 文件夹: \(sessionInfo.folderName))")
                     skippedCount += 1
                     continue
                 }
                 
-                // 检查ID是否已存在
-                var targetSessionID = sessionInfo.id
-                if existingIDs.contains(targetSessionID) {
-                    // ID冲突，生成新ID
-                    targetSessionID = UUID().uuidString
-                    logger.info("⚠️ 会话ID冲突，生成新ID: \(sessionInfo.name) (原ID: \(sessionInfo.id) -> 新ID: \(targetSessionID))")
-                }
-                
-                let targetSessionDir = sessionsDirectory.appendingPathComponent(targetSessionID, isDirectory: true)
-                
-                // 如果目标目录已存在，跳过
-                if fileManager.fileExists(atPath: targetSessionDir.path) {
-                    logger.warning("⚠️ 跳过会话记录（目标目录已存在）: \(sessionInfo.name) (ID: \(targetSessionID))")
-                    skippedCount += 1
+                // ID 重复则跳过，不导入
+                if existingIDs.contains(sessionInfo.id) {
+                    logger.info("跳过会话记录（ID重复）: \(sessionInfo.name) (ID: \(sessionInfo.id))")
+                    duplicateCount += 1
                     continue
                 }
+                
+                let targetSessionDir = sessionsDirectory.appendingPathComponent(sessionInfo.id, isDirectory: true)
                 
                 // 复制会话目录
                 do {
                     try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
-                    
-                    // 如果ID被修改，需要更新record.json和metadata.json中的ID
-                    if targetSessionID != sessionInfo.id {
-                        updateSessionID(in: targetSessionDir, newID: targetSessionID)
-                    }
                     
                     // 设置目录和文件权限
                     var mutableSessionDir = targetSessionDir
@@ -1107,47 +905,45 @@ class SessionRecordManager {
                     // 修复目录内所有文件和子目录的权限
                     fixSessionDirectoryPermissions(targetSessionDir)
                     
-                    // 计算导入的会话大小
+                    // 计算导入的会话大小，并更新文件内的 storageSize 元数据
                     let sessionSize = calculateDirectorySize(targetSessionDir)
+                    updateStorageSizeInFiles(sessionDir: targetSessionDir, size: sessionSize)
                     totalSize += sessionSize
                     importedCount += 1
                     
-                    logger.info("✅ 导入会话记录: \(sessionInfo.name) (\(self.formatStorageSize(sessionSize)))")
+                    logger.info("导入会话记录: \(sessionInfo.name) (\(self.formatStorageSize(sessionSize)))")
                     
                 } catch {
-                    logger.error("❌ 导入会话记录失败: \(sessionInfo.name), 错误: \(error.localizedDescription)")
+                    logger.error("导入会话记录失败: \(sessionInfo.name), 错误: \(error.localizedDescription)")
                     skippedCount += 1
                 }
             }
             
-            if importedCount > 0 {
-                logger.info("✅ 导入完成: 成功导入 \(importedCount) 个会话记录，跳过 \(skippedCount) 个，总大小: \(self.formatStorageSize(totalSize))")
-            } else {
-                logger.warning("⚠️ 导入完成: 没有成功导入任何会话记录，跳过 \(skippedCount) 个")
-            }
+            let totalCount = manifest.sessions.count
+            logger.info("导入完成: 共 \(totalCount) 个，导入 \(importedCount) 个，ID重复跳过 \(duplicateCount) 个，其他跳过 \(skippedCount) 个，总大小: \(self.formatStorageSize(totalSize))")
             
-            return (true, importedCount, skippedCount, totalSize, nil)
+            return (true, importedCount, skippedCount, duplicateCount, totalSize, nil)
             
         } catch let error as DecodingError {
             let errorMessage = "解析导出清单失败: \(error.localizedDescription)"
-            logger.error("❌ \(errorMessage)")
-            return (false, 0, 0, 0, errorMessage)
+            logger.error("导入失败，\(errorMessage)")
+            return (false, 0, 0, 0, 0, errorMessage)
         } catch {
-            logger.error("❌ 导入会话记录失败: \(error.localizedDescription)")
-            return (false, 0, 0, 0, error.localizedDescription)
+            logger.error("导入会话记录失败: \(error.localizedDescription)")
+            return (false, 0, 0, 0, 0, error.localizedDescription)
         }
     }
     
     /// 导入单个会话记录（用户选择的目录须直接包含 record.json）
     /// - Parameter sourceURL: 单个会话目录的 URL（其下含 record.json、可选 audio.*、images/）
     /// - Returns: 导入结果
-    func importOneSession(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importOneSession(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
         let recordURL = sourceURL.appendingPathComponent("record.json")
         guard fileManager.fileExists(atPath: recordURL.path) else {
-            return (false, 0, 0, 0, "该目录下未找到 record.json，请选择单个会话目录")
+            return (false, 0, 0, 0, 0, "该目录下未找到 record.json，请选择单个会话目录")
         }
         do {
-            // 读取 record.json 获取原 ID（用于冲突检测与日志）
+            // 读取 record.json 获取原 ID（用于去重检测与日志）
             let recordData = try Data(contentsOf: recordURL)
             let record = try JSONDecoder().decode(SessionRecord.self, from: recordData)
             let sourceID = record.id
@@ -1155,35 +951,70 @@ class SessionRecordManager {
             
             let existingMetadata = getAllSessionMetadata()
             let existingIDs = Set(existingMetadata.map { $0.id })
-            var targetSessionID = sourceID
+            
+            // ID 重复则跳过，不导入
             if existingIDs.contains(sourceID) {
-                targetSessionID = UUID().uuidString
-                logger.info("⚠️ 单条导入会话ID冲突，生成新ID: \(sessionName) (原ID: \(sourceID) -> 新ID: \(targetSessionID))")
+                logger.info("跳过单条会话记录（ID重复）: \(sessionName) (ID: \(sourceID))")
+                return (true, 0, 0, 1, 0, nil)
             }
             
-            let targetSessionDir = sessionsDirectory.appendingPathComponent(targetSessionID, isDirectory: true)
-            if fileManager.fileExists(atPath: targetSessionDir.path) {
-                return (true, 0, 1, 0, nil) // 目标已存在，视为跳过
-            }
-            
+            let targetSessionDir = sessionsDirectory.appendingPathComponent(sourceID, isDirectory: true)
             try fileManager.copyItem(at: sourceURL, to: targetSessionDir)
-            if targetSessionID != sourceID {
-                updateSessionID(in: targetSessionDir, newID: targetSessionID)
-            }
             var mutableSessionDir = targetSessionDir
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = false
             try? mutableSessionDir.setResourceValues(resourceValues)
             fixSessionDirectoryPermissions(targetSessionDir)
+            // 计算导入的会话大小，并更新文件内的 storageSize 元数据
             let sessionSize = calculateDirectorySize(targetSessionDir)
-            logger.info("✅ 导入单条会话记录: \(sessionName) (\(self.formatStorageSize(sessionSize)))")
-            return (true, 1, 0, sessionSize, nil)
+            updateStorageSizeInFiles(sessionDir: targetSessionDir, size: sessionSize)
+            logger.info("导入单条会话记录: \(sessionName) (\(self.formatStorageSize(sessionSize)))")
+            return (true, 1, 0, 0, sessionSize, nil)
         } catch {
-            logger.error("❌ 导入单条会话记录失败: \(error.localizedDescription)")
-            return (false, 0, 0, 0, error.localizedDescription)
+            logger.error("导入单条会话记录失败: \(error.localizedDescription)")
+            return (false, 0, 0, 0, 0, error.localizedDescription)
         }
     }
     
+    /// 将记录名称转换为合法的文件系统文件夹名
+    /// 替换 /\:*?"<>| 及控制字符，截断超长名称，空串回退为 "session"
+    private func sanitizeFolderName(_ name: String) -> String {
+        let invalidChars = CharacterSet(charactersIn: "/\\:*?\"<>|").union(.controlCharacters)
+        var sanitized = name
+            .unicodeScalars
+            .map { invalidChars.contains($0) ? "_" : Character($0) }
+            .map { String($0) }
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if sanitized.isEmpty { sanitized = "session" }
+        // iOS/macOS 文件名最大 255 字节，预留 "_999" 后缀空间
+        while sanitized.utf8.count > 240 {
+            sanitized = String(sanitized.dropLast())
+        }
+        return sanitized
+    }
+
+    /// 更新导入后会话目录中 metadata.json 和 record.json 里的 storageSize 字段
+    /// - Parameters:
+    ///   - sessionDir: 目标会话目录
+    ///   - size: 导入后计算的实际磁盘占用（字节）
+    private func updateStorageSizeInFiles(sessionDir: URL, size: Int64) {
+        let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+
+        if let data = try? Data(contentsOf: metadataURL),
+           let metadata = try? JSONDecoder().decode(SessionRecordMetadata.self, from: data),
+           let updatedData = try? JSONEncoder().encode(metadata.withStorageSize(size)) {
+            try? updatedData.write(to: metadataURL)
+        }
+
+        if let data = try? Data(contentsOf: recordURL),
+           let record = try? JSONDecoder().decode(SessionRecord.self, from: data),
+           let updatedData = try? JSONEncoder().encode(record.withStorageSize(size)) {
+            try? updatedData.write(to: recordURL)
+        }
+    }
+
     /// 更新会话记录目录中的ID（当导入时ID冲突需要生成新ID时使用）
     /// - Parameters:
     ///   - sessionDir: 会话记录目录
@@ -1259,5 +1090,29 @@ struct ExportSessionInfo: Codable {
     let createdAt: Date
     /// 存储大小（字节）
     let size: Int64
+    /// 导出时实际使用的文件夹名（经合法性校验，可能与 name 不同）；旧版包不含此字段时回退为 id
+    let folderName: String
+
+    init(id: String, name: String, createdAt: Date, size: Int64, folderName: String) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.size = size
+        self.folderName = folderName
+    }
+
+    // 兼容不含 folderName 的旧版导出包
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        size = try c.decode(Int64.self, forKey: .size)
+        folderName = try c.decodeIfPresent(String.self, forKey: .folderName) ?? id
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, createdAt, size, folderName
+    }
 }
 

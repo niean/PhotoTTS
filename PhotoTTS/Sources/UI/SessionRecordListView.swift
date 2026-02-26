@@ -22,13 +22,13 @@ struct SessionRecordListView: View {
     @State private var showSessionDetail = false  // 显示会话详情
     @State private var sessionToView: SessionRecord?  // 要查看的会话记录
     @State private var isExporting = false  // 导出状态
-    @State private var showExportSuccess = false  // 显示导出成功提示
-    @State private var exportMessage = ""  // 导出消息
     @State private var showDocumentPicker = false  // 显示文档选择器
     @State private var documentPickerMode: DocumentPicker.Mode = .export  // 文档选择器模式
     @State private var isImporting = false  // 导入状态
-    @State private var showImportSuccess = false  // 显示导入成功提示
-    @State private var importMessage = ""  // 导入消息
+    @State private var showMessage = false  // 显示操作结果提示
+    @State private var message = ""  // 操作结果消息
+    @State private var needReloadAfterMessage = false  // 提示关闭后是否需要刷新列表
+    @State private var showClearConfirmation = false  // 显示清空确认弹窗
     
     let onLoadSession: (SessionRecord) -> Void
     var onLoadToMake: ((String) -> Void)? = nil
@@ -113,25 +113,30 @@ struct SessionRecordListView: View {
                             .foregroundStyle(.primary)
                     }
                 }, trailing: {
-                    HStack(spacing: isPad ? 20 : 16) {
+                    Menu {
                         Button(action: {
                             documentPickerMode = .`import`
                             showDocumentPicker = true
                         }) {
-                            Text("导入")
-                                .font(.system(size: isPad ? 17 : 16, weight: .medium))
-                                .foregroundStyle(.primary)
+                            Label("导入", systemImage: "square.and.arrow.down")
                         }
                         if !sessionMetadataList.isEmpty {
                             Button(action: {
                                 documentPickerMode = .export
                                 showDocumentPicker = true
                             }) {
-                                Text("导出")
-                                    .font(.system(size: isPad ? 17 : 16, weight: .medium))
-                                    .foregroundStyle(.primary)
+                                Label("导出", systemImage: "square.and.arrow.up")
+                            }
+                            Button(role: .destructive, action: {
+                                showClearConfirmation = true
+                            }) {
+                                Label("清空", systemImage: "trash")
                             }
                         }
+                    } label: {
+                        Text("更多")
+                            .font(.system(size: isPad ? 17 : 16, weight: .medium))
+                            .foregroundStyle(.primary)
                     }
                 })
             }
@@ -193,41 +198,33 @@ struct SessionRecordListView: View {
             )
         }
         .overlay {
-            // 导出/导入加载提示
             if isExporting || isImporting {
                 CustomZStack {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                    
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .tint(.white)
-                        
-                        Text(isExporting ? "正在导出会话记录..." : "正在导入会话记录...")
-                            .font(.headline)
-                            .foregroundColor(.white)
+                    Color.black.opacity(0.3).ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView().tint(.white)
+                        Text(isExporting ? "正在导出..." : "正在导入...").font(.headline).foregroundColor(.white)
                     }
-                    .padding(24)
-                    .background(Color.black.opacity(0.7))
-                    .cornerRadius(12)
                 }
             }
         }
-        .alert("导出结果", isPresented: $showExportSuccess) {
-            Button("确定", role: .cancel) {}
-        } message: {
-            Text(exportMessage)
-        }
-        .alert("导入结果", isPresented: $showImportSuccess) {
+        .alert("提示", isPresented: $showMessage) {
             Button("确定", role: .cancel) {
-                // 导入成功后刷新列表
-                if importMessage.contains("成功") {
+                if needReloadAfterMessage {
+                    needReloadAfterMessage = false
                     loadSessionList()
                 }
             }
         } message: {
-            Text(importMessage)
+            Text(message)
+        }
+        .alert("清空所有记录", isPresented: $showClearConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("清空", role: .destructive) {
+                clearAllSessions()
+            }
+        } message: {
+            Text("确定要清空所有会话记录吗？")
         }
     }
     
@@ -325,21 +322,28 @@ struct SessionRecordListView: View {
                 
                 if result.success {
                     let imported = result.importedCount
+                    let duplicate = result.duplicateCount
                     let skipped = result.skippedCount
-                    let size = result.totalSize
-                    let formattedSize = self.formatStorageSize(size)
+                    let total = imported + duplicate + skipped
+                    let formattedSize = self.formatStorageSize(result.totalSize)
                     
-                    var message = "成功导入 \(imported) 个会话记录"
-                    if skipped > 0 {
-                        message += "\n跳过 \(skipped) 个会话记录（可能已存在）"
+                    var msg = "共 \(total) 个，导入 \(imported) 个"
+                    if duplicate > 0 {
+                        msg += "\nID重复跳过 \(duplicate) 个"
                     }
-                    message += "\n总大小: \(formattedSize)"
+                    if skipped > 0 {
+                        msg += "\n其他原因跳过 \(skipped) 个"
+                    }
+                    if imported > 0 {
+                        msg += "\n总大小: \(formattedSize)"
+                    }
                     
-                    self.importMessage = message
-                    self.showImportSuccess = true
+                    self.message = msg
+                    self.needReloadAfterMessage = imported > 0
+                    self.showMessage = true
                 } else {
-                    self.importMessage = "导入失败: \(result.errorMessage ?? "未知错误")"
-                    self.showImportSuccess = true
+                    self.message = "导入失败: \(result.errorMessage ?? "未知错误")"
+                    self.showMessage = true
                 }
             }
         }
@@ -348,8 +352,8 @@ struct SessionRecordListView: View {
     // 导出所有会话记录
     private func exportAllSessions(to destinationURL: URL) {
         guard !sessionMetadataList.isEmpty else {
-            exportMessage = "没有可导出的会话记录"
-            showExportSuccess = true
+            message = "没有可导出的会话记录"
+            showMessage = true
             return
         }
         
@@ -374,13 +378,12 @@ struct SessionRecordListView: View {
                     let count = result.sessionCount
                     let size = result.totalSize
                     let formattedSize = self.formatStorageSize(size)
-                    // 获取导出目录名称（从完整路径中提取）
                     let exportDirName = destinationURL.lastPathComponent
-                    self.exportMessage = "成功导出 \(count) 个会话记录\n总大小: \(formattedSize)\n导出位置: \(exportDirName)"
-                    self.showExportSuccess = true
+                    self.message = "成功导出 \(count) 个会话记录\n总大小: \(formattedSize)\n导出位置: \(exportDirName)"
+                    self.showMessage = true
                 } else {
-                    self.exportMessage = "导出失败: \(result.errorMessage ?? "未知错误")"
-                    self.showExportSuccess = true
+                    self.message = "导出失败: \(result.errorMessage ?? "未知错误")"
+                    self.showMessage = true
                 }
             }
         }
@@ -403,6 +406,22 @@ struct SessionRecordListView: View {
                     loadSessionList()
                 }
                 completion()
+            }
+        }
+    }
+
+    // 清空所有会话记录
+    private func clearAllSessions() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = SessionRecordManager.shared.clearAllSessions()
+            DispatchQueue.main.async {
+                if result.success {
+                    self.message = "已清空 \(result.count) 个会话记录"
+                } else {
+                    self.message = result.errorMessage ?? "清空失败"
+                }
+                self.needReloadAfterMessage = true
+                self.showMessage = true
             }
         }
     }
