@@ -1,0 +1,23 @@
+# 术语表
+
+- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏图列表、相机图片列表、tab0/2/3ResetId、openCameraOnNextRecordAppear、openPhotoPickerOnNextRecordAppear、sessionIdToLoadIntoMake 等。
+- fullScreenKind：当前全屏类型，nil 表示主界面；.loading 启动页；.imageViewer 全屏大图；.camera 全屏相机。
+- 底导：底部 Tab 栏，四个 Tab（首页、制作、消息、我的）。
+- 顶导：各 Tab 内顶部导航栏，含标题与返回等按钮。
+- 手势识别：左边缘滑动返回，注释为 // 手势识别，参数见 Constants.Gesture。
+- SessionRecord：单条会话记录，含 id、name、图片列表（Base64）、OCR 文本与分段、音频 Base64、时长、语音设置、头像索引等；record.json 不存音频数据。
+- SessionRecordManager：会话记录的本地读写与列表管理。
+- ImageToSpeechCoordinator：协调批量图片的 OCR 与 TTS，输出进度与最终 AudioResponse 或错误。
+- ProcessingProgress / ProcessingStage：OCR、TTS 各阶段的进度与消息；stage 枚举值：ocr、tts、completed、failed；percentage 由 currentStep/totalSteps 计算，范围 0～100。
+- PlayView：全屏播放页，统一用于首页点击记录播放与制作页播放。接受两种入参：recordId（已保存记录，按需加载图片）或 preloadedRecord（未保存的制作中记录，一次性在内存，调用 getImages()）。播放结束后自动调用 onDismiss 并向 PlayHistoryManager 记录。
+- CustomZStack：主界面画布，承载底导与全屏容器的层级。
+- config_local.json：本地 API 配置（豆包 OCR、火山引擎 TTS），由 SettingsManager 读取，设置页可编辑。
+- SessionRecordMetadata：SessionRecord 的轻量摘要，用于列表展示（不含 imageDataList 和 audioDataBase64），字段：id、name、createdAt、updatedAt、totalImageCount、validImageCount、textLength、audioDuration、avatarImageIndex、storageSize。与 SessionRecord 同步写入 metadata.json，列表读取时只解析 metadata.json 以避免加载全量数据。
+- FullScreenImageContent：全屏大图通用组件，支持两种模式：按需加载（传入 sessionId + totalImageCount，逐帧从 SessionRecordManager 加载）和预加载（传入 preloadedImages 数组）；封装手势切图与 overlay 插槽。
+- OnDemandImagePage：FullScreenImageContent 内部子组件，单帧按需加载图片，onAppear 时先查内存缓存再后台加载，切页时平滑动画显示。
+- PhotoProcessingView：MakeView 的主内容视图，负责图片预览（大图 + 缩略图条）、处理状态叠层（进度/结果/错误）、操作按钮（识别、播放）；通过回调与 MakeView 通信，无独立状态。
+- SessionRecordUnifiedView：会话记录保存/编辑统一视图（位于 SessionRecordDetailView.swift），通过 mode 枚举区分 save（新建保存）与 edit（编辑已有）两种场景。
+- MultiImagePicker：多选图组件，以 fullScreenCover 方式弹出，选完后回调 images 数组；取消时回调 onCancel。使用 PhotosUI.PHPickerViewController 实现。
+- AppLoadingView / AppIntroView：均位于 AppPagesView.swift，共用 AppPageView（.loading / .intro）；AppLoadingView 模拟约 1.5s 的加载进度后将 fullScreenKind 置 nil；AppIntroView 用于"关于"页面中展示介绍信息，支持更换背景图。
+- AudioPlayerDelegate：AVAudioPlayerDelegate 的封装类，持有播放结束回调闭包，供 PlayView 与 MakeView 在播放器代理回调中回到主线程更新状态，避免在 View 结构体上直接实现 NSObject 协议。
+- ExportManifest / ExportSessionInfo：导出包的清单数据模型，含 version、exportDate、appName、totalSessions、totalSize、sessions；ExportSessionInfo 含 id、name、createdAt、size。导入时解析 export_manifest.json 以还原会话列表。

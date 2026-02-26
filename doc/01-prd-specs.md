@@ -1,24 +1,9 @@
-# 产品需求
+# 产品需求 - 迭代演进
 
-## 页面结构
-- 全屏容器
-    - 启动页
-    - 播放(大图)
-    - 相机
-- 顶状态栏
-- 底导Tab
-    - 记录(首页)
-    - 制作
-    - 消息
-    - 我的
-        - ${常规页面}/画布(CustomZStack)
-            - ${内容}
-            - 顶导
-            - 左导(手势识别)
+## 约束
+本文是人工定义原始的产品需求，不是AI开发完成后的记录。
 
-
-## 迭代记录
-
+## 需求列表
 [260207]
 - 新增
     - 音频：播放音频时，对应的图片自动全屏。具体的，
@@ -165,7 +150,6 @@
 - 优化
     - 记录：加载时，提示Loading、而不是无响应（内存优化后有极大缓解，放弃需求）
 
-
 [260218]
 - 优化
     - 制作：记录管理，新增操作按钮、允许加载记录到制作，以便重新进行OCR+TTS、进而制作
@@ -177,6 +161,18 @@
             - 被缩小图片的记录，重新计算记录存储空间大小等元数据，并更新到元数据中
             - 重新计算、更新元数据，包括metadata.json、record.json
         - 所有加载到APP中的图片，都应满足图片大小限制(saveImageMaxPixel)，包括选图、拍照等，不满足时则缩小图片
+
+[260226]
+- 优化
+    - 治理：抽象 项目通用的Harness Engineering风格AI知识库
+        - 按照Harness Engineering风格，帮我完善文档库 context/
+        - 按照Harness Engineering风格，日常的小产品功能迭代、应该放在哪个文档来描述？
+        - 按照Harness Engineering风格，设置AGENT.md为AI入口
+        - 按照Harness Engineering风格，应该有PRODUCT_SENSE.md文件、定义产品设计的核心理念与判断准则
+        - 按照Harness Engineering风格，合理拆分、合并doc/01-prd-summary.md 和 PRODUCT_SENSE.md两份文档的内容，避免重复
+        - 参考OpenAI提出的Harness Engineering风格，结合文档库现状，帮我抽象一份AI上下文知识库 的管理规范、放到AGENT.md文档中
+        - 最后检查：本项目抽象了 通用的Harness Engineering风格AI知识库，请帮我检查下文档库、还有哪些严重问题
+
 
 
 [X]

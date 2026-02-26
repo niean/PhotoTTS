@@ -71,8 +71,6 @@ PhotoTTS 是一款智能拍照文字转语音iOS应用。通过拍照或选择�
 
 2. 编辑 `config_local.json`，填入您的 API 密钥
 
-3. 详细配置说明请参考：[配置文件说明文档](PhotoTTS/Resources/CONFIG_README.md)
-
 
 ## 项目结构
 
