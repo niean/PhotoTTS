@@ -24,6 +24,11 @@
 - 离开首页（tab0）、消息（tab2）、我的（tab3）时，`MainTabView` 对应 `tabXResetId` 自增；TabView 内视图通过 `.id(tabXResetId)` 感知变化而销毁重建，清空内部 NavigationStack。
 - 制作页（tab1）不参与此重置，因为制作流程有持续状态，不应因 Tab 切换而清空。
 
+## 项目本地化配置
+
+- 项目 developmentRegion 设为 `zh-Hans`，knownRegions 包含 `en`、`zh-Hans`、`Base`。
+- App Intents 的 SSU（Siri Speech Understanding）训练按 developmentRegion 生成语言模型；中文短语必须配合 `zh-Hans` 作为 developmentRegion，否则 Siri 无法识别中文指令。
+
 ## 配置与常量
 
 - 应用级常量与布局、手势、Keychain/UserDefaults 键名集中在 Sources/Constants.swift，新增配置优先在此扩展或使用 config_local.json，避免魔法数字与分散键名。

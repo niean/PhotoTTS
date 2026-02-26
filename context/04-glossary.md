@@ -1,6 +1,6 @@
 # 术语表
 
-- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏图列表、相机图片列表、tab0/2/3ResetId、openCameraOnNextRecordAppear、openPhotoPickerOnNextRecordAppear、sessionIdToLoadIntoMake 等。
+- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏图列表、相机图片列表、tab0/2/3ResetId、openCameraOnNextRecordAppear、openPhotoPickerOnNextRecordAppear、sessionIdToLoadIntoMake、sessionRecordToPlay（Siri 触发播放的待播记录）等。
 - fullScreenKind：当前全屏类型，nil 表示主界面；.loading 启动页；.imageViewer 全屏大图；.camera 全屏相机。
 - 底导：底部 Tab 栏，四个 Tab（首页、制作、消息、我的）。
 - 顶导：各 Tab 内顶部导航栏，含标题与返回等按钮。

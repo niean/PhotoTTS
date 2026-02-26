@@ -31,6 +31,14 @@ struct SessionRecordUnifiedView: View {
         case .view: return false
         }
     }
+
+    // edit / view 模式下有真实 record，返回其 id；save 模式下无 record，返回 nil
+    private var recordId: String? {
+        switch mode {
+        case .edit(let record, _, _), .view(let record, _): return record.id
+        case .save: return nil
+        }
+    }
     
     private var navigationTitle: String {
         switch mode {
@@ -109,6 +117,11 @@ struct SessionRecordUnifiedView: View {
                 Text(sessionName.isEmpty ? "—" : sessionName)
                     .font(.body)
                     .foregroundColor(.primary)
+            }
+            if let id = recordId {
+                Text("UID: \(id)")
+                    .font(.caption.monospaced())
+                    .foregroundColor(.secondary)
             }
         }
         .padding()

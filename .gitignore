@@ -91,4 +91,5 @@ Thumbs.db
 
 # PhotoTTS
 PhotoTTS/Resources/config_local.json
-context/feat-*.md
+context/tmp-spec-*.md
+

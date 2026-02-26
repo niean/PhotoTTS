@@ -31,6 +31,11 @@
 - TTS：TTSService（Sources/Core/Handlers/Audio/TTSService.swift）
 - 网络：NetworkService（Sources/Core/Managers/Network/NetworkService.swift）
 
+## Siri 语音控制
+
+- 绘本实体与查询（SessionRecordEntity、SessionRecordEntityQuery）：Sources/Core/Intents/SessionRecordEntity.swift
+- 播放意图与 Siri 短语注册（PlaySessionIntent、PhotoTTSShortcuts）：Sources/Core/Intents/PlaySessionIntent.swift
+
 ## 选图
 
 - 多选图组件（MultiImagePicker）：目前内联于 MakeView.swift，以 fullScreenCover 方式弹出

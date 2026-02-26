@@ -681,7 +681,44 @@ class SessionRecordManager {
     }
     
     // MARK: - 导出会话记录
-    
+
+    /// 导出单条会话记录到指定目录
+    /// 导出结构：destinationURL/<记录名称>/（目录名与全量导出时单条记录目录命名习惯一致）
+    /// - Parameters:
+    ///   - id: 会话记录ID
+    ///   - destinationURL: 目标父目录URL（方法会在其中创建以记录名称命名的子目录）
+    /// - Returns: 导出结果
+    func exportSession(id: String, to destinationURL: URL) -> (success: Bool, size: Int64?, errorMessage: String?) {
+        let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+        guard fileManager.fileExists(atPath: sessionDir.path) else {
+            return (false, nil, "会话目录不存在: \(id)")
+        }
+        do {
+            try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+            // 读取记录名称，用 sanitizeFolderName 处理后作为目录名，与全量导出命名习惯一致
+            let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+            let sessionName: String
+            if let metadataData = try? Data(contentsOf: metadataURL),
+               let metadata = try? JSONDecoder().decode(SessionRecordMetadata.self, from: metadataData) {
+                sessionName = metadata.name
+            } else {
+                sessionName = id
+            }
+            let folderName = sanitizeFolderName(sessionName)
+            let targetDir = destinationURL.appendingPathComponent(folderName, isDirectory: true)
+            if fileManager.fileExists(atPath: targetDir.path) {
+                try fileManager.removeItem(at: targetDir)
+            }
+            try fileManager.copyItem(at: sessionDir, to: targetDir)
+            let size = calculateDirectorySize(targetDir)
+            logger.info("单条会话记录导出成功: \(id), 文件夹: \(folderName), 大小: \(self.formatStorageSize(size))")
+            return (true, size, nil)
+        } catch {
+            logger.error("单条会话记录导出失败: \(id), 错误: \(error.localizedDescription)")
+            return (false, nil, error.localizedDescription)
+        }
+    }
+
     /// 导出所有会话记录到指定目录
     /// 导出结构：
     ///   PhotoTTS_YYYYMMDD/

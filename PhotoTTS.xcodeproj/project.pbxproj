@@ -187,10 +187,11 @@
 				};
 			};
 			buildConfigurationList = CC3330622E781179005BD37F /* Build configuration list for PBXProject "PhotoTTS" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = CC33305E2E781179005BD37F;
@@ -395,17 +396,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PhotoTTS/PhotoTTS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = M2C6N69KN2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Photo TTS需要访问相机来拍摄照片进行文字识别";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Photo TTS需要访问文件存储来保存和加载会话记录";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Photo TTS需要访问麦克风来录制音频";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Photo TTS需要访问相册来选择照片进行文字识别";
+				INFOPLIST_KEY_NSSiriUsageDescription = "用于语音控制播放绘本内容";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
@@ -432,17 +436,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PhotoTTS/PhotoTTS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = M2C6N69KN2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Photo TTS需要访问相机来拍摄照片进行文字识别";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Photo TTS需要访问文件存储来保存和加载会话记录";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Photo TTS需要访问麦克风来录制音频";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Photo TTS需要访问相册来选择照片进行文字识别";
+				INFOPLIST_KEY_NSSiriUsageDescription = "用于语音控制播放绘本内容";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;

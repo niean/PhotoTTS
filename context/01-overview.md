@@ -18,7 +18,7 @@ PhotoTTS（拍照阅读）：iOS 应用，拍照或选图后经 OCR（豆包）�
 - 入口：PhotoTTS/Sources/UI/PhotoTTSApp.swift，@main 为 PhotoTTSApp。
 - 初始化：PhotoTTSApp.init() 在主线程同步配置音频会话（AVAudioSession .playback）、初始化 SessionRecordManager 与 DebugLogManager、防息屏（isIdleTimerDisabled = true）。
 - 启动页：fullScreenKind 初始值为 .loading，AppLoadingView（Sources/UI/AppPagesView.swift）负责模拟加载进度，约 1.5s 后将 fullScreenKind 置 nil，主界面显现。
-- 根状态：AppState（ObservableObject），管理 fullScreenKind（启动页/大图/相机）、selectedTab（底导）、fullScreenCoverImages/Index（全屏大图）、cameraOverlayImages（相机预选）、tab0/2/3ResetId（Tab 刷新触发器）、openCameraOnNextRecordAppear、openPhotoPickerOnNextRecordAppear（首页→制作跨 Tab 标志）、sessionIdToLoadIntoMake（加载已有记录到制作页）；竖屏由 AppDelegate 锁定。
+- 根状态：AppState（ObservableObject），管理 fullScreenKind（启动页/大图/相机）、selectedTab（底导）、fullScreenCoverImages/Index（全屏大图）、cameraOverlayImages（相机预选）、tab0/2/3ResetId（Tab 刷新触发器）、openCameraOnNextRecordAppear、openPhotoPickerOnNextRecordAppear（首页→制作跨 Tab 标志）、sessionIdToLoadIntoMake（加载已有记录到制作页）、sessionRecordToPlay（Siri 触发播放的待播记录）；竖屏由 AppDelegate 锁定。
 
 ## 核心流程
 

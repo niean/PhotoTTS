@@ -41,6 +41,8 @@ class AppState: ObservableObject {
     @Published var openPhotoPickerOnNextRecordAppear: Bool = false
     /// 记录管理里「加载到制作」时写入，制作页 onAppear 消费后置 nil
     @Published var sessionIdToLoadIntoMake: String? = nil
+    /// Siri 触发播放的会话记录，PlayView 消费后置 nil
+    @Published var sessionRecordToPlay: SessionRecord? = nil
 
     init() {}
 }
@@ -50,6 +52,7 @@ class AppState: ObservableObject {
 struct PhotoTTSApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
+    @Environment(\.scenePhase) private var scenePhase
     
     init() {
         // 在应用启动时直接配置音频会话
@@ -66,6 +69,9 @@ struct PhotoTTSApp: App {
         
         // 初始化调试日志管理器，开始捕获日志
         _ = DebugLogManager.shared
+        
+        // 向系统注册 Siri App Shortcuts，确保 Siri 能识别语音指令
+        PhotoTTSShortcuts.updateAppShortcutParameters()
     }
     
     var body: some Scene {
@@ -81,6 +87,44 @@ struct PhotoTTSApp: App {
                 }
             }
             .statusBarHidden(appState.fullScreenKind != nil)
+            // Siri 触发播放：根级 PlayView（PlayView 例外，允许 fullScreenCover）
+            .fullScreenCover(item: $appState.sessionRecordToPlay) { record in
+                PlayView(recordId: record.id, onDismiss: {
+                    appState.sessionRecordToPlay = nil
+                })
+            }
+            // 监听 App 进入前台（包含 Siri 拉起场景）
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    loadPendingSiriSession()
+                }
+            }
+        }
+    }
+
+    // Siri 待播放：App 激活时检查 UserDefaults，有则加载并触发 PlayView
+    private func loadPendingSiriSession() {
+        guard let sessionId = UserDefaults.standard.string(forKey: kSiriPendingSessionId) else { return }
+        // 立即清除，防止重复触发
+        UserDefaults.standard.removeObject(forKey: kSiriPendingSessionId)
+
+        let tryLoad = {
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else {
+                    print("Siri 播放：未找到会话 \(sessionId)")
+                    return
+                }
+                DispatchQueue.main.async {
+                    appState.sessionRecordToPlay = record
+                }
+            }
+        }
+
+        if appState.fullScreenKind == .loading {
+            // 启动页还未结束，延迟等待
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { tryLoad() }
+        } else {
+            tryLoad()
         }
     }
     

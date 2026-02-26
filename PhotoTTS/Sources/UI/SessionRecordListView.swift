@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 // MARK: - 会话记录列表展示模式
@@ -22,8 +23,8 @@ struct SessionRecordListView: View {
     @State private var showSessionDetail = false  // 显示会话详情
     @State private var sessionToView: SessionRecord?  // 要查看的会话记录
     @State private var isExporting = false  // 导出状态
-    @State private var showDocumentPicker = false  // 显示文档选择器
-    @State private var documentPickerMode: DocumentPicker.Mode = .export  // 文档选择器模式
+    @State private var showImportPicker = false  // 显示导入文件夹选择器
+    @State private var exportItem: SessionExportableURL?  // 导出分享项
     @State private var isImporting = false  // 导入状态
     @State private var showMessage = false  // 显示操作结果提示
     @State private var message = ""  // 操作结果消息
@@ -88,6 +89,7 @@ struct SessionRecordListView: View {
                                         viewSessionDetail(metadata.id)
                                     },
                                     onEdit: allowEditDelete ? { editSessionDetail(metadata.id) } : nil,
+                                    onExport: allowEditDelete ? { exportOneSession(id: metadata.id) } : nil,
                                     onDelete: allowEditDelete ? {
                                         sessionToDelete = metadata
                                         showDeleteConfirmation = true
@@ -104,42 +106,37 @@ struct SessionRecordListView: View {
                 .padding(.top, showTopNav ? (isPad ? 50 : 45) : 8)
             }
             
-            if showTopNav {
-                TopAndLeftSideNavigationBar(title: "会话记录", onSwipeBack: { dismiss() }, leading: {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: isPad ? 18 : 16, weight: .medium))
-                            .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
-                            .foregroundStyle(.primary)
-                    }
-                }, trailing: {
-                    Menu {
-                        Button(action: {
-                            documentPickerMode = .`import`
-                            showDocumentPicker = true
-                        }) {
-                            Label("导入", systemImage: "square.and.arrow.down")
+                if showTopNav {
+                    TopAndLeftSideNavigationBar(title: "会话记录", onSwipeBack: { dismiss() }, leading: {
+                        Button(action: { dismiss() }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: isPad ? 18 : 16, weight: .medium))
+                                .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
+                                .foregroundStyle(.primary)
                         }
-                        if !sessionMetadataList.isEmpty {
-                            Button(action: {
-                                documentPickerMode = .export
-                                showDocumentPicker = true
-                            }) {
+                    }, trailing: {
+                        Menu {
+                            Button(action: { showImportPicker = true }) {
+                                Label("导入", systemImage: "square.and.arrow.down")
+                            }
+                            Divider()
+                            Button(action: { exportToShareSheet() }) {
                                 Label("导出", systemImage: "square.and.arrow.up")
                             }
-                            Button(role: .destructive, action: {
-                                showClearConfirmation = true
-                            }) {
+                            .disabled(sessionMetadataList.isEmpty)
+                            Divider()
+                            Button(role: .destructive, action: { showClearConfirmation = true }) {
                                 Label("清空", systemImage: "trash")
                             }
+                            .disabled(sessionMetadataList.isEmpty)
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: isPad ? 24 : 22))
+                                .foregroundColor(.blue)
+                                .background(Color.clear)
                         }
-                    } label: {
-                        Text("更多")
-                            .font(.system(size: isPad ? 17 : 16, weight: .medium))
-                            .foregroundStyle(.primary)
-                    }
-                })
-            }
+                    })
+                }
         }
         .navigationBarHidden(true) // 隐藏系统导航栏
         .onAppear {
@@ -184,26 +181,30 @@ struct SessionRecordListView: View {
                 )
             }
         }
-        // 使用 fullScreenCover 避免 UIDocumentPickerViewController 在 sheet 中触发的 _UIReparentingView 层级警告
-        .fullScreenCover(isPresented: $showDocumentPicker) {
-            DocumentPicker(
-                mode: documentPickerMode,
-                onPickDirectory: { url in
-                    if case .export = documentPickerMode {
-                        exportAllSessions(to: url)
-                    } else {
-                        importSessions(from: url)
-                    }
+        .fileImporter(isPresented: $showImportPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                importSessions(from: url)
+            case .failure:
+                message = "选择文件夹失败"
+                showMessage = true
+            }
+        }
+        .sheet(item: $exportItem) { item in
+            ShareSheetView(activityItems: [item.url])
+                .onDisappear {
+                    // 清理临时导出目录
+                    try? FileManager.default.removeItem(at: item.url)
                 }
-            )
         }
         .overlay {
-            if isExporting || isImporting {
+            if isImporting {
                 CustomZStack {
                     Color.black.opacity(0.3).ignoresSafeArea()
                     VStack(spacing: 12) {
                         ProgressView().tint(.white)
-                        Text(isExporting ? "正在导出..." : "正在导入...").font(.headline).foregroundColor(.white)
+                        Text("正在导入...").font(.headline).foregroundColor(.white)
                     }
                 }
             }
@@ -349,8 +350,8 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 导出所有会话记录
-    private func exportAllSessions(to destinationURL: URL) {
+    // 导出所有会话记录到临时目录，然后通过分享面板分享
+    private func exportToShareSheet() {
         guard !sessionMetadataList.isEmpty else {
             message = "没有可导出的会话记录"
             showMessage = true
@@ -360,30 +361,29 @@ struct SessionRecordListView: View {
         isExporting = true
         
         DispatchQueue.global(qos: .userInitiated).async {
-            // 在异步线程中获取访问权限
-            let hasAccess = destinationURL.startAccessingSecurityScopedResource()
-            defer {
-                if hasAccess {
-                    destinationURL.stopAccessingSecurityScopedResource()
-                }
-            }
+            // 创建临时目录作为导出目标
+            let tempBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent("PhotoTTS_SessionExport_\(UUID().uuidString.prefix(8))", isDirectory: true)
             
             // 执行导出操作
-            let result = SessionRecordManager.shared.exportAllSessions(to: destinationURL)
+            let result = SessionRecordManager.shared.exportAllSessions(to: tempBase)
             
             DispatchQueue.main.async {
                 self.isExporting = false
                 
                 if result.success {
-                    let count = result.sessionCount
-                    let size = result.totalSize
-                    let formattedSize = self.formatStorageSize(size)
-                    let exportDirName = destinationURL.lastPathComponent
-                    self.message = "成功导出 \(count) 个会话记录\n总大小: \(formattedSize)\n导出位置: \(exportDirName)"
-                    self.showMessage = true
+                    // 查找导出目录（exportAllSessions 会在 tempBase 下创建 PhotoTTS_yyyyMMdd 子目录）
+                    if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
+                       let exportDir = contents.first {
+                        self.exportItem = SessionExportableURL(url: exportDir)
+                    } else {
+                        self.exportItem = SessionExportableURL(url: tempBase)
+                    }
                 } else {
                     self.message = "导出失败: \(result.errorMessage ?? "未知错误")"
                     self.showMessage = true
+                    // 清理临时目录
+                    try? FileManager.default.removeItem(at: tempBase)
                 }
             }
         }
@@ -406,6 +406,30 @@ struct SessionRecordListView: View {
                     loadSessionList()
                 }
                 completion()
+            }
+        }
+    }
+
+    // 导出单条会话记录到临时目录，然后通过分享面板分享
+    private func exportOneSession(id: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let tempBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent("PhotoTTS_OneExport_\(UUID().uuidString.prefix(8))", isDirectory: true)
+            let result = SessionRecordManager.shared.exportSession(id: id, to: tempBase)
+            DispatchQueue.main.async {
+                if result.success {
+                    // exportSession 在 tempBase 下创建以记录名称命名的子目录
+                    if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
+                       let exportDir = contents.first {
+                        self.exportItem = SessionExportableURL(url: exportDir)
+                    } else {
+                        self.exportItem = SessionExportableURL(url: tempBase)
+                    }
+                } else {
+                    self.message = "导出失败: \(result.errorMessage ?? "未知错误")"
+                    self.showMessage = true
+                    try? FileManager.default.removeItem(at: tempBase)
+                }
             }
         }
     }
@@ -435,6 +459,7 @@ struct SessionRecordRow: View {
     let onLoadToMake: (() -> Void)?
     let onView: () -> Void
     let onEdit: (() -> Void)?
+    let onExport: (() -> Void)?
     let onDelete: (() -> Void)?
     
     @State private var avatarImage: UIImage? = nil
@@ -513,6 +538,11 @@ struct SessionRecordRow: View {
                     if let onEdit = onEdit {
                         Button(action: onEdit) {
                             Label("编辑", systemImage: "pencil")
+                        }
+                    }
+                    if let onExport = onExport {
+                        Button(action: onExport) {
+                            Label("导出", systemImage: "square.and.arrow.up")
                         }
                     }
                     if let onLoadToMake = onLoadToMake {
@@ -609,61 +639,10 @@ extension Array {
     }
 }
 
-// MARK: - 文档选择器
-struct DocumentPicker: UIViewControllerRepresentable {
-    enum Mode {
-        case export  // 导出模式：选择目录
-        case `import`  // 导入模式：选择目录
-    }
-    
-    let mode: Mode
-    let onPickDirectory: (URL) -> Void
-    @Environment(\.dismiss) var dismiss
-    
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker: UIDocumentPickerViewController
-        
-        if #available(iOS 14.0, *) {
-            // iOS 14+ 支持选择目录
-            picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
-        } else {
-            // iOS 13 回退方案
-            picker = UIDocumentPickerViewController(documentTypes: ["public.folder"], in: .open)
-        }
-        
-        picker.delegate = context.coordinator
-        picker.allowsMultipleSelection = false
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let parent: DocumentPicker
-        
-        init(_ parent: DocumentPicker) {
-            self.parent = parent
-        }
-        
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            guard let url = urls.first else {
-                parent.dismiss()
-                return
-            }
-            
-            // 将URL传递给回调，回调中会在异步线程中获取访问权限
-            parent.onPickDirectory(url)
-            parent.dismiss()
-        }
-        
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            parent.dismiss()
-        }
-    }
+// MARK: - 导出文件包装（用于 .sheet(item:) 触发分享面板）
+private struct SessionExportableURL: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 // MARK: - SessionRecord扩展

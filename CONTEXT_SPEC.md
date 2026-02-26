@@ -26,7 +26,6 @@
 | 项目的数据结构、存储格式、配置结构 | 数据边界文档 context/05-data-boundaries.md |
 | 项目的功能与源文件的对应关系 | 文件映射文档 context/06-file-map.md |
 | 项目的跨文件的关键代码模式 | 代码模式文档 context/07-key-patterns.md |
-| 临时功能 spec | context/feat-xxx.md（迭代中存在，完成后删除） |
 | 项目的稳定功能需求基线 | 产品需求基线 doc/01-prd-baseline.md |
 | 项目的原始产品需求规格 | 原始需求规格 doc/01-prd-specs.md |
 
@@ -56,19 +55,19 @@
 ```
 1. 读取 AGENTS.md + PRODUCT_SENSE.md，确认约束与产品方向
 2. 按需读取 AI上下文知识库（context/）和 人工定义文档（doc/），了解现状
-3. 新建 context/feat-xxx.md（临时 spec），记录：
+3. 在回复消息中以代码块输出临时 spec（不落盘文件），记录：
       - 目标：这个功能要做什么
       - 影响范围：涉及哪些文件/模块
       - 关键行为：边界条件、与现有模式的关系
 4. 实现代码
-5. 将稳定知识回填到 context/ 对应文件：
+5. 将稳定知识回填到 context/ 对应文件；有变化时才写，因无变化而未写、也要告知情况：
       - 架构边界变化 → context/02-architecture.md
       - 新增术语 → context/04-glossary.md
       - 新增源文件 → context/06-file-map.md
       - 新增跨文件模式 → context/07-key-patterns.md
-6. 删除 context/feat-xxx.md
 ```
 
+原则：无论是新Task，还是同一Task内的第2+次反馈，只要包含新功能需求、就必须遵守功能迭代工作流。
 
 ---
 

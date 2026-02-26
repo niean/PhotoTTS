@@ -46,6 +46,25 @@ ImageToSpeechCoordinator.performConcurrentOCR 的实现：
 
 扩展 OCR 能力或并发模型时，应在此函数上修改，不要在 UI 层自行实现并发逻辑。
 
+## 模式六：Siri 语音触发播放
+
+场景：用户说「用拍照阅读播放绘本 XX」，Siri 调用 PlaySessionIntent，App 被拉到前台并自动打开 PlayView。
+
+实现要点：
+1. PlaySessionIntent（AppIntents 框架）将 sessionId 写入 UserDefaults.standard（key：siriPendingPlaySessionId），并设置 openAppWhenRun = true。
+2. PhotoTTSApp（App 根）监听 @Environment(\.scenePhase) 变化，当 phase 变为 .active 时调用 loadPendingSiriSession()。
+3. loadPendingSiriSession() 读取并立即清除 UserDefaults 中的 key，后台加载 SessionRecord，主线程赋值 appState.sessionRecordToPlay。
+4. WindowGroup 根视图上的 .fullScreenCover(item: $appState.sessionRecordToPlay) 触发 PlayView（preloadedRecord 路径）；PlayView.onDismiss 将 sessionRecordToPlay 置 nil。
+5. 若 App 冷启动时启动页（fullScreenKind == .loading）还未结束，延迟 2s 再触发，避免 PlayView 在加载页之前弹出。
+
+模糊匹配规则（SessionRecordEntityQuery.entities(matching:)）：
+- 规则1：全名包含 query（兜底）
+- 规则2：全名第一个空格之后的内容部分包含 query（跳过日期前缀，如 "26.02.26 贝贝熊-作业的烦恼" afterSpace = "贝贝熊-作业的烦恼"）
+- 规则3：内容部分按 "-" 分段后逐段匹配，去除首尾空格后比较（如 "贝贝熊-作业的烦恼" -> ["贝贝熊", "作业的烦恼"]，query "作业的烦恼" 命中第二段）
+- 规则4：将内容部分和 query 都去掉 "-" 后再做全文 contains 匹配（如 query "贝贝熊作业的烦恼" 命中 "贝贝熊-作业的烦恼"）
+
+陷阱：AppShortcutsProvider 中每条 phrase 都必须含 \(.applicationName)，否则 appintentsmetadataprocessor 会报 halting error 导致 App Intents 整体失效。
+
 ## 模式五：全屏覆盖层（fullScreenKind）
 
 应用内全屏覆盖统一通过 AppState.fullScreenKind 控制，CustomZStack 根层渲染：

@@ -61,8 +61,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 以下规则直接生效，无需查阅其他文档：
 
 ### 功能迭代约束
-- 每次功能迭代，必须先读取 CONTEXT_SPEC.md，遵守其中`功能迭代工作流`的约定
-- 无论是新 Task 还是同一 Task 内的反馈，只要包含新的功能需求，都必须完整执行一遍 `功能迭代工作流`
+- 每次功能迭代，无论是新Task、还是同一Task内的第2+次反馈，必须先读取 CONTEXT_SPEC.md，完全遵守其中`功能迭代工作流`的约定
 
 ### 文件与文档
 - 不要删除任何项目文件，包括文档、代码等
