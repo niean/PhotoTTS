@@ -7,7 +7,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经豆包 OCR
 ## 仓库结构
 
 ```
-AGENTS.md           -- AI 知识库入口与操作约束（本文件）
+AGENTS.md           -- AI 知识库入口、操作约束RULES（本文件）
 CONTEXT_SPEC.md     -- AI 上下文知识库管理规范
 PRODUCT_SENSE.md    -- 产品定位、体验原则与判断准则
 PhotoTTS/
@@ -61,7 +61,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 以下规则直接生效，无需查阅其他文档：
 
 ### 功能迭代约束
-- 每次功能迭代，无论是新Task、还是同一Task内的第2+次反馈，必须先读取 CONTEXT_SPEC.md，完全遵守其中`功能迭代工作流`的约定
+- 每次功能迭代，无论是新Task、还是同一Task内的第2+次反馈，必须先读取 `CONTEXT_SPEC.md`，完全遵守其中`功能迭代工作流`的约定
 
 ### 文件与文档
 - 不要删除任何项目文件，包括文档、代码等
@@ -87,6 +87,30 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 - 全屏页面通过 `AppState.fullScreenKind` 控制，不在局部视图用 `fullScreenCover` 绕过（PlayView 例外）
 - 新增 Tab 重置逻辑时，制作页（tab1）不参与重置
 
+### 质量守护
+- 代码提交前必须通过 `xcodebuild build`，不允许引入编译警告（已有警告除外）
+- 新增或修改 Manager / Coordinator / Service 层逻辑时，应同步补充或更新单元测试（PhotoTTSTests/）
+- 错误信息分两层：面向用户的提示使用中文自然语言、不含技术细节；面向开发者的日志使用 `print` 或 `os.Logger`，可包含错误码和上下文
+- 日志中禁止输出 API Key、Access Key、Token 等敏感字段；如需标识密钥，仅输出末四位（如 `key=***abcd`）
+- 网络请求必须设置超时（默认见 `Constants.defaultTimeout`），不允许无限等待
+- 异步操作（OCR/TTS/文件IO）必须在非主线程执行，回调结果切回主线程更新 UI
+
+### 内存与性能
+- 图片禁止一次性全量加载到内存；播放和浏览必须按需加载当前帧，并通过有限缓存（NSCache）预加载相邻帧
+- 图片解码必须使用 Image I/O 降采样（CGImageSourceCreateThumbnailAtIndex），禁止先解码全尺寸再缩放，否则 IOSurface 分配失败会导致闪退
+- 列表页只读 metadata.json，禁止加载 record.json 或图片原数据
+- record.json 不存储音频和图片二进制数据，大文件（图片、音频）必须独立存储
+- 大数据集合（调试日志、历史记录）加载到内存时必须设置条数上限，不允许全量驻留
+- 头像必须在保存时预生成缩略图（avatar.jpg），列表展示时从磁盘加载预生成文件，不得现场从原图生成
+
+### 安全规范
+- API Key、Access Key 等密钥只允许存储在 Keychain（通过 `SettingsManager`），不得硬编码在源码中、不得写入 UserDefaults、不得写入日志
+- `config_local.json` 已加入 `.gitignore`，包含密钥的配置文件禁止提交到版本库；新增配置文件如含敏感信息，必须同步加入 `.gitignore`
+- 所有外部 API 调用必须使用 HTTPS；不得降级为 HTTP，不得在 Info.plist 中开启 App Transport Security 例外
+- 发送到外部 API（OCR/TTS）的图片数据必须经过降采样（2048px），不发送原图，减少数据泄露面
+- API 响应必须校验 HTTP 状态码和数据完整性，不信任未经校验的外部输入；JSON 解码失败时按错误处理，不静默忽略
+- 用户的绘本图片、音频、会话记录仅存储在设备本地（Documents/Sessions/），不主动上传到任何服务器（OCR/TTS 请求除外）
+
 ---
 
 ## 上下文知识库
@@ -99,7 +123,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 | PRODUCT_SENSE.md | 功能迭代前，确认产品定位、体验原则和判断准则 |
 | context/01-overview.md | 任何任务开始时，了解项目边界和入口 |
 | context/02-architecture.md | 涉及模块新增、依赖关系、跨层调用时 |
-| context/03-conventions.md | 涉及代码风格、UI 布局、操作约束时 |
+| context/03-conventions.md | 涉及代码风格、UI 布局、操作约束、错误处理、日志、线程、密钥存储、网络安全、数据隐私、测试约定时 |
 | context/04-glossary.md | 对术语（SessionRecord、fullScreenKind、底导等）不清楚时 |
 | context/05-data-boundaries.md | 涉及数据结构、磁盘存储、config 格式、导出格式时 |
 | context/06-file-map.md | 确定功能对应哪些源文件时 |

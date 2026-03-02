@@ -170,6 +170,8 @@
         - 按照Harness Engineering风格，设置AGENT.md为AI入口
         - 按照Harness Engineering风格，应该有PRODUCT_SENSE.md文件、定义产品设计的核心理念与判断准则
         - 按照Harness Engineering风格，合理拆分、合并doc/01-prd-summary.md 和 PRODUCT_SENSE.md两份文档的内容，避免重复
+        - 按照Harness Engineering风格，补全项目在质量、安全上的规范
+        - 按照Harness Engineering风格，结合prd-specs历史，补全内存性能规范
         - 参考OpenAI提出的Harness Engineering风格，结合文档库现状，帮我抽象一份AI上下文知识库 的管理规范、放到AGENT.md文档中
         - 最后检查：本项目抽象了 通用的Harness Engineering风格AI知识库，请帮我检查下文档库、还有哪些严重问题
     - 治理：清理未使用的代码

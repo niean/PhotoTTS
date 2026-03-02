@@ -48,14 +48,15 @@ ImageToSpeechCoordinator.performConcurrentOCR 的实现：
 
 ## 模式六：Siri 语音触发播放
 
-场景：用户说「用拍照阅读播放绘本 XX」，Siri 调用 PlaySessionIntent，App 被拉到前台并自动打开 PlayView。
+场景：用户说「在PhotoTTS中 播放绘本」，Siri 调用 PlaySessionIntent，App 被拉到前台并自动打开 PlayView。
 
 实现要点：
-1. PlaySessionIntent（AppIntents 框架）将 sessionId 写入 UserDefaults.standard（key：siriPendingPlaySessionId），并设置 openAppWhenRun = true。
-2. PhotoTTSApp（App 根）监听 @Environment(\.scenePhase) 变化，当 phase 变为 .active 时调用 loadPendingSiriSession()。
-3. loadPendingSiriSession() 读取并立即清除 UserDefaults 中的 key，后台加载 SessionRecord，主线程赋值 appState.sessionRecordToPlay。
-4. WindowGroup 根视图上的 .fullScreenCover(item: $appState.sessionRecordToPlay) 触发 PlayView（preloadedRecord 路径）；PlayView.onDismiss 将 sessionRecordToPlay 置 nil。
-5. 若 App 冷启动时启动页（fullScreenKind == .loading）还未结束，延迟 2s 再触发，避免 PlayView 在加载页之前弹出。
+1. PhotoTTSApp.init() 中调用 PhotoTTSShortcuts.updateAppShortcutParameters()，每次启动向系统注册/同步 App Shortcuts 参数；不调用则 Siri 无法发现本 App 的快捷指令。
+2. PlaySessionIntent（AppIntents 框架）将 sessionId 写入 UserDefaults.standard（key：siriPendingPlaySessionId），并设置 openAppWhenRun = true。
+3. PhotoTTSApp（App 根）监听 @Environment(\.scenePhase) 变化，当 phase 变为 .active 时调用 loadPendingSiriSession()。
+4. loadPendingSiriSession() 读取并立即清除 UserDefaults 中的 key，后台加载 SessionRecord，主线程赋值 appState.sessionRecordToPlay。
+5. WindowGroup 根视图上的 .fullScreenCover(item: $appState.sessionRecordToPlay) 触发 PlayView（preloadedRecord 路径）；PlayView.onDismiss 将 sessionRecordToPlay 置 nil。
+6. 若 App 冷启动时启动页（fullScreenKind == .loading）还未结束，延迟 2s 再触发，避免 PlayView 在加载页之前弹出。
 
 模糊匹配规则（SessionRecordEntityQuery.entities(matching:)）：
 - 规则1：全名包含 query（兜底）
