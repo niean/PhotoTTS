@@ -5,7 +5,7 @@
 - 底导：底部 Tab 栏，四个 Tab（首页、制作、消息、我的）。
 - 顶导：各 Tab 内顶部导航栏，含标题与返回等按钮。
 - 手势识别：左边缘滑动返回，注释为 // 手势识别，参数见 Constants.Gesture。
-- SessionRecord：单条会话记录，含 id、name、图片列表（Base64）、OCR 文本与分段、音频 Base64、时长、语音设置、头像索引等；record.json 不存音频数据。
+- SessionRecord：单条会话记录，含 id、name、图片列表（Base64）、OCR 文本与分段、音频 Base64、时长、语音设置、头像索引等；record.json 中 imageDataList 写为 [] 且 audioDataBase64 写为 ""，图片和音频均以独立文件存储。
 - SessionRecordManager：会话记录的本地读写与列表管理。
 - ImageToSpeechCoordinator：协调批量图片的 OCR 与 TTS，输出进度与最终 AudioResponse 或错误。
 - ProcessingProgress / ProcessingStage：OCR、TTS 各阶段的进度与消息；stage 枚举值：ocr、tts、completed、failed；percentage 由 currentStep/totalSteps 计算，范围 0～100。

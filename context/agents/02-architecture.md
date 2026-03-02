@@ -5,6 +5,7 @@
 - 表现层：Sources/UI，SwiftUI 视图与少量 UIKit 封装（如 CustomCameraView）。主要视图：PhotoTTSApp（根）、MainTabView（底导）、HomePageView（首页）、MakeView（制作，含 PhotoProcessingView）、MessageTabView（消息）、MeTabView（我的）、PlayView（全屏播放）、SessionRecordListView、SessionRecordUnifiedView（保存/编辑会话统一视图，位于 SessionRecordDetailView.swift）、AppLoadingView/AppIntroView（位于 AppPagesView.swift）。
 - 业务协调：Sources/Core/Coordinators/ImageToSpeechCoordinator，串联 OCR 与 TTS，上报进度与完成/失败。
 - 能力层：Sources/Core/Handlers（OCRService、TTSService）、Sources/Core/Managers（NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager）。
+- 系统集成：Sources/Core/Intents（PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts），负责 Siri / App Shortcuts 的意图处理与实体查询，通过 AppState 与 SessionRecordManager 桥接到业务层。
 - 数据与模型：Sources/Models（SessionRecord、APIResponse、VoiceSettings 等）；Constants 与配置在 Sources/Constants.swift、Resources/config_local.json。
 - 预留：Sources/Core/Managers/ScheduledTasks 目录目前为空，待后续定时任务需求使用。
 

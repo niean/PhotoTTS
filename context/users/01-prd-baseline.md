@@ -7,7 +7,7 @@
 - 结构：底导四个功能Tab（首页、制作、消息、我的）。首页 = 制作入口 + 会话记录列表，点击记录在首页全屏 PlayView 播放；制作 Tab = 拍照/选图 → OCR → TTS → 保存，播放统一用 PlayView 全屏。
 - 核心流程：选图（拍照或选图） → 识别(OCR) → 合成(TTS) → 播放 → 保存记录 → 重复播放。
 
-产品定位、体验原则与判断准则见根目录 PRODUCT_SENSE.md。
+产品定位、体验原则与判断准则见 context/agents/PRODUCT_SENSE.md。
 
 ---
 
@@ -75,5 +75,5 @@
 
 ## 5. 版本与需求池
 
-- 备选需求池 doc/01-prd-specs.md
+- 备选需求池 context/users/01-prd-specs.md
 - 版本历史见 PhotoTTS/Resources/changelogs.md

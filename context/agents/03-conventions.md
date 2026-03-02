@@ -1,11 +1,24 @@
 # 约定与约束（实现细节）
 
-本文件是 AGENTS.md「操作约束」的实现级补充，记录具体常量名、函数签名和代码模式。通用规则以 AGENTS.md 为准，此处不重复。
+本文件是 AGENTS.md 项目规范的实现级补充。通用规则以 AGENTS.md 为准，此处不重复。
+
+---
+
+# 一、UI交互约定
 
 ## 页面布局
 
 - 手势：只要顶导左上角支持了返回按钮，就应实现一致的「手势识别」，注释内容为：// 手势识别。
 - 手势参数：Constants.Gesture 中有 leftEdgeStartZoneWidth、swipeBackMinTranslation 等，新页面与现有页面保持一致。
+
+## Tab 重置约定
+
+- 离开首页（tab0）、消息（tab2）、我的（tab3）时，`MainTabView` 对应 `tabXResetId` 自增；TabView 内视图通过 `.id(tabXResetId)` 感知变化而销毁重建，清空内部 NavigationStack。
+- 制作页（tab1）不参与此重置，因为制作流程有持续状态，不应因 Tab 切换而清空。
+
+---
+
+# 二、编码约定
 
 ## 图片尺寸规则
 
@@ -19,11 +32,6 @@
 - `Constants.ocrEmptyResultIndicator = "空字符串"` 是系统保留字符，表示 OCR API 认定该图片没有可识别内容；不是真实文字，不应展示给用户，拼接后需用 `replacingOccurrences` 剔除。
 - OCR 失败（网络异常等）时返回空字符串 `""`，与空图片保留位置对应，保持索引与图片一一对应关系，不压缩数组。
 
-## Tab 重置约定
-
-- 离开首页（tab0）、消息（tab2）、我的（tab3）时，`MainTabView` 对应 `tabXResetId` 自增；TabView 内视图通过 `.id(tabXResetId)` 感知变化而销毁重建，清空内部 NavigationStack。
-- 制作页（tab1）不参与此重置，因为制作流程有持续状态，不应因 Tab 切换而清空。
-
 ## 项目本地化配置
 
 - 项目 developmentRegion 设为 `zh-Hans`，knownRegions 包含 `en`、`zh-Hans`、`Base`。
@@ -32,6 +40,10 @@
 ## 配置与常量
 
 - 应用级常量与布局、手势、Keychain/UserDefaults 键名集中在 Sources/Constants.swift，新增配置优先在此扩展或使用 config_local.json，避免魔法数字与分散键名。
+
+---
+
+# 三、质量约定
 
 ## 错误处理约定
 
@@ -64,27 +76,6 @@
 - OCR、TTS、文件 IO 等耗时操作必须在后台线程执行，完成后通过 `DispatchQueue.main.async` 或 `@MainActor` 切回主线程。
 - Swift Concurrency（async/await、TaskGroup）用于 Coordinator 层的并发 OCR；UI 层仍以 Combine/@Published + DispatchQueue 为主，两者不混用于同一调用链。
 - 网络请求取消：Coordinator 持有 `currentTask: Task<Void, Never>?`，取消时调用 `task.cancel()`；URLSession 任务通过 `session.invalidateAndCancel()` 取消。
-
-## 密钥存储约定
-
-- 敏感凭据（API Key、Access Key）只通过 Keychain 读写，使用 `SettingsManager` 封装的 `saveToKeychain` / `readFromKeychain` / `deleteFromKeychain` 方法。
-- Keychain 键名定义在 `Constants.KeychainKeys`（如 `doubaoAPIKey`、`ttsAccessKey`），不在业务代码中硬编码字符串。
-- `config_local.json` 中的 api_key / access_key 仅用于首次导入（SettingsManager.loadConfig 读取后写入 Keychain），运行时一律从 Keychain 读取。
-- UserDefaults 只存储非敏感配置（如 ttsAppId、ttsCluster、voiceSettings、界面偏好），键名定义在 `Constants.UserDefaultsKeys`。
-
-## 网络安全约定
-
-- 所有外部 API 调用使用 HTTPS，不得降级为 HTTP。
-- 不在 Info.plist 中添加 NSAppTransportSecurity 例外（NSAllowsArbitraryLoads 等）。
-- API 响应必须校验 HTTP 状态码（200-299 为成功，其余按错误处理）和 Content-Type；JSON 解码失败时抛出错误，不静默忽略。
-- 发送到 OCR API 的图片数据必须经过降采样（2048px），不发送原始高分辨率图片。
-
-## 数据隐私约定
-
-- 用户的绘本图片、音频、会话记录仅存储在设备本地 `Documents/Sessions/` 目录，不主动上传到任何服务器。
-- OCR 请求向豆包 API 发送降采样后的图片数据（Base64）；TTS 请求向火山引擎 API 发送纯文本。除此之外不向外部发送用户数据。
-- 导出功能生成的 zip 包由用户自行决定分享去向，应用不参与上传。
-- `config_local.json` 已加入 `.gitignore`；新增包含敏感信息的配置文件时，必须同步加入 `.gitignore`。
 
 ## 内存与性能约定
 
@@ -124,3 +115,28 @@ record.json 存储分离：
 - 新增或修改 Manager / Coordinator / Service 层逻辑时，应同步补充或更新对应的单元测试。
 - 测试中需要的外部依赖（网络、文件系统）应通过协议注入 Mock，不依赖真实 API 调用。
 - 功能测试（`PhotoTTSTests/FunctionalTests/`）使用真实测试素材（test_image、test_voice），用于端到端验证；这类测试可能依赖 API 配置，CI 环境中可标记为 skip。
+
+---
+
+# 四、安全约定
+
+## 密钥存储约定
+
+- 敏感凭据（API Key、Access Key）只通过 Keychain 读写，使用 `SettingsManager` 封装的 `saveToKeychain` / `readFromKeychain` / `deleteFromKeychain` 方法。
+- Keychain 键名定义在 `Constants.KeychainKeys`（如 `doubaoAPIKey`、`ttsAccessKey`），不在业务代码中硬编码字符串。
+- `config_local.json` 中的 api_key / access_key 仅用于首次导入（SettingsManager.loadConfig 读取后写入 Keychain），运行时一律从 Keychain 读取。
+- UserDefaults 只存储非敏感配置（如 ttsAppId、ttsCluster、voiceSettings、界面偏好），键名定义在 `Constants.UserDefaultsKeys`。
+
+## 网络安全约定
+
+- 所有外部 API 调用使用 HTTPS，不得降级为 HTTP。
+- 不在 Info.plist 中添加 NSAppTransportSecurity 例外（NSAllowsArbitraryLoads 等）。
+- API 响应必须校验 HTTP 状态码（200-299 为成功，其余按错误处理）和 Content-Type；JSON 解码失败时抛出错误，不静默忽略。
+- 发送到 OCR API 的图片数据必须经过降采样（2048px），不发送原始高分辨率图片。
+
+## 数据隐私约定
+
+- 用户的绘本图片、音频、会话记录仅存储在设备本地 `Documents/Sessions/` 目录，不主动上传到任何服务器。
+- OCR 请求向豆包 API 发送降采样后的图片数据（Base64）；TTS 请求向火山引擎 API 发送纯文本。除此之外不向外部发送用户数据。
+- 导出功能生成的 zip 包由用户自行决定分享去向，应用不参与上传。
+- `config_local.json` 已加入 `.gitignore`；新增包含敏感信息的配置文件时，必须同步加入 `.gitignore`。

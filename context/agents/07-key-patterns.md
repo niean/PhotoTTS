@@ -46,7 +46,7 @@ ImageToSpeechCoordinator.performConcurrentOCR 的实现：
 
 扩展 OCR 能力或并发模型时，应在此函数上修改，不要在 UI 层自行实现并发逻辑。
 
-## 模式六：Siri 语音触发播放
+## 模式五：Siri 语音触发播放
 
 场景：用户说「在PhotoTTS中 播放绘本」，Siri 调用 PlaySessionIntent，App 被拉到前台并自动打开 PlayView。
 
@@ -66,7 +66,7 @@ ImageToSpeechCoordinator.performConcurrentOCR 的实现：
 
 陷阱：AppShortcutsProvider 中每条 phrase 都必须含 \(.applicationName)，否则 appintentsmetadataprocessor 会报 halting error 导致 App Intents 整体失效。
 
-## 模式五：全屏覆盖层（fullScreenKind）
+## 模式六：全屏覆盖层（fullScreenKind）
 
 应用内全屏覆盖统一通过 AppState.fullScreenKind 控制，CustomZStack 根层渲染：
 
