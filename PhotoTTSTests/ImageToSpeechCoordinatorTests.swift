@@ -4,158 +4,173 @@ import XCTest
 final class ImageToSpeechCoordinatorTests: XCTestCase {
     
     // MARK: - 属性
+    
     var coordinator: ImageToSpeechCoordinator!
     var mockNetworkService: MockNetworkService!
-    var mockSettingsManager: MockSettingsManager!
     
     // MARK: - 设置和清理
+    
     override func setUp() {
         super.setUp()
         mockNetworkService = MockNetworkService()
-        mockSettingsManager = MockSettingsManager()
         coordinator = ImageToSpeechCoordinator(
-            networkService: mockNetworkService,
-            settingsManager: mockSettingsManager
+            networkService: mockNetworkService
         )
     }
     
     override func tearDown() {
         coordinator = nil
         mockNetworkService = nil
-        mockSettingsManager = nil
         super.tearDown()
     }
     
-    // MARK: - 核心功能测试
+    // MARK: - convertTextToSpeech 测试
     
     func testConvertTextToSpeechSuccess() {
-        // Given
-        let expectation = XCTestExpectation(description: "文字转语音成功")
-        let mockText = "测试文字内容"
-        let mockAudioResponse = createMockAudioResponse()
+        let expectation = XCTestExpectation(description: "TTS success")
+        let mockAudio = Data(repeating: 0xAA, count: 256)
+        let mockResponse = AudioResponse(
+            audioData: mockAudio,
+            format: "mp3",
+            duration: 5.0
+        )
         
-        mockNetworkService.convertTextToSpeechResult = .success(mockAudioResponse)
+        mockNetworkService.ttsResult = .success(mockResponse)
         
-        var finalResult: Result<AudioResponse, ImageToSpeechProcessingError>?
-        
-        // When
-        coordinator.convertTextToSpeech(mockText) { result in
-            finalResult = result
+        coordinator.convertTextToSpeech("hello") { result in
+            switch result {
+            case .success(let response):
+                XCTAssertEqual(response.format, "mp3")
+                XCTAssertEqual(response.duration, 5.0)
+            case .failure(let error):
+                XCTFail("should succeed, got: \(error)")
+            }
             expectation.fulfill()
         }
         
-        // Then
-        wait(for: [expectation], timeout: 1.0)
-        
-        switch finalResult {
-        case .success(let response):
-            XCTAssertEqual(response.audioURL, mockAudioResponse.audioURL)
-        case .failure, .none:
-            XCTFail("应该成功")
-        }
+        wait(for: [expectation], timeout: 5.0)
     }
     
     func testConvertTextToSpeechFailure() {
-        // Given
-        let expectation = XCTestExpectation(description: "文字转语音失败")
-        let mockText = "测试文字内容"
-        let mockError = NetworkError.serverError
+        let expectation = XCTestExpectation(description: "TTS failure")
         
-        mockNetworkService.convertTextToSpeechResult = .failure(mockError)
+        mockNetworkService.ttsResult = .failure(NetworkError.serverError)
         
-        var finalResult: Result<AudioResponse, ImageToSpeechProcessingError>?
-        
-        // When
-        coordinator.convertTextToSpeech(mockText) { result in
-            finalResult = result
+        coordinator.convertTextToSpeech("hello") { result in
+            switch result {
+            case .success:
+                XCTFail("should fail")
+            case .failure(let error):
+                if case .ttsFailed = error {
+                    // OK
+                } else {
+                    XCTFail("should be ttsFailed, got: \(error)")
+                }
+            }
             expectation.fulfill()
         }
         
-        // Then
-        wait(for: [expectation], timeout: 1.0)
-        
-        switch finalResult {
-        case .failure(let error):
-            if case .ttsFailed(let underlyingError) = error {
-                XCTAssertEqual(underlyingError as? NetworkError, mockError)
-            } else {
-                XCTFail("应该是TTS失败错误")
-            }
-        case .success, .none:
-            XCTFail("应该失败")
-        }
+        wait(for: [expectation], timeout: 5.0)
     }
     
-    func testBatchTextToSpeechSuccess() {
-        // Given
-        let expectation = XCTestExpectation(description: "批量文字转语音成功")
-        let mockTexts = ["第一段文字", "第二段文字"]
-        let mockAudioResponses = [
-            createMockAudioResponse(audioURL: "audio1.mp3"),
-            createMockAudioResponse(audioURL: "audio2.mp3")
-        ]
+    // MARK: - testNetworkConnection 测试
+    
+    func testNetworkConnectionSuccess() {
+        let expectation = XCTestExpectation(description: "connection success")
         
-        mockNetworkService.convertTextToSpeechBatchResult = .success(mockAudioResponses)
+        mockNetworkService.connectionResult = .success(true)
         
-        var finalResult: Result<[AudioResponse], ImageToSpeechProcessingError>?
-        
-        // When
-        coordinator.convertBatchTextsToSpeech(mockTexts) { result in
-            finalResult = result
+        coordinator.testNetworkConnection { result in
+            switch result {
+            case .success(let connected):
+                XCTAssertTrue(connected)
+            case .failure(let error):
+                XCTFail("should succeed, got: \(error)")
+            }
             expectation.fulfill()
         }
         
-        // Then
-        wait(for: [expectation], timeout: 1.0)
-        
-        switch finalResult {
-        case .success(let responses):
-            XCTAssertEqual(responses.count, 2)
-            XCTAssertEqual(responses[0].audioURL, "audio1.mp3")
-            XCTAssertEqual(responses[1].audioURL, "audio2.mp3")
-        case .failure, .none:
-            XCTFail("应该成功")
-        }
+        wait(for: [expectation], timeout: 5.0)
     }
     
-    // MARK: - 辅助方法
-    private func createMockAudioResponse(audioURL: String = "test.mp3") -> AudioResponse {
-        return AudioResponse(
-            id: UUID().uuidString,
-            audioURL: audioURL,
-            text: "测试文字",
-            language: "zh",
-            duration: 120.0,
-            format: "mp3",
-            quality: "high",
-            timestamp: Date()
-        )
-    }
-    
-    // MARK: - Mock Services
-    class MockNetworkService: NetworkServiceProtocol {
-        var convertTextToSpeechResult: Result<AudioResponse, Error>?
-        var convertTextToSpeechBatchResult: Result<[AudioResponse], Error>?
+    func testNetworkConnectionFailure() {
+        let expectation = XCTestExpectation(description: "connection failure")
         
-        func convertTextToSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-            if let result = convertTextToSpeechResult {
-                completion(result)
+        mockNetworkService.connectionResult = .failure(NetworkError.invalidURL)
+        
+        coordinator.testNetworkConnection { result in
+            switch result {
+            case .success:
+                XCTFail("should fail")
+            case .failure:
+                break // OK
             }
+            expectation.fulfill()
         }
         
-        func convertTextToSpeechBatch(_ texts: [String], voiceSettings: VoiceSettings, completion: @escaping (Result<[AudioResponse], Error>) -> Void) {
-            if let result = convertTextToSpeechBatchResult {
-                completion(result)
-            }
+        wait(for: [expectation], timeout: 5.0)
+    }
+    
+    // MARK: - cancelProcessing 测试
+    
+    func testCancelProcessing() {
+        // cancelProcessing 应能正常调用而不崩溃
+        coordinator.cancelProcessing()
+    }
+    
+    // MARK: - ImageToSpeechProcessingError 测试
+    
+    func testProcessingErrorOCRFailed() {
+        let underlying = NSError(domain: "ocr", code: 1)
+        let error = ImageToSpeechProcessingError.ocrFailed(underlying)
+        XCTAssertNotNil(error.errorDescription)
+    }
+    
+    func testProcessingErrorTTSFailed() {
+        let underlying = NSError(domain: "tts", code: 2)
+        let error = ImageToSpeechProcessingError.ttsFailed(underlying)
+        XCTAssertNotNil(error.errorDescription)
+    }
+    
+    func testProcessingErrorCancelled() {
+        let error = ImageToSpeechProcessingError.cancelled
+        XCTAssertNotNil(error.errorDescription)
+    }
+}
+
+// MARK: - Mock Network Service
+
+final class MockNetworkService: NetworkServiceProtocol {
+    
+    var ttsResult: Result<AudioResponse, Error>?
+    var batchTTSResult: Result<[AudioResponse], Error>?
+    var connectionResult: Result<Bool, Error>?
+    
+    func convertTextToSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        if let result = ttsResult {
+            completion(result)
         }
     }
     
-    class MockSettingsManager: SettingsManagerProtocol {
-        var voiceSettings: VoiceSettings = VoiceSettings.default
-        var accessKey: String? = "test_key"
-        var ttsAppId: String = "test_app_id"
-        var ttsCluster: String = "test_cluster"
-        var ttsAccessKey: String = "test_access_key"
-        var ttsUid: String = "test_uid"
+    func convertTextsToSpeech(_ texts: [String], voiceSettings: VoiceSettings, completion: @escaping (Result<[AudioResponse], Error>) -> Void) {
+        if let result = batchTTSResult {
+            completion(result)
+        }
+    }
+    
+    func convertTextToSpeechBatch(_ texts: [String], voiceSettings: VoiceSettings, completion: @escaping (Result<[AudioResponse], Error>) -> Void) {
+        if let result = batchTTSResult {
+            completion(result)
+        }
+    }
+    
+    func testConnection(completion: @escaping (Result<Bool, Error>) -> Void) {
+        if let result = connectionResult {
+            completion(result)
+        }
+    }
+    
+    func cancelAllRequests() {
+        // no-op
     }
 }

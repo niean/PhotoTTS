@@ -6,17 +6,22 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经豆包 OCR
 
 # 一、通用规范（项目无关）
 
-## 功能迭代工作流
+## Skills（可复用操作）
 
-每次功能迭代（无论是新Task、还是同一Task内的第2+次反馈），必须遵循以下步骤：
-1. 读取 AGENTS.md + PRODUCT_SENSE.md，确认约束与产品方向
-2. 按需读取 AI上下文知识库（context/agents/）和 人工定义文档（context/users/），了解现状
-3. 在回复消息中以代码块输出临时 spec（不落盘文件），记录：目标、影响范围、关键行为
-4. 实现代码
-5. 将稳定知识回填到 context/agents/ 对应文件；有变化时才写，因无变化而未写也要告知情况
+Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按定义步骤执行。触发方式见下表"触发"列。详细定义见 `skills/` 目录。
+
+| Skill | 触发 | 文件 |
+|-------|------|------|
+| 功能迭代 | 人工下发功能需求 | skills/功能迭代.md |
+| 知识库例行检查和更新 | 人工指令 | skills/知识库例行检查和更新.md |
+| PRD基线更新 | 人工指令 | skills/PRD基线更新.md |
+| 代码质量扫描 | 人工指令 | skills/代码质量扫描.md |
+| 废弃代码清理 | 人工指令 | skills/废弃代码清理.md |
+| 构建验证 | 功能迭代完成后自动执行，或人工指令 | skills/构建验证.md |
 
 ## 文件与文档
 
+- 除非明确要求，不要主动创建 README 文件
 - 不要删除任何项目文件，包括文档、代码等
 - context/users/ 目录是人工定义的原始信息，AI 可以读取、但不允许自动修改；如遇 users/ 内容与 AI 知识库（context/agents/）描述冲突，必须提示给用户，经确认后才能修改
 - 文档内容禁用 emoji 图标、加粗、斜体等润色，使用普通文字
@@ -42,6 +47,10 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经豆包 OCR
 
 ```
 AGENTS.md              -- AI 知识库入口、操作约束RULES（本文件）
+skills/                -- AI 可复用操作定义（功能迭代、构建验证等）
+subagents/             -- Subagent prompt 模板（代码质量扫描等并行任务）
+docs/
+  HE.md                -- 通用 AI 协作工程方法论（项目无关，可跨项目复用）
 context/
   agents/              -- AI 知识库
     PRODUCT_SENSE.md   -- 产品定位、体验原则与判断准则
@@ -55,6 +64,7 @@ context/
   users/               -- 人工定义的原始信息（AI只读）
     01-prd-baseline.md -- 稳定的产品需求基线
     01-prd-specs.md    -- 原始产品需求规格与演进记录
+    08-agents-backfill.md -- 人工回填操作指南
     09-dev-summary.md  -- 开发总结
 PhotoTTS/
   Sources/
@@ -94,7 +104,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 
 ## 知识回填规则
 
-功能迭代工作流 step 5 的具体回填目标：
+Skill: 功能迭代 step 5 的具体回填目标：
 - 架构边界变化 -> 02-architecture.md
 - 新增术语 -> 04-glossary.md
 - 数据结构或存储格式变化 -> 05-data-boundaries.md
@@ -105,6 +115,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 ## 代码生成
 
 - 日志内容禁用 emoji 图标、加粗、斜体等润色，使用普通文字
+- 日志输出禁止使用 `print()`，统一使用 `os.Logger`（Apple Unified Logging），分类定义在 PhotoTTSApp.swift 的 `extension os.Logger` 中
 - 新增页面如果顶导左上角有返回按钮，必须同时实现左边缘手势识别，注释为 `// 手势识别`，参数从 `Constants.Gesture` 读取
 - 新增常量优先写入 `PhotoTTS/Sources/Constants.swift`，不要散落在各文件
 - 图片入队前必须降采样到 2048px（使用 `SessionRecordManager.downsampleImageToMaxPixel`）
@@ -121,9 +132,9 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 
 ## 质量守护
 
-- 代码提交前必须通过 `xcodebuild build`，不允许引入编译警告（已有警告除外）
+- 代码提交前必须通过 `xcodebuild build`，零警告（包括代码警告和 Xcode IDE 项目配置警告），不允许遗留任何 Warning
 - 新增或修改 Manager / Coordinator / Service 层逻辑时，应同步补充或更新单元测试（PhotoTTSTests/）
-- 错误信息分两层：面向用户的提示使用中文自然语言、不含技术细节；面向开发者的日志使用 `print` 或 `os.Logger`，可包含错误码和上下文
+- 错误信息分两层：面向用户的提示使用中文自然语言、不含技术细节；面向开发者的日志使用 `os.Logger`，可包含错误码和上下文
 - 日志中禁止输出 API Key、Access Key、Token 等敏感字段；如需标识密钥，仅输出末四位（如 `key=***abcd`）
 - 网络请求必须设置超时（默认见 `Constants.defaultTimeout`），不允许无限等待
 - 异步操作（OCR/TTS/文件IO）必须在非主线程执行，回调结果切回主线程更新 UI

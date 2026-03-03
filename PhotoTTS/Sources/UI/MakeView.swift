@@ -206,7 +206,7 @@ struct MakeView: View {
     // 保存会话记录
     private func saveCurrentSession(name: String, avatarImageIndex: Int = 0) {
         guard canSaveSession() else {
-            print("❌ 无法保存会话记录：数据不完整")
+            os.Logger.makeView.error("无法保存会话记录：数据不完整")
             return
         }
         
@@ -214,7 +214,7 @@ struct MakeView: View {
         guard !images.isEmpty,
               let audioData = audioData,
               let audioResponse = audioResponse else {
-            print("❌ 无法保存会话记录：缺少必要数据")
+            os.Logger.makeView.error("无法保存会话记录：缺少必要数据")
             return
         }
         
@@ -253,11 +253,11 @@ struct MakeView: View {
                 if result.success {
                     MakeHistoryManager.shared.recordSave(name: record.name, savedAt: Date())
                     let sizeText = result.size != nil ? "\n存储空间: \(self.formatStorageSize(result.size!))" : ""
-                    print("✅ 会话记录保存成功: \(record.name)\(sizeText)")
+                    os.Logger.makeView.info("会话记录保存成功: \(record.name)\(sizeText)")
                     self.alertMessage = "会话记录已保存\(sizeText)"
                     self.showingAlert = true
                 } else {
-                    print("❌ 会话记录保存失败")
+                    os.Logger.makeView.error("会话记录保存失败")
                     self.alertMessage = "会话记录保存失败"
                     self.showingAlert = true
                 }
@@ -547,11 +547,11 @@ struct MakeView: View {
         
         // 统计空段数量
         let emptySegmentsCount = ocrTextSegments.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
-        print("📝 文本分段解析完成: \(ocrTextSegments.count) 段（空段: \(emptySegmentsCount)），总长度: \(combinedText.count)")
+        os.Logger.makeView.debug("文本分段解析完成: \(ocrTextSegments.count) 段（空段: \(emptySegmentsCount)），总长度: \(combinedText.count)")
         for (index, range) in textSegmentRanges.enumerated() {
             let segmentText = ocrTextSegments[index]
             let isEmpty = segmentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            print("   段 \(index): 位置 \(range.start)-\(range.end)，长度: \(range.end - range.start)\(isEmpty ? " (空)" : "")")
+            os.Logger.makeView.debug("   段 \(index): 位置 \(range.start)-\(range.end)，长度: \(range.end - range.start)\(isEmpty ? " (空)" : "")")
         }
     }
     
@@ -602,21 +602,21 @@ struct MakeView: View {
                 // 记录TTS开始时间
                 if progress.message.contains("TTS") && self.ttsStartTime == nil {
                     self.ttsStartTime = Date()
-                    print("🕐 TTS开始时间: \(self.ttsStartTime!)")
+                    os.Logger.makeView.debug("TTS开始时间: \(self.ttsStartTime!)")
                 }
                 
                 // 计算OCR耗时
                 if progress.message.contains("OCR") && self.ocrStartTime != nil {
                     let currentTime = Date()
                     self.ocrDuration = currentTime.timeIntervalSince(self.ocrStartTime!)
-                    print("⏱️ OCR已耗时: \(String(format: "%.2f", self.ocrDuration))秒")
+                    os.Logger.makeView.debug("OCR已耗时: \(String(format: "%.2f", self.ocrDuration))秒")
                 }
                 
                 // 计算TTS耗时
                 if progress.message.contains("TTS") && self.ttsStartTime != nil {
                     let currentTime = Date()
                     self.ttsDuration = currentTime.timeIntervalSince(self.ttsStartTime!)
-                    print("⏱️ TTS已耗时: \(String(format: "%.2f", self.ttsDuration))秒")
+                    os.Logger.makeView.debug("TTS已耗时: \(String(format: "%.2f", self.ttsDuration))秒")
                 }
             }
         }
@@ -650,26 +650,26 @@ struct MakeView: View {
                     
                     // 统一的完成日志
                     let totalDuration = self.ocrDuration + self.ttsDuration
-                    print("✅ 处理完成!")
-                    print("📊 OCR耗时: \(String(format: "%.2f", self.ocrDuration))秒")
-                    print("📊 TTS耗时: \(String(format: "%.2f", self.ttsDuration))秒")
-                    print("📊 总耗时: \(String(format: "%.2f", totalDuration))秒")
-                    print("📊 文字长度: \(audioResponse.text.count)字符")
-                    print("📊 音频大小: \(ByteCountFormatter.string(fromByteCount: Int64(audioResponse.audioData?.count ?? 0), countStyle: .file))")
+                    os.Logger.makeView.info("处理完成!")
+                    os.Logger.makeView.info("OCR耗时: \(String(format: "%.2f", self.ocrDuration))秒")
+                    os.Logger.makeView.info("TTS耗时: \(String(format: "%.2f", self.ttsDuration))秒")
+                    os.Logger.makeView.info("总耗时: \(String(format: "%.2f", totalDuration))秒")
+                    os.Logger.makeView.info("文字长度: \(audioResponse.text.count)字符")
+                    os.Logger.makeView.info("音频大小: \(ByteCountFormatter.string(fromByteCount: Int64(audioResponse.audioData?.count ?? 0), countStyle: .file))")
                     
                     // 自动播放语音（有音频时）
                     if audioResponse.audioData != nil {
-                        print("🔊 开始自动播放")
+                        os.Logger.makeView.debug("开始自动播放")
                         self.togglePlayback()
                     } else {
-                        print("⚠️ 没有音频数据，无法播放")
+                        os.Logger.makeView.warning("没有音频数据，无法播放")
                     }
                     
                 case .failure(let processingError):
                     self.error = processingError
                     self.processingProgress = 0.0
                     self.currentOperation = "处理失败"
-                    print("❌ 处理失败: \(processingError.localizedDescription)")
+                    os.Logger.makeView.error("处理失败: \(processingError.localizedDescription)")
                 }
             }
         }
@@ -972,7 +972,7 @@ struct PhotoProcessingView: View {
                                             onSelectImage(index)
                                         }
                                         .onLongPressGesture(minimumDuration: 0.5) {
-                                            print("onLongPress: 长按缩略图 \(index)")
+                                            os.Logger.makeView.debug("onLongPress: 长按缩略图 \(index)")
                                         } onPressingChanged: { pressing in
                                         }
                                         .onDrag {
@@ -981,7 +981,7 @@ struct PhotoProcessingView: View {
                                             }
                                             dragSourceIndex = index
                                             isDragging = true
-                                            print("onDrag: 开始拖拽 \(index)")
+                                            os.Logger.makeView.debug("onDrag: 开始拖拽 \(index)")
                                             return NSItemProvider(object: "\(index)" as NSString)
                                         }
                                         .onDrop(of: [.text], isTargeted: nil) { providers in
@@ -998,12 +998,12 @@ struct PhotoProcessingView: View {
                                                         
                                                         DispatchQueue.main.async {
                                                             isProcessingReorder = true
-                                                            print("onDrop: 开始重排序")
+                                                            os.Logger.makeView.debug("onDrop: 开始重排序")
                                                             
                                                             dragTargetIndex = index
                                                             if sourceIndex != index {
                                                                 onReorderImages(sourceIndex, index)
-                                                                print("onDrop: 执行排序从 \(sourceIndex) 到 \(index)")
+                                                                os.Logger.makeView.debug("onDrop: 执行排序从 \(sourceIndex) 到 \(index)")
                                                             }
                                                             
                                                             // 延迟重置拖拽状态，确保UI稳定
@@ -1012,7 +1012,7 @@ struct PhotoProcessingView: View {
                                                                 dragTargetIndex = nil
                                                                 isDragging = false
                                                                 isProcessingReorder = false
-                                                                print("onDrop: 重排序处理完成，重新启用拖拽")
+                                                                os.Logger.makeView.debug("onDrop: 重排序处理完成，重新启用拖拽")
                                                             }
                                                         }
                                                     }
@@ -1199,9 +1199,9 @@ struct ProcessingResultView: View {
     
     var body: some View {
         // 打印OCR识别结果日志
-        let _ = print("🔍 [ProcessingResultView] OCR文本分段数: \(ocrTextSegments.count)")
-        let _ = print("🔍 [ProcessingResultView] OCR结果总长度: \(totalTextLength) 字符")
-        let _ = print("🔍 [ProcessingResultView] 音频数据状态: \(audioData != nil ? "有音频" : "无音频")")
+        let _ = os.Logger.makeView.debug("[ProcessingResultView] OCR文本分段数: \(ocrTextSegments.count)")
+        let _ = os.Logger.makeView.debug("[ProcessingResultView] OCR结果总长度: \(totalTextLength) 字符")
+        let _ = os.Logger.makeView.debug("[ProcessingResultView] 音频数据状态: \(audioData != nil ? "有音频" : "无音频")")
         
         GeometryReader { _ in
             // 区域2. 处理状态-文本展示
@@ -1227,7 +1227,7 @@ struct ProcessingResultView: View {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 proxy.scrollTo("segment_\(newIndex)", anchor: .top)
                             }
-                            print("📜 文字滚动同步: 滚动到图片 \(newIndex + 1) 的文本段")
+                            os.Logger.makeView.debug("文字滚动同步: 滚动到图片 \(newIndex + 1) 的文本段")
                         }
                     }
                 }

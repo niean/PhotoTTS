@@ -207,16 +207,12 @@ class NetworkService: NetworkServiceProtocol {
     
     /// 记录信息日志
     private func logInfo(_ message: String) {
-        #if DEBUG
-        print("🌐 NetworkService: \(message)")
-        #endif
+        os.Logger.networkService.info("\(message)")
     }
     
     /// 记录错误日志
     private func logError(_ message: String) {
-        #if DEBUG
-        print("❌ NetworkService: \(message)")
-        #endif
+        os.Logger.networkService.error("\(message)")
     }
 }
 

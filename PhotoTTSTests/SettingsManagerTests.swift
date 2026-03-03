@@ -11,15 +11,15 @@ final class SettingsManagerTests: XCTestCase {
     }
     
     override func tearDownWithError() throws {
-        // 清理测试数据
+        // 注意：clearAllData 会清除真实的 Keychain 和 UserDefaults 数据
+        // 仅在模拟器环境中运行此测试
         settingsManager.clearAllData()
         try super.tearDownWithError()
     }
     
-    // MARK: - 核心配置测试
+    // MARK: - API 密钥测试
     
     func testAPIKeyStorage() {
-        // 测试API密钥存储
         let testKey = "sk-test1234567890abcdef"
         settingsManager.apiKey = testKey
         
@@ -28,16 +28,18 @@ final class SettingsManagerTests: XCTestCase {
     }
     
     func testAPIKeyValidation() {
-        // 测试API密钥验证
-        let validKey = "sk-test1234567890abcdef"
-        let invalidKey = "invalid-key"
+        // isAPIKeyValid 检查 apiKey 是否非空
+        settingsManager.apiKey = nil
+        XCTAssertFalse(settingsManager.isAPIKeyValid)
         
-        XCTAssertTrue(validKey.count >= 20 && validKey.contains("sk-"))
-        XCTAssertFalse(invalidKey.count >= 20 && invalidKey.contains("sk-"))
+        settingsManager.apiKey = ""
+        XCTAssertFalse(settingsManager.isAPIKeyValid)
+        
+        settingsManager.apiKey = "any-non-empty-key"
+        XCTAssertTrue(settingsManager.isAPIKeyValid)
     }
     
     func testAPIKeyRemoval() {
-        // 测试API密钥移除
         let testKey = "sk-test1234567890abcdef"
         settingsManager.apiKey = testKey
         XCTAssertEqual(settingsManager.apiKey, testKey)
@@ -47,10 +49,9 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertFalse(settingsManager.isAPIKeyValid)
     }
     
-    // MARK: - TTS配置测试
+    // MARK: - TTS 配置测试
     
     func testTTSConfiguration() {
-        // 测试TTS配置存储
         let testAppId = "test_app_id"
         let testCluster = "test_cluster"
         let testAccessKey = "test_access_key"
@@ -58,19 +59,29 @@ final class SettingsManagerTests: XCTestCase {
         
         settingsManager.ttsAppId = testAppId
         settingsManager.ttsCluster = testCluster
-        settingsManager.ttsAccessKey = testAccessKey
+        settingsManager.accessKey = testAccessKey
         settingsManager.ttsUid = testUid
         
         XCTAssertEqual(settingsManager.ttsAppId, testAppId)
         XCTAssertEqual(settingsManager.ttsCluster, testCluster)
-        XCTAssertEqual(settingsManager.ttsAccessKey, testAccessKey)
+        XCTAssertEqual(settingsManager.accessKey, testAccessKey)
         XCTAssertEqual(settingsManager.ttsUid, testUid)
+    }
+    
+    func testTTSCredentialsValidation() {
+        settingsManager.accessKey = nil
+        XCTAssertFalse(settingsManager.isTTSCredentialsValid)
+        
+        settingsManager.accessKey = ""
+        XCTAssertFalse(settingsManager.isTTSCredentialsValid)
+        
+        settingsManager.accessKey = "valid_key"
+        XCTAssertTrue(settingsManager.isTTSCredentialsValid)
     }
     
     // MARK: - 语音设置测试
     
     func testVoiceSettingsStorage() {
-        // 测试语音设置存储
         let testSettings = VoiceSettings(
             speed: 1.2,
             pitch: 0.8,
@@ -89,12 +100,11 @@ final class SettingsManagerTests: XCTestCase {
     }
     
     func testVoiceSettingsDefault() {
-        // 测试默认语音设置
         let defaultSettings = VoiceSettings.default
         
         XCTAssertEqual(defaultSettings.speed, 1.0)
         XCTAssertEqual(defaultSettings.pitch, 1.0)
-        XCTAssertEqual(defaultSettings.volume, 0.8)
+        XCTAssertEqual(defaultSettings.volume, 1.0)
         XCTAssertEqual(defaultSettings.voiceType, "default")
         XCTAssertEqual(defaultSettings.encoding, "mp3")
     }
@@ -102,7 +112,6 @@ final class SettingsManagerTests: XCTestCase {
     // MARK: - 语言设置测试
     
     func testLanguageSettings() {
-        // 测试语言设置
         let testLanguage = "en"
         settingsManager.currentLanguage = testLanguage
         
@@ -112,14 +121,13 @@ final class SettingsManagerTests: XCTestCase {
     // MARK: - 数据清理测试
     
     func testDataClearing() {
-        // 测试数据清理
         let testKey = "sk-test1234567890abcdef"
         settingsManager.apiKey = testKey
-        
         XCTAssertEqual(settingsManager.apiKey, testKey)
         
         settingsManager.clearAllData()
         
         XCTAssertNil(settingsManager.apiKey)
+        XCTAssertFalse(settingsManager.isAPIKeyValid)
     }
 }

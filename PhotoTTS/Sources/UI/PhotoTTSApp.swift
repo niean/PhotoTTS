@@ -7,7 +7,15 @@ import os.log
 
 // MARK: - 日志记录器
 extension os.Logger {
+    static let app = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "App")
+    static let siri = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "Siri")
     static let audioPlayer = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "AudioPlayer")
+    static let camera = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "Camera")
+    static let makeView = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeView")
+    static let appPages = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "AppPages")
+    static let ttsService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "TTSService")
+    static let networkService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "NetworkService")
+    static let settingsManager = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SettingsManager")
 }
 
 // MARK: - AppDelegate：锁定竖屏，拦截横屏
@@ -71,7 +79,7 @@ struct PhotoTTSApp: App {
         _ = DebugLogManager.shared
         
         // 向系统注册 Siri App Shortcuts，确保 Siri 能识别语音指令
-        PhotoTTSShortcuts.updateAppShortcutParameters()
+        Self.registerAppShortcuts(caller: "init")
     }
     
     var body: some Scene {
@@ -96,10 +104,21 @@ struct PhotoTTSApp: App {
             // 监听 App 进入前台（包含 Siri 拉起场景）
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    // 每次回到前台重新注册 Siri Shortcuts，防止系统索引丢失
+                    Self.registerAppShortcuts(caller: "foreground")
                     loadPendingSiriSession()
                 }
             }
         }
+    }
+
+    // MARK: - Siri Shortcuts 注册
+
+    /// 向系统注册 App Shortcuts，供 Siri 发现和调用
+    /// - Parameter caller: 调用来源标识（init / foreground / manual），用于日志区分
+    static func registerAppShortcuts(caller: String) {
+        PhotoTTSShortcuts.updateAppShortcutParameters()
+        os.Logger.siri.info("App Shortcuts 注册成功 (caller=\(caller))")
     }
 
     // Siri 待播放：App 激活时检查 UserDefaults，有则加载并触发 PlayView
@@ -111,7 +130,7 @@ struct PhotoTTSApp: App {
         let tryLoad = {
             DispatchQueue.global(qos: .userInitiated).async {
                 guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else {
-                    print("Siri 播放：未找到会话 \(sessionId)")
+                    os.Logger.siri.warning("播放: 未找到会话 \(sessionId)")
                     return
                 }
                 DispatchQueue.main.async {
@@ -204,7 +223,7 @@ struct PhotoTTSApp: App {
                     statusBarView.heightAnchor.constraint(equalToConstant: statusBarHeight)
                 ])
                 
-                print("✅ 状态栏已设置，高度: \(statusBarHeight)")
+                os.Logger.app.info("状态栏已设置, 高度: \(statusBarHeight)")
             }
         }
     }

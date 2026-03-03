@@ -1,4 +1,5 @@
 import SwiftUI
+import os.log
 
 /// 调试日志视图
 struct DebugLogView: View {
@@ -6,6 +7,7 @@ struct DebugLogView: View {
     @State private var isLoading = true
     @State private var showClearConfirmation = false
     @State private var logFileSize: Int64 = 0
+    @State private var siriRegisterResult: String? = nil
     
     @Environment(\.dismiss) var dismiss
     
@@ -18,6 +20,27 @@ struct DebugLogView: View {
                 
                 // 主内容区
                 VStack(spacing: 0) {
+                    // Siri 诊断区
+                    HStack {
+                        Button(action: { registerSiriShortcuts() }) {
+                            Label("重新注册 Siri Shortcuts", systemImage: "waveform")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        
+                        Spacer()
+                        
+                        if let result = siriRegisterResult {
+                            Text(result)
+                                .font(.caption)
+                                .foregroundColor(result.contains("成功") ? .green : .red)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 6)
+                    .background(Color.gray.opacity(0.05))
+
                     // 日志信息栏
                     HStack {
                         Text("日志大小: \(formatFileSize(logFileSize))")
@@ -127,6 +150,13 @@ struct DebugLogView: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+    
+    private func registerSiriShortcuts() {
+        siriRegisterResult = "注册中..."
+        PhotoTTSShortcuts.updateAppShortcutParameters()
+        siriRegisterResult = "注册成功"
+        os.Logger.siri.info("App Shortcuts 手动注册成功")
     }
 }
 

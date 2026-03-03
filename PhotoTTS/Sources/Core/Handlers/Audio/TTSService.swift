@@ -316,15 +316,11 @@ class TTSService {
     
     // MARK: - 日志方法
     private func logInfo(_ message: String) {
-        #if DEBUG
-        print("🎤 TTSService: \(message)")
-        #endif
+        os.Logger.ttsService.info("\(message)")
     }
     
     private func logError(_ message: String) {
-        #if DEBUG
-        print("❌ TTSService: \(message)")
-        #endif
+        os.Logger.ttsService.error("\(message)")
     }
 }
 

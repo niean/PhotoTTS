@@ -1,4 +1,5 @@
 import SwiftUI
+import os.log
 import UIKit
 import AVFoundation
 import PhotosUI
@@ -49,7 +50,7 @@ struct CustomCameraView: UIViewControllerRepresentable {
             let capped = SessionRecordManager.downsampleImageToMaxPixel(image, maxPixelLength: maxP) ?? image
             parent.selectedImages.append(capped)
             parent.onImagesSelected?([capped])
-            print("📸 照片已添加，继续拍摄。当前已拍摄 \(parent.selectedImages.count) 张")
+            os.Logger.camera.debug("照片已添加, 继续拍摄。当前已拍摄 \(self.parent.selectedImages.count) 张")
             
             // 更新相机界面的状态显示
             DispatchQueue.main.async { [weak self] in
@@ -143,7 +144,7 @@ class CustomCameraViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        print("📸 相机视图即将出现")
+        os.Logger.camera.debug("相机视图即将出现")
         
         // 异步执行初始化，避免阻塞主线程
         DispatchQueue.main.async { [weak self] in
@@ -179,7 +180,7 @@ class CustomCameraViewController: UIViewController {
             leftEdgeSwipeStarted = (location.x < Constants.Gesture.leftEdgeStartZoneWidth)
         case .ended:
             if leftEdgeSwipeStarted, translation.x > Constants.Gesture.swipeBackMinTranslation {
-                print("👈 相机页面：检测到左侧边缘向右滑动，返回主界面")
+                os.Logger.camera.debug("相机页面：检测到左侧边缘向右滑动，返回主界面")
                 delegate?.didCancel()
             }
             leftEdgeSwipeStarted = false
@@ -195,7 +196,7 @@ class CustomCameraViewController: UIViewController {
         captureSession?.sessionPreset = .photo
         
         guard let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            print("无法访问后置相机，尝试前置相机")
+            os.Logger.camera.error("无法访问后置相机，尝试前置相机")
             setupFrontCamera()
             return
         }
@@ -214,7 +215,7 @@ class CustomCameraViewController: UIViewController {
             setupPreviewLayer()
             
         } catch {
-            print("相机设置失败: \(error.localizedDescription)")
+            os.Logger.camera.error("相机设置失败: \(error.localizedDescription)")
             // 相机设置失败时显示错误状态
             showCameraError()
         }
@@ -222,7 +223,7 @@ class CustomCameraViewController: UIViewController {
     
     private func setupFrontCamera() {
         guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-            print("无法访问前置相机")
+            os.Logger.camera.error("无法访问前置相机")
             showCameraError()
             return
         }
@@ -241,7 +242,7 @@ class CustomCameraViewController: UIViewController {
             setupPreviewLayer()
             
         } catch {
-            print("前置相机设置失败: \(error.localizedDescription)")
+            os.Logger.camera.error("前置相机设置失败: \(error.localizedDescription)")
             showCameraError()
         }
     }
@@ -467,19 +468,19 @@ class CustomCameraViewController: UIViewController {
     }
     
     @objc private func captureButtonTapped() {
-        print("📸 拍照按钮被点击，当前状态: isEnabled=\(captureButton.isEnabled), isHidden=\(captureButton.isHidden)")
+        os.Logger.camera.debug("拍照按钮被点击，当前状态: isEnabled=\(self.captureButton.isEnabled), isHidden=\(self.captureButton.isHidden)")
         
         // 检查相机权限
         let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
         guard authStatus == .authorized else {
-            print("相机权限未授权: \(authStatus)")
+            os.Logger.camera.warning("相机权限未授权: \(String(describing: authStatus))")
             if authStatus == .notDetermined {
                 AVCaptureDevice.requestAccess(for: .video) { granted in
                     DispatchQueue.main.async {
                         if granted {
                             self.captureButtonTapped()
                         } else {
-                            print("用户拒绝了相机权限")
+                            os.Logger.camera.warning("用户拒绝了相机权限")
                         }
                     }
                 }
@@ -489,12 +490,12 @@ class CustomCameraViewController: UIViewController {
         
         // 检查相机会话状态
         guard let captureSession = captureSession, captureSession.isRunning else {
-            print("相机会话未运行")
+            os.Logger.camera.warning("相机会话未运行")
             return
         }
         
         guard let photoOutput = photoOutput else {
-            print("照片输出未初始化")
+            os.Logger.camera.warning("照片输出未初始化")
             return
         }
         
@@ -543,26 +544,26 @@ class CustomCameraViewController: UIViewController {
     
     private func startSession() {
         guard let captureSession = captureSession, !isConfiguring else {
-            print("📸 相机会话未初始化或正在配置中")
+            os.Logger.camera.debug("相机会话未初始化或正在配置中")
             return
         }
         
         // 检查相机权限
         let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
         guard authStatus == .authorized else {
-            print("📸 相机权限未授权: \(authStatus)")
+            os.Logger.camera.debug("相机权限未授权: \(String(describing: authStatus))")
             return
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            print("📸 开始启动相机会话...")
+            os.Logger.camera.debug("开始启动相机会话...")
             captureSession.startRunning()
             
             DispatchQueue.main.async {
                 if captureSession.isRunning {
-                    print("📸 相机会话启动成功")
+                    os.Logger.camera.debug("相机会话启动成功")
                 } else {
-                    print("📸 相机会话启动失败")
+                    os.Logger.camera.debug("相机会话启动失败")
                 }
             }
         }
@@ -575,7 +576,7 @@ class CustomCameraViewController: UIViewController {
     }
     
     private func ensureButtonsVisible() {
-        print("🔧 确保按钮可见 - 拍照按钮状态: isEnabled=\(captureButton.isEnabled), isHidden=\(captureButton.isHidden)")
+        os.Logger.camera.debug("确保按钮可见 - 拍照按钮状态: isEnabled=\(self.captureButton.isEnabled), isHidden=\(self.captureButton.isHidden)")
         
         // 只在必要时更新按钮状态，减少UI操作
         if captureButton.isHidden || !captureButton.isEnabled {
@@ -593,7 +594,7 @@ class CustomCameraViewController: UIViewController {
             galleryButton.isEnabled = true
         }
         
-        print("🔧 按钮状态更新后 - 拍照按钮状态: isEnabled=\(captureButton.isEnabled), isHidden=\(captureButton.isHidden)")
+        os.Logger.camera.debug("按钮状态更新后 - 拍照按钮状态: isEnabled=\(self.captureButton.isEnabled), isHidden=\(self.captureButton.isHidden)")
         
         // 批量更新层级，减少UI操作
         CATransaction.begin()
@@ -614,39 +615,39 @@ extension CustomCameraViewController: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         // 重新启用拍照按钮
         DispatchQueue.main.async { [weak self] in
-            print("📸 拍照完成，重新启用拍照按钮")
+            os.Logger.camera.debug("拍照完成，重新启用拍照按钮")
             self?.captureButton.isEnabled = true
-            print("📸 拍照按钮状态: isEnabled=\(self?.captureButton.isEnabled ?? false)")
+            os.Logger.camera.debug("拍照按钮状态: isEnabled=\(self?.captureButton.isEnabled ?? false)")
         }
         
         if let error = error {
-            print("📸 拍照失败: \(error.localizedDescription)")
+            os.Logger.camera.debug("拍照失败: \(error.localizedDescription)")
             DispatchQueue.main.async {
                 // 可以在这里显示错误提示
-                print("拍照错误，请重试")
+                os.Logger.camera.error("拍照错误，请重试")
             }
             return
         }
         
-        print("📸 开始处理照片数据...")
+        os.Logger.camera.debug("开始处理照片数据...")
         
         guard let imageData = photo.fileDataRepresentation() else {
-            print("📸 无法获取照片数据")
+            os.Logger.camera.debug("无法获取照片数据")
             DispatchQueue.main.async {
-                print("照片数据获取失败")
+                os.Logger.camera.error("照片数据获取失败")
             }
             return
         }
         
         guard let image = UIImage(data: imageData) else {
-            print("📸 无法创建UIImage，数据大小: \(imageData.count) 字节")
+            os.Logger.camera.debug("无法创建UIImage，数据大小: \(imageData.count) 字节")
             DispatchQueue.main.async {
-                print("图片创建失败")
+                os.Logger.camera.error("图片创建失败")
             }
             return
         }
         
-        print("📸 照片处理成功，图片大小: \(image.size)")
+        os.Logger.camera.debug("照片处理成功，图片大小: \(String(describing: image.size))")
         
         DispatchQueue.main.async { [weak self] in
             self?.delegate?.didCaptureImage(image)
@@ -654,15 +655,15 @@ extension CustomCameraViewController: AVCapturePhotoCaptureDelegate {
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput, willBeginCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-        print("📸 开始拍照...")
+        os.Logger.camera.debug("开始拍照...")
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-        print("📸 即将捕获照片...")
+        os.Logger.camera.debug("即将捕获照片...")
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput, didCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-        print("📸 照片捕获完成，开始处理...")
+        os.Logger.camera.debug("照片捕获完成，开始处理...")
     }
 }
 
@@ -754,12 +755,12 @@ struct MultiImagePicker: UIViewControllerRepresentable {
             picker.dismiss(animated: true)
             
             guard !results.isEmpty else {
-                print("📷 用户取消了图片选择")
+                os.Logger.camera.debug("用户取消了图片选择")
                 DispatchQueue.main.async { self.parent.onCancel?() }
                 return
             }
             
-            print("📷 开始加载 \(results.count) 张图片")
+            os.Logger.camera.debug("开始加载 \(results.count) 张图片")
             
             // 处理选中的图片 - 保持选择顺序
             let group = DispatchGroup()
@@ -788,9 +789,9 @@ struct MultiImagePicker: UIViewControllerRepresentable {
                                 if !isAlreadySelected {
                                     images[index] = cappedImage
                                     loadedCount += 1
-                                    print("✅ 图片 \(index) 加载成功")
+                                    os.Logger.camera.info("✅ 图片 \(index) 加载成功")
                                 } else {
-                                    print("⚠️ 图片 \(index) 已存在，跳过")
+                                    os.Logger.camera.debug("图片 \(index) 已存在，跳过")
                                     images[index] = UIImage()
                                 }
                                 lock.unlock()
@@ -808,12 +809,12 @@ struct MultiImagePicker: UIViewControllerRepresentable {
                 // 过滤掉空图片，保持顺序
                 let validImages = images.filter { !$0.size.equalTo(.zero) }
                 
-                print("📊 图片加载完成: 成功 \(validImages.count)/\(results.count)")
+                os.Logger.camera.info("图片加载完成: 成功 \(validImages.count)/\(results.count)")
                 
                 // 批量添加图片，只触发一次UI更新
                 if !validImages.isEmpty {
                     self.parent.selectedImages.append(contentsOf: validImages)
-                    print("📱 UI更新: 添加了 \(validImages.count) 张图片")
+                    os.Logger.camera.debug("UI更新: 添加了 \(validImages.count) 张图片")
                 }
                 
                 // 调用完成回调

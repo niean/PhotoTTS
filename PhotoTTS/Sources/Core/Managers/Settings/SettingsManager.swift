@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 import Security
 
 // MARK: - 设置管理器协议
@@ -556,16 +557,16 @@ class SettingsManager {
     }
     
     func validateAPIKey(_ key: String, completion: @escaping (Bool) -> Void) {
-        print("开始验证API密钥，密钥长度: \(key.count)")
+        os.Logger.settingsManager.info("开始验证API密钥, 密钥长度: \(key.count)")
         
         // 这里应该调用API验证密钥
         // 暂时简单验证格式
         let isValid = key.count >= AppConstants.API.minKeyLength && key.contains(AppConstants.API.keyPrefix)
         
         if isValid {
-            print("API密钥验证通过")
+            os.Logger.settingsManager.info("API密钥验证通过")
         } else {
-            print("API密钥验证失败: 格式不正确")
+            os.Logger.settingsManager.warning("API密钥验证失败: 格式不正确")
         }
         
         completion(isValid)

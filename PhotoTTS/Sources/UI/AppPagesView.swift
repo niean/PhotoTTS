@@ -1,16 +1,22 @@
 import SwiftUI
 import PhotosUI
+import os.log
 
 // MARK: - APP 介绍页头像（与介绍页同源，供「我的」等复用）
 enum IntroAvatarImage {
     static func load() -> UIImage? {
+        // 优先加载用户自定义头像（Documents/custom_background.jpg）
         let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("custom_background.jpg")
         if FileManager.default.fileExists(atPath: path.path),
            let image = UIImage(contentsOfFile: path.path) {
             return image
         }
-        return UIImage(named: "home")
+        // fallback: 从 Bundle Resources 加载默认头像（Resources/home.jpg）
+        if let bundlePath = Bundle.main.path(forResource: "home", ofType: "jpg") {
+            return UIImage(contentsOfFile: bundlePath)
+        }
+        return nil
     }
 }
 
@@ -37,9 +43,9 @@ struct AppPageView: View {
         
         do {
             try data.write(to: imagePath)
-            print("✅ 背景图片已保存到: \(imagePath)")
+            os.Logger.appPages.info("背景图片已保存到: \(imagePath.path)")
         } catch {
-            print("❌ 保存背景图片失败: \(error)")
+            os.Logger.appPages.error("保存背景图片失败: \(error)")
         }
     }
     
@@ -69,7 +75,7 @@ struct AppPageView: View {
                 )
                 .onTapGesture {
                     if pageType == .intro {
-                        print("📷 点击相机图标，打开图片选择器")
+                        os.Logger.appPages.debug("点击相机图标, 打开图片选择器")
                         showingImagePicker = true
                     }
                 }
@@ -183,7 +189,7 @@ struct AppPageView: View {
             if let image = newImage {
                 let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
                 let capped = SessionRecordManager.downsampleImageToMaxPixel(image, maxPixelLength: maxP) ?? image
-                print("📷 用户选择了新图片，保存为背景")
+                os.Logger.appPages.info("用户选择了新图片, 保存为背景")
                 saveBackgroundImage(capped)
                 selectedImage = nil
             }
