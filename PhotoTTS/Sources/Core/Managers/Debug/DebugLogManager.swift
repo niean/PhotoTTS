@@ -98,7 +98,7 @@ class DebugLogManager {
             let rotatedURL = logsDirectory.appendingPathComponent("debug_\(timestamp).log")
             try? fileManager.moveItem(at: logFileURL, to: rotatedURL)
         } catch {
-            NSLog("❌ 轮转日志文件失败: \(error.localizedDescription)")
+            os.Logger.debugLog.error("轮转日志文件失败: \(error.localizedDescription)")
         }
     }
     

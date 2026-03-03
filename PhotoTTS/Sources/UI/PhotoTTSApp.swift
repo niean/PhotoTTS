@@ -16,6 +16,11 @@ extension os.Logger {
     static let ttsService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "TTSService")
     static let networkService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "NetworkService")
     static let settingsManager = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SettingsManager")
+    static let ocrService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "OCRService")
+    static let coordinator = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "Coordinator")
+    static let debugLog = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "DebugLog")
+    static let sessionRecord = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SessionRecord")
+    static let playHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PlayHistory")
 }
 
 // MARK: - AppDelegate：锁定竖屏，拦截横屏
@@ -163,12 +168,12 @@ struct PhotoTTSApp: App {
                 try audioSession.setActive(true)
                 
                 DispatchQueue.main.async {
-                    os.Logger.audioPlayer.info("✅ 音频会话配置成功")
+                    os.Logger.audioPlayer.info("音频会话配置成功")
                 }
                 
             } catch {
                 DispatchQueue.main.async {
-                    os.Logger.audioPlayer.error("❌ 音频会话配置失败: \(error.localizedDescription)")
+                    os.Logger.audioPlayer.error("音频会话配置失败: \(error.localizedDescription)")
                 }
                 // 尝试更简单的配置
                 configureSimpleAudioSession()
@@ -182,9 +187,9 @@ struct PhotoTTSApp: App {
             // 使用最基本的配置，不设置mode和options
             try audioSession.setCategory(.playback)
             try audioSession.setActive(true)
-            os.Logger.audioPlayer.info("✅ 简化音频会话配置成功")
+            os.Logger.audioPlayer.info("简化音频会话配置成功")
         } catch {
-            os.Logger.audioPlayer.error("❌ 简化音频会话配置也失败: \(error.localizedDescription)")
+            os.Logger.audioPlayer.error("简化音频会话配置也失败: \(error.localizedDescription)")
             // 最后尝试: 只设置category，不激活
             configureMinimalAudioSession()
         }
@@ -194,9 +199,9 @@ struct PhotoTTSApp: App {
         do {
             let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setCategory(.playback)
-            os.Logger.audioPlayer.info("✅ 最小音频会话配置成功（仅设置category）")
+            os.Logger.audioPlayer.info("最小音频会话配置成功（仅设置category）")
         } catch {
-            os.Logger.audioPlayer.error("❌ 最小音频会话配置也失败: \(error.localizedDescription)")
+            os.Logger.audioPlayer.error("最小音频会话配置也失败: \(error.localizedDescription)")
         }
     }
     
@@ -344,11 +349,11 @@ struct FullScreenCameraOverlay: View {
             selectedImages: selectedImagesBinding,
             onImagesSelected: { images in
                 if !images.isEmpty {
-                    NotificationCenter.default.post(name: NSNotification.Name("UpdatePhotoCount"), object: nil, userInfo: ["count": appState.cameraOverlayImages.count])
+                    NotificationCenter.default.post(name: Constants.NotificationNames.updatePhotoCount, object: nil, userInfo: ["count": appState.cameraOverlayImages.count])
                 }
             },
             onPhotoCountUpdate: { count in
-                NotificationCenter.default.post(name: NSNotification.Name("UpdatePhotoCount"), object: nil, userInfo: ["count": count])
+                NotificationCenter.default.post(name: Constants.NotificationNames.updatePhotoCount, object: nil, userInfo: ["count": count])
             },
             onDismiss: {
                 appState.fullScreenKind = nil

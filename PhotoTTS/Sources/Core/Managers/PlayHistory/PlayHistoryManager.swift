@@ -59,6 +59,10 @@ class PlayHistoryManager {
         var list = loadFromFile()
         list.append(PlayHistoryEntry(name: trimmed, lastPlayedAt: playedAt, playCount: 1))
         list.sort { $0.lastPlayedAt > $1.lastPlayedAt }
+        // 裁剪到上限，防止无限增长
+        if list.count > Constants.maxPlayHistoryRecords {
+            list = Array(list.prefix(Constants.maxPlayHistoryRecords))
+        }
         saveToFile(list)
         logger.info("记录播放: \(trimmed) @ \(playedAt)")
     }

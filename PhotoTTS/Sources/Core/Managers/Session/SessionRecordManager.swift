@@ -33,9 +33,9 @@ class SessionRecordManager {
                 resourceValues.isExcludedFromBackup = false  // 不排除备份，确保文件可见
                 try? mutablePath.setResourceValues(resourceValues)
                 
-                logger.info("✅ 创建会话记录目录: \(sessionsPath.path)")
+                logger.info("创建会话记录目录: \(sessionsPath.path)")
             } catch {
-                logger.error("❌ 创建会话记录目录失败: \(error.localizedDescription)")
+                logger.error("创建会话记录目录失败: \(error.localizedDescription)")
             }
         } else {
             // 即使目录已存在，也确保权限正确
@@ -86,16 +86,16 @@ class SessionRecordManager {
                 resourceValues.isExcludedFromBackup = false
                 try? mutableReadme.setResourceValues(resourceValues)
                 
-                logger.info("✅ 创建Documents目录README文件，确保在'文件'应用中可见")
+                logger.info("创建Documents目录README文件，确保在'文件'应用中可见")
             } catch {
-                logger.warning("⚠️ 创建README文件失败: \(error.localizedDescription)")
+                logger.warning("创建README文件失败: \(error.localizedDescription)")
             }
         }
     }
     
     // MARK: - 初始化
     private init() {
-        logger.info("📁 会话记录管理器初始化，存储目录: \(self.sessionsDirectory.path)")
+        logger.info("会话记录管理器初始化，存储目录: \(self.sessionsDirectory.path)")
     }
     
     // MARK: - 保存会话记录
@@ -222,14 +222,14 @@ class SessionRecordManager {
             let updatedRecordData = try JSONEncoder().encode(updatedRecord)
             try updatedRecordData.write(to: recordURL)
             
-            logger.info("✅ 会话记录保存成功: \(record.id), 名称: \(record.name)")
-            logger.info("📁 会话记录路径: \(sessionDir.path)，可在'文件'应用中访问")
-            logger.info("💾 存储空间: \(formattedSize) (\(storageSize) 字节)")
+            logger.info("会话记录保存成功: \(record.id), 名称: \(record.name)")
+            logger.info("会话记录路径: \(sessionDir.path)，可在'文件'应用中访问")
+            logger.info("存储空间: \(formattedSize) (\(storageSize) 字节)")
             
             return (true, storageSize)
             
         } catch {
-            logger.error("❌ 保存会话记录失败: \(error.localizedDescription)")
+            logger.error("保存会话记录失败: \(error.localizedDescription)")
             return (false, nil)
         }
     }
@@ -246,7 +246,7 @@ class SessionRecordManager {
     
     // MARK: - 读取会话记录
     
-    private static let didStripRecordAudioBase64Key = "PhotoTTS.DidStripRecordAudioBase64"
+    private static let didStripRecordAudioBase64Key = Constants.UserDefaultsKeys.didStripRecordAudioBase64
     
     /// 一次性修复存量 record.json：剔除 audioDataBase64 后写回，降低占用
     private func stripRecordAudioBase64IfNeeded() {
@@ -271,11 +271,11 @@ class SessionRecordManager {
             }
             
             if fixedCount > 0 {
-                logger.info("✅ 存量 record.json 剔除 audioDataBase64 完成，共处理 \(fixedCount) 条")
+                logger.info("存量 record.json 剔除 audioDataBase64 完成，共处理 \(fixedCount) 条")
             }
             UserDefaults.standard.set(true, forKey: Self.didStripRecordAudioBase64Key)
         } catch {
-            logger.error("❌ 存量 record.json 剔除 audioDataBase64 失败: \(error.localizedDescription)")
+            logger.error("存量 record.json 剔除 audioDataBase64 失败: \(error.localizedDescription)")
         }
     }
     
@@ -311,10 +311,10 @@ class SessionRecordManager {
                 return lhs.createdAt > rhs.createdAt
             }
             
-            logger.info("📋 加载了 \(metadataList.count) 条会话记录元数据")
+            logger.info("加载了 \(metadataList.count) 条会话记录元数据")
             
         } catch {
-            logger.error("❌ 读取会话记录列表失败: \(error.localizedDescription)")
+            logger.error("读取会话记录列表失败: \(error.localizedDescription)")
         }
         
         return metadataList
@@ -328,7 +328,7 @@ class SessionRecordManager {
         let recordURL = sessionDir.appendingPathComponent("record.json")
         
         guard fileManager.fileExists(atPath: recordURL.path) else {
-            logger.warning("⚠️ 会话记录不存在: \(id)")
+            logger.warning("会话记录不存在: \(id)")
             return nil
         }
         
@@ -363,11 +363,11 @@ class SessionRecordManager {
                 storageSize: record.storageSize
             )
             
-            logger.info("✅ 加载会话记录成功: \(id)")
+            logger.info("加载会话记录成功: \(id)")
             return resultRecord
             
         } catch {
-            logger.error("❌ 加载会话记录失败: \(error.localizedDescription)")
+            logger.error("加载会话记录失败: \(error.localizedDescription)")
             return nil
         }
     }
@@ -497,7 +497,7 @@ class SessionRecordManager {
             values.isExcludedFromBackup = false
             try? mutable.setResourceValues(values)
         } catch {
-            logger.error("❌ 写入头像失败: \(error.localizedDescription)")
+            logger.error("写入头像失败: \(error.localizedDescription)")
         }
     }
     
@@ -560,10 +560,10 @@ class SessionRecordManager {
         
         do {
             try fileManager.removeItem(at: sessionDir)
-            logger.info("✅ 删除会话记录成功: \(id)")
+            logger.info("删除会话记录成功: \(id)")
             return true
         } catch {
-            logger.error("❌ 删除会话记录失败: \(error.localizedDescription)")
+            logger.error("删除会话记录失败: \(error.localizedDescription)")
             return false
         }
     }
@@ -616,7 +616,7 @@ class SessionRecordManager {
                 }
             }
         } catch {
-            logger.error("❌ 计算存储大小失败: \(error.localizedDescription)")
+            logger.error("计算存储大小失败: \(error.localizedDescription)")
         }
         
         return totalSize
@@ -785,7 +785,7 @@ class SessionRecordManager {
                         folderName: folderName
                     ))
                     
-                    logger.info("✅ 导出会话记录: \(metadata.name), 文件夹: \(folderName) (\(self.formatStorageSize(sessionSize)))")
+                    logger.info("导出会话记录: \(metadata.name), 文件夹: \(folderName) (\(self.formatStorageSize(sessionSize)))")
                 }
             }
             
@@ -841,13 +841,13 @@ class SessionRecordManager {
             resourceValues.isExcludedFromBackup = false
             try? mutableExportDir.setResourceValues(resourceValues)
             
-            logger.info("✅ 导出完成: \(exportedCount) 个会话记录，总大小: \(self.formatStorageSize(totalSize))")
-            logger.info("📁 导出位置: \(exportDir.path)")
+            logger.info("导出完成: \(exportedCount) 个会话记录，总大小: \(self.formatStorageSize(totalSize))")
+            logger.info("导出位置: \(exportDir.path)")
             
             return (true, exportedCount, totalSize, nil)
             
         } catch {
-            logger.error("❌ 导出会话记录失败: \(error.localizedDescription)")
+            logger.error("导出会话记录失败: \(error.localizedDescription)")
             return (false, 0, 0, error.localizedDescription)
         }
     }
@@ -1085,7 +1085,7 @@ class SessionRecordManager {
             }
             
         } catch {
-            logger.warning("⚠️ 更新会话ID失败: \(error.localizedDescription)")
+            logger.warning("更新会话ID失败: \(error.localizedDescription)")
         }
     }
 }

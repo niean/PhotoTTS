@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 // MARK: - Array扩展
 extension Array {
@@ -124,9 +125,9 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         self.ocrService = OCRServiceFactory.createDoubaoOCRService()
         
         if self.ocrService == nil {
-            NSLog("❌ ImageToSpeechCoordinator: OCR服务初始化失败")
+            os.Logger.coordinator.error("ImageToSpeechCoordinator: OCR服务初始化失败")
         } else {
-            NSLog("✅ ImageToSpeechCoordinator: OCR服务初始化成功")
+            os.Logger.coordinator.info("ImageToSpeechCoordinator: OCR服务初始化成功")
                 }
             }
     
@@ -144,7 +145,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
             return
         }
         
-        guard images.count <= 100 else {
+        guard images.count <= Constants.maxBatchImageCount else {
             completion(.failure(.ttsFailed(NetworkError.tooManyTexts)))
             return
         }
@@ -295,13 +296,13 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
             let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedText == AppConstants.ocrEmptyResultIndicator {
                 emptyResultCount += 1
-                NSLog("⚠️ 空图片：第 \(index + 1) 张图片为空（返回了系统保留字符 \(AppConstants.ocrEmptyResultIndicator)）")
+                os.Logger.coordinator.warning("空图片：第 \(index + 1) 张图片为空（返回了系统保留字符 \(AppConstants.ocrEmptyResultIndicator)）")
                 // 即使为空，也保留位置，添加空字符串和分隔符
                 combinedText += "" + (index < results.count - 1 ? AppConstants.ocrTextSeparator : "")
             } else if trimmedText.isEmpty {
                 // OCR失败的情况，也保留位置
                 failedResultCount += 1
-                NSLog("⚠️ OCR失败：第 \(index + 1) 张图片OCR识别失败，保留空文本记录项")
+                os.Logger.coordinator.warning("OCR失败：第 \(index + 1) 张图片OCR识别失败，保留空文本记录项")
                 // 即使失败，也保留位置，添加空字符串和分隔符
                 combinedText += "" + (index < results.count - 1 ? AppConstants.ocrTextSeparator : "")
             } else {
@@ -315,12 +316,12 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         // 检查文本是否超限
         let maxLength = getTTSMaxLength()
         if combinedText.count > maxLength {
-            NSLog("❌ OCR拼接文字超限：长度 \(combinedText.count)，限制 \(maxLength)")
+            os.Logger.coordinator.error("OCR拼接文字超限：长度 \(combinedText.count)，限制 \(maxLength)")
             throw ImageToSpeechProcessingError.ttsFailed(NetworkError.textTooLong)
         }
 
         let validImageCount = results.count - emptyResultCount - failedResultCount
-        NSLog("✅ OCR拼接完成：总长度 \(combinedText.count)，限制 \(maxLength)，空图片 \(emptyResultCount) 张，失败 \(failedResultCount) 张，有效图片 \(validImageCount) 张")
+        os.Logger.coordinator.info("OCR拼接完成：总长度 \(combinedText.count)，限制 \(maxLength)，空图片 \(emptyResultCount) 张，失败 \(failedResultCount) 张，有效图片 \(validImageCount) 张")
         return (combinedText, validImageCount)
     }
     
@@ -351,7 +352,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         let concurrentCount = getOCRConcurrentCount()
         let totalImages = images.count
         
-        NSLog("🚀 开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)")
+        os.Logger.coordinator.info("开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)")
         
         // 分批处理图片，每批的并发数不超过配置的并发数
         let batchSize = concurrentCount
@@ -359,7 +360,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         var allResults: [(Int, String)] = []
         
         for (batchIndex, batch) in batches.enumerated() {
-            NSLog("🔄 处理第 \(batchIndex + 1)/\(batches.count) 批，包含 \(batch.count) 张图片")
+            os.Logger.coordinator.info("处理第 \(batchIndex + 1)/\(batches.count) 批，包含 \(batch.count) 张图片")
             
             // 为当前批次的每张图片创建OCR任务
             await withTaskGroup(of: (Int, String).self) { group in
@@ -374,7 +375,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             return (globalIndex, ocrResult.recognizedText)
                         } catch {
                             // OCR失败时，记录错误并返回空字符串，保持索引对应
-                            NSLog("❌ OCR识别失败，图片索引: \(globalIndex + 1)，错误: \(error.localizedDescription)")
+                            os.Logger.coordinator.error("OCR识别失败，图片索引: \(globalIndex + 1)，错误: \(error.localizedDescription)")
                             return (globalIndex, "")
                         }
                     }
@@ -421,7 +422,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         let emptyCount = recognizedTexts.filter { $0 == AppConstants.ocrEmptyResultIndicator }.count
         let failedCount = recognizedTexts.filter { $0.isEmpty }.count - emptyCount
         
-        NSLog("✅ 并发OCR识别完成，处理了 \(recognizedTexts.count) 张图片（成功: \(successCount)，空图片: \(emptyCount)，失败: \(failedCount)）")
+        os.Logger.coordinator.info("并发OCR识别完成，处理了 \(recognizedTexts.count) 张图片（成功: \(successCount)，空图片: \(emptyCount)，失败: \(failedCount)）")
         return recognizedTexts
     }
     

@@ -40,15 +40,16 @@ class TTSService {
         let ttsConfig = SettingsManager.shared.loadTTSConfig()
         
         guard !ttsConfig.isEmpty else {
-            NSLog("❌ 无法读取TTS配置")
+            os.Logger.ttsService.error("无法读取TTS配置")
             return nil
         }
         
-        NSLog("✅ 成功读取TTS配置")
+        os.Logger.ttsService.info("成功读取TTS配置")
         
         let baseURL = ttsConfig["base_url"] as? String ?? "https://openspeech.bytedance.com/api/v1/tts"
         let appId = ttsConfig["appid"] as? String ?? ""
-        let accessKey = ttsConfig["access_key"] as? String ?? ""
+        // 优先从 Keychain 获取密钥，回退到 config 文件
+        let accessKey = SettingsManager.shared.getTTSAccessKey()
         let cluster = ttsConfig["cluster"] as? String ?? "volcano_tts"
         let voiceType = ttsConfig["voice_type"] as? String ?? "zh_female_tianmeixiaoyuan_moon_bigtts"
         let encoding = ttsConfig["encoding"] as? String ?? "mp3"
@@ -59,22 +60,22 @@ class TTSService {
         let maxRetryCount = ttsConfig["max_retry_count"] as? Int ?? 3
         let retryDelay = ttsConfig["retry_delay"] as? TimeInterval ?? 1.0
         
-        NSLog("✅ TTS配置信息:")
-        NSLog("   - Base URL: \(baseURL)")
-        NSLog("   - App ID: \(appId)")
-        NSLog("   - Access Key: \(accessKey.isEmpty ? "❌ 空" : "✅ 已配置")")
-        NSLog("   - Cluster: \(cluster)")
-        NSLog("   - Voice Type: \(voiceType)")
-        NSLog("   - Encoding: \(encoding)")
-        NSLog("   - Bitrate: \(bitrate) kbps")
-        NSLog("   - Rate: \(rate) Hz")
-        NSLog("   - Speed Ratio: \(speedRatio)")
-        NSLog("   - Timeout: \(timeout)秒")
-        NSLog("   - Max Retry: \(maxRetryCount)次")
-        NSLog("   - Retry Delay: \(retryDelay)秒")
+        os.Logger.ttsService.info("TTS配置信息:")
+        os.Logger.ttsService.info("   - Base URL: \(baseURL)")
+        os.Logger.ttsService.info("   - App ID: \(appId)")
+        os.Logger.ttsService.info("   - Access Key: \(accessKey.isEmpty ? "空" : "已配置")")
+        os.Logger.ttsService.info("   - Cluster: \(cluster)")
+        os.Logger.ttsService.info("   - Voice Type: \(voiceType)")
+        os.Logger.ttsService.info("   - Encoding: \(encoding)")
+        os.Logger.ttsService.info("   - Bitrate: \(bitrate) kbps")
+        os.Logger.ttsService.info("   - Rate: \(rate) Hz")
+        os.Logger.ttsService.info("   - Speed Ratio: \(speedRatio)")
+        os.Logger.ttsService.info("   - Timeout: \(timeout)秒")
+        os.Logger.ttsService.info("   - Max Retry: \(maxRetryCount)次")
+        os.Logger.ttsService.info("   - Retry Delay: \(retryDelay)秒")
         
         guard !baseURL.isEmpty && !appId.isEmpty && !accessKey.isEmpty else {
-            NSLog("❌ TTS配置不完整")
+            os.Logger.ttsService.error("TTS配置不完整")
             return nil
         }
         
@@ -93,7 +94,7 @@ class TTSService {
             retryDelay: retryDelay
         )
         
-        NSLog("✅ TTS服务初始化成功")
+        os.Logger.ttsService.info("TTS服务初始化成功")
         return TTSService(configuration: ttsConfiguration)
     }
     
@@ -115,27 +116,27 @@ class TTSService {
     
     private func synthesizeSpeechWithRetry(text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
         func attemptTTS(attempt: Int, lastError: Error?) {
-            logInfo("🔄 TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
+            logInfo("TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
             
             synthesizeSpeechOnce(text, voiceSettings: voiceSettings) { [weak self] result in
                 guard let self = self else { return }
                 
                 switch result {
                 case .success(let response):
-                    self.logInfo("✅ TTS API调用成功，尝试 \(attempt)")
+                    self.logInfo("TTS API调用成功，尝试 \(attempt)")
                     completion(.success(response))
                 case .failure(let error):
-                    self.logError("❌ TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
+                    self.logError("TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
                     
                     // 如果不是最后一次尝试，等待重试间隔
                     if attempt < self.configuration.maxRetryCount {
-                        self.logInfo("⏳ 等待 \(self.configuration.retryDelay) 秒后重试...")
+                        self.logInfo("等待 \(self.configuration.retryDelay) 秒后重试...")
                         DispatchQueue.global().asyncAfter(deadline: .now() + self.configuration.retryDelay) {
                             attemptTTS(attempt: attempt + 1, lastError: error)
                         }
                     } else {
                         // 所有重试都失败了
-                        self.logError("❌ TTS API调用失败，已重试 \(self.configuration.maxRetryCount) 次")
+                        self.logError("TTS API调用失败，已重试 \(self.configuration.maxRetryCount) 次")
                         completion(.failure(error))
                     }
                 }

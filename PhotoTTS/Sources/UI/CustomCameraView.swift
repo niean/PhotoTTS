@@ -126,7 +126,7 @@ class CustomCameraViewController: UIViewController {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handlePhotoCountUpdate(_:)),
-            name: NSNotification.Name("UpdatePhotoCount"),
+            name: Constants.NotificationNames.updatePhotoCount,
             object: nil
         )
     }
@@ -789,7 +789,7 @@ struct MultiImagePicker: UIViewControllerRepresentable {
                                 if !isAlreadySelected {
                                     images[index] = cappedImage
                                     loadedCount += 1
-                                    os.Logger.camera.info("✅ 图片 \(index) 加载成功")
+                                    os.Logger.camera.info("图片 \(index) 加载成功")
                                 } else {
                                     os.Logger.camera.debug("图片 \(index) 已存在，跳过")
                                     images[index] = UIImage()
@@ -831,31 +831,10 @@ struct MultiImagePicker: UIViewControllerRepresentable {
             return formatter.string(fromByteCount: Int64(bytes))
         }
         
-        // 压缩图片以减少内存使用
+        // 压缩图片以减少内存使用（使用 Image I/O 降采样，避免先解码全尺寸再缩放）
         private func compressImage(_ image: UIImage, maxSize: CGSize) -> UIImage {
-            let imageSize = image.size
-            let aspectRatio = imageSize.width / imageSize.height
-            
-            var newSize = maxSize
-            if aspectRatio > 1 {
-                // 横向图片
-                newSize.height = maxSize.width / aspectRatio
-            } else {
-                // 纵向图片
-                newSize.width = maxSize.height * aspectRatio
-            }
-            
-            // 如果图片已经小于目标尺寸，直接返回
-            if imageSize.width <= maxSize.width && imageSize.height <= maxSize.height {
-                return image
-            }
-            
-            UIGraphicsBeginImageContextWithOptions(newSize, false, 0.8) // 使用0.8的缩放因子
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-            let compressedImage = UIGraphicsGetImageFromCurrentImageContext()
-            UIGraphicsEndImageContext()
-            
-            return compressedImage ?? image
+            let maxPixel = Int(max(maxSize.width, maxSize.height))
+            return SessionRecordManager.downsampleImageToMaxPixel(image, maxPixelLength: maxPixel) ?? image
         }
         
         // 检查图片是否已经选择过

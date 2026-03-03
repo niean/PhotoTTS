@@ -287,23 +287,23 @@ class SettingsManager {
                 let config = try JSONSerialization.jsonObject(with: configData) as? [String: Any]
                 return config
             } catch {
-                NSLog("❌ 读取用户配置文件失败: \(error.localizedDescription)")
+                os.Logger.settingsManager.error("读取用户配置文件失败: \(error.localizedDescription)")
             }
         }
         
         // 回退到Bundle中的默认配置
         guard let bundleConfigPath = Bundle.main.path(forResource: "config_local", ofType: "json") else {
-            NSLog("❌ 找不到默认配置文件")
+            os.Logger.settingsManager.error("找不到默认配置文件")
             return nil
         }
         
         do {
             let configData = try Data(contentsOf: URL(fileURLWithPath: bundleConfigPath))
             let config = try JSONSerialization.jsonObject(with: configData) as? [String: Any]
-            NSLog("✅ 成功读取默认配置文件: \(bundleConfigPath)")
+            os.Logger.settingsManager.info("成功读取默认配置文件: \(bundleConfigPath)")
             return config
         } catch {
-            NSLog("❌ 读取默认配置文件失败: \(error.localizedDescription)")
+            os.Logger.settingsManager.error("读取默认配置文件失败: \(error.localizedDescription)")
             return nil
         }
     }
@@ -321,23 +321,23 @@ class SettingsManager {
                 let configString = String(data: configData, encoding: .utf8)
                 return configString
             } catch {
-                NSLog("❌ 读取用户配置文件字符串失败: \(error.localizedDescription)")
+                os.Logger.settingsManager.error("读取用户配置文件字符串失败: \(error.localizedDescription)")
             }
         }
         
         // 回退到Bundle中的默认配置
         guard let bundleConfigPath = Bundle.main.path(forResource: "config_local", ofType: "json") else {
-            NSLog("❌ 找不到默认配置文件")
+            os.Logger.settingsManager.error("找不到默认配置文件")
             return nil
         }
         
         do {
             let configData = try Data(contentsOf: URL(fileURLWithPath: bundleConfigPath))
             let configString = String(data: configData, encoding: .utf8)
-            NSLog("✅ 成功读取默认配置文件字符串: \(bundleConfigPath)")
+            os.Logger.settingsManager.info("成功读取默认配置文件字符串: \(bundleConfigPath)")
             return configString
         } catch {
-            NSLog("❌ 读取默认配置文件字符串失败: \(error.localizedDescription)")
+            os.Logger.settingsManager.error("读取默认配置文件字符串失败: \(error.localizedDescription)")
             return nil
         }
     }
@@ -346,17 +346,17 @@ class SettingsManager {
     /// - Returns: 默认配置的JSON字符串，如果读取失败返回"{}"
     func loadDefaultConfig() -> String {
         guard let configPath = Bundle.main.path(forResource: "config_local", ofType: "json") else {
-            NSLog("❌ 找不到Bundle中的config_local.json配置文件")
+            os.Logger.settingsManager.error("找不到Bundle中的config_local.json配置文件")
             return "{}"
         }
         
         do {
             let configData = try Data(contentsOf: URL(fileURLWithPath: configPath))
             let configString = String(data: configData, encoding: .utf8) ?? "{}"
-            NSLog("✅ 成功加载Bundle中的默认配置")
+            os.Logger.settingsManager.info("成功加载Bundle中的默认配置")
             return configString
         } catch {
-            NSLog("❌ 读取Bundle配置文件失败: \(error.localizedDescription)")
+            os.Logger.settingsManager.error("读取Bundle配置文件失败: \(error.localizedDescription)")
             return "{}"
         }
     }
@@ -366,7 +366,7 @@ class SettingsManager {
     func loadSystemConfig() -> [String: Any] {
         guard let config = loadConfig(),
               let sysConfig = config["sys"] as? [String: Any] else {
-            NSLog("❌ 读取系统配置失败，使用空配置")
+            os.Logger.settingsManager.error("读取系统配置失败，使用空配置")
             return [:]
         }
         return sysConfig
@@ -377,7 +377,7 @@ class SettingsManager {
     func loadOCRConfig() -> [String: Any] {
         guard let config = loadConfig(),
               let ocrConfig = config["ocr"] as? [String: Any] else {
-            NSLog("❌ 读取OCR配置失败，使用空配置")
+            os.Logger.settingsManager.error("读取OCR配置失败，使用空配置")
             return [:]
         }
         return ocrConfig
@@ -388,7 +388,7 @@ class SettingsManager {
     func loadTTSConfig() -> [String: Any] {
         guard let config = loadConfig(),
               let ttsConfig = config["tts"] as? [String: Any] else {
-            NSLog("❌ 读取TTS配置失败，使用空配置")
+            os.Logger.settingsManager.error("读取TTS配置失败，使用空配置")
             return [:]
         }
         return ttsConfig
@@ -401,7 +401,7 @@ class SettingsManager {
     func getOCRConcurrentCount() -> Int {
         let sysConfig = loadSystemConfig()
         let concurrentCount = sysConfig["ocr_concurrent_count"] as? Int ?? AppConstants.defaultOCRConcurrentCount
-        NSLog("✅ 读取OCR并发数配置: \(concurrentCount)")
+        os.Logger.settingsManager.info("读取OCR并发数配置: \(concurrentCount)")
         return max(1, concurrentCount) // 确保至少为1
     }
     
@@ -409,8 +409,8 @@ class SettingsManager {
     /// - Returns: TTS最大字符数，默认为10240
     func getTTSMaxLength() -> Int {
         let sysConfig = loadSystemConfig()
-        let maxLength = sysConfig["tts_text_max_length"] as? Int ?? 10240
-        NSLog("✅ 读取TTS字符限制配置: \(maxLength)")
+        let maxLength = sysConfig["tts_text_max_length"] as? Int ?? AppConstants.defaultTTSMaxLength
+        os.Logger.settingsManager.info("读取TTS字符限制配置: \(maxLength)")
         return max(1, maxLength)
     }
     
@@ -428,11 +428,22 @@ class SettingsManager {
         return ocrConfig["model_name"] as? String ?? ""
     }
     
-    /// 读取OCR API密钥
+    /// 读取OCR API密钥（优先从Keychain获取，回退到config文件，首次回退时写入Keychain）
     /// - Returns: OCR API密钥，如果读取失败返回空字符串
     func getOCRAPIKey() -> String {
+        // 优先从 Keychain 读取
+        if let keychainKey = apiKey, !keychainKey.isEmpty {
+            return keychainKey
+        }
+        // 回退到 config 文件
         let ocrConfig = loadOCRConfig()
-        return ocrConfig["api_key"] as? String ?? ""
+        let configKey = ocrConfig["api_key"] as? String ?? ""
+        // 首次从 config 读取后写入 Keychain
+        if !configKey.isEmpty {
+            apiKey = configKey
+            os.Logger.settingsManager.info("OCR API密钥已从配置文件迁移到Keychain")
+        }
+        return configKey
     }
     
     /// 读取OCR用户提示词
@@ -456,11 +467,22 @@ class SettingsManager {
         return ttsConfig["appid"] as? String ?? ""
     }
     
-    /// 读取TTS访问密钥
+    /// 读取TTS访问密钥（优先从Keychain获取，回退到config文件，首次回退时写入Keychain）
     /// - Returns: TTS访问密钥，如果读取失败返回空字符串
     func getTTSAccessKey() -> String {
+        // 优先从 Keychain 读取
+        if let keychainKey = accessKey, !keychainKey.isEmpty {
+            return keychainKey
+        }
+        // 回退到 config 文件
         let ttsConfig = loadTTSConfig()
-        return ttsConfig["access_key"] as? String ?? ""
+        let configKey = ttsConfig["access_key"] as? String ?? ""
+        // 首次从 config 读取后写入 Keychain
+        if !configKey.isEmpty {
+            accessKey = configKey
+            os.Logger.settingsManager.info("TTS访问密钥已从配置文件迁移到Keychain")
+        }
+        return configKey
     }
     
     /// 读取TTS集群
@@ -510,12 +532,12 @@ class SettingsManager {
             try configData.write(to: configURL)
             
             // 通知应用重新加载配置
-            NotificationCenter.default.post(name: NSNotification.Name("ConfigUpdated"), object: nil)
+            NotificationCenter.default.post(name: Constants.NotificationNames.configUpdated, object: nil)
             
-            NSLog("✅ 用户配置文件更新成功: \(configURL.path)")
+            os.Logger.settingsManager.info("用户配置文件更新成功: \(configURL.path)")
             return true
         } catch {
-            NSLog("❌ 更新用户配置文件失败: \(error.localizedDescription)")
+            os.Logger.settingsManager.error("更新用户配置文件失败: \(error.localizedDescription)")
             return false
         }
     }
@@ -534,7 +556,7 @@ class SettingsManager {
     private func getConfigFileURL() -> URL {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let userConfigURL = documentsPath.appendingPathComponent("config_local.json")
-        NSLog("📁 用户配置文件路径: \(userConfigURL.path)")
+        os.Logger.settingsManager.debug("用户配置文件路径: \(userConfigURL.path)")
         return userConfigURL
     }
     

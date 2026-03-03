@@ -194,7 +194,7 @@ struct PlayView: View {
             startPlaybackTimer()
             UIApplication.shared.isIdleTimerDisabled = true
         } catch {
-            os.Logger.audioPlayer.error("❌ PlayView 创建播放器失败: \(error.localizedDescription)")
+            os.Logger.audioPlayer.error("PlayView 创建播放器失败: \(error.localizedDescription)")
         }
     }
     

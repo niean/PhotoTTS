@@ -498,7 +498,7 @@ struct MakeView: View {
     /// 播放：用 PlayView 全屏播放当前制作数据
     private func togglePlayback() {
         guard audioData != nil else {
-            os.Logger.audioPlayer.error("❌ 没有音频数据，请先完成OCR和TTS处理")
+            os.Logger.audioPlayer.error("没有音频数据，请先完成OCR和TTS处理")
             return
         }
         if let record = buildCurrentSessionRecord() {

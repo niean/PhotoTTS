@@ -2,7 +2,7 @@ import AppIntents
 import Foundation
 
 // MARK: - Siri 待播放会话的 UserDefaults key
-let kSiriPendingSessionId = "siriPendingPlaySessionId"
+let kSiriPendingSessionId = Constants.UserDefaultsKeys.siriPendingSessionId
 
 // MARK: - 播放绘本意图
 struct PlaySessionIntent: AppIntent {

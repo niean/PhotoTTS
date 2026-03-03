@@ -431,11 +431,19 @@ struct LoadableSessionAvatarView: View {
         }
         .onAppear {
             if image == nil {
-                image = SessionRecordManager.shared.loadAvatar(sessionId: sessionId)
-                if image == nil, totalImageCount > 0 {
-                    let idx = min(max(0, fallbackAvatarIndex), totalImageCount - 1)
-                    image = SessionRecordManager.shared.loadImage(sessionId: sessionId, index: idx, maxDimension: 150)
-                        ?? SessionRecordManager.shared.loadImage(sessionId: sessionId, index: 0, maxDimension: 150)
+                let sid = sessionId
+                let fallback = fallbackAvatarIndex
+                let total = totalImageCount
+                DispatchQueue.global(qos: .userInitiated).async {
+                    var loaded = SessionRecordManager.shared.loadAvatar(sessionId: sid)
+                    if loaded == nil, total > 0 {
+                        let idx = min(max(0, fallback), total - 1)
+                        loaded = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: 150)
+                            ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: 150)
+                    }
+                    DispatchQueue.main.async {
+                        image = loaded
+                    }
                 }
             }
         }
@@ -465,7 +473,15 @@ struct LoadableSessionImageView: View {
         }
         .onAppear {
             if image == nil {
-                image = SessionRecordManager.shared.loadImage(sessionId: sessionId, index: index, maxDimension: maxDimension)
+                let sid = sessionId
+                let idx = index
+                let maxD = maxDimension
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let loaded = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: maxD)
+                    DispatchQueue.main.async {
+                        image = loaded
+                    }
+                }
             }
         }
         .onDisappear {

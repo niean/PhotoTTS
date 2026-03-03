@@ -1,5 +1,6 @@
 import Foundation
 import CoreImage
+import os.log
 
 #if os(iOS)
 import UIKit
@@ -107,9 +108,9 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         
         // 打印图片索引
         if let index = imageIndex {
-            NSLog("📷 开始OCR识别，图片索引: \(index + 1)")
+            os.Logger.ocrService.info("开始OCR识别，图片索引: \(index + 1)")
         } else {
-            NSLog("📷 开始OCR识别")
+            os.Logger.ocrService.info("开始OCR识别")
         }
         
         await MainActor.run {
@@ -203,7 +204,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         for attempt in 1...configuration.maxRetryCount {
             let attemptStartTime = Date()
             do {
-                NSLog("🔄 OCR API调用尝试 \(attempt)/\(configuration.maxRetryCount)\(imageIndexText)")
+                os.Logger.ocrService.info("OCR API调用尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)")
                 let result = try await callDoubaoAPI(imageData: imageData, prompt: prompt)
                 
                 // 检查返回结果是否为空（且不是系统保留字符）
@@ -214,7 +215,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                    trimmedResult.count <= AppConstants.ocrEmptyResultIndicator.count + 2 {
                     let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                     let totalDuration = Date().timeIntervalSince(totalStartTime)
-                    NSLog("✅ OCR API调用成功（返回空字符串标识），尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，识别结果: \(result)")
+                    os.Logger.ocrService.info("OCR API调用成功（返回空字符串标识），尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，识别结果: \(result)")
                     return result
                 }
                 
@@ -224,11 +225,11 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                     lastError = emptyError
                     let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                     let totalDuration = Date().timeIntervalSince(totalStartTime)
-                    NSLog("❌ OCR API返回结果为空（非系统保留字符），尝试 \(attempt)/\(configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
+                    os.Logger.ocrService.warning("OCR API返回结果为空（非系统保留字符），尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
                     
                     // 如果不是最后一次尝试，等待重试间隔
                     if attempt < configuration.maxRetryCount {
-                        NSLog("⏳ 等待 \(configuration.retryDelay) 秒后重试...")
+                        os.Logger.ocrService.info("等待 \(self.configuration.retryDelay) 秒后重试...")
                         try await Task.sleep(nanoseconds: UInt64(configuration.retryDelay * 1_000_000_000))
                     }
                     continue
@@ -236,17 +237,17 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                 
                 let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                 let totalDuration = Date().timeIntervalSince(totalStartTime)
-                NSLog("✅ OCR API调用成功，尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
+                os.Logger.ocrService.info("OCR API调用成功，尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
                 return result
             } catch {
                 lastError = error
                 let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                 let totalDuration = Date().timeIntervalSince(totalStartTime)
-                NSLog("❌ OCR API调用失败，尝试 \(attempt)/\(configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，错误: \(error.localizedDescription)")
+                os.Logger.ocrService.error("OCR API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，错误: \(error.localizedDescription)")
                 
                 // 如果不是最后一次尝试，等待重试间隔
                 if attempt < configuration.maxRetryCount {
-                    NSLog("⏳ 等待 \(configuration.retryDelay) 秒后重试...")
+                    os.Logger.ocrService.info("等待 \(self.configuration.retryDelay) 秒后重试...")
                     try await Task.sleep(nanoseconds: UInt64(configuration.retryDelay * 1_000_000_000))
                 }
             }
@@ -254,7 +255,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         
         // 所有重试都失败了
         let totalDuration = Date().timeIntervalSince(totalStartTime)
-        NSLog("❌ OCR API调用失败，已重试 \(configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
+        os.Logger.ocrService.error("OCR API调用失败，已重试 \(self.configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
         throw lastError ?? OCRError.networkError(NSError(domain: "OCR", code: -1, userInfo: [NSLocalizedDescriptionKey: "重试失败"]))
     }
     
@@ -432,31 +433,32 @@ public class OCRServiceFactory {
         let ocrConfig = SettingsManager.shared.loadOCRConfig()
         
         guard !ocrConfig.isEmpty else {
-            NSLog("❌ 无法读取OCR配置")
+            os.Logger.ocrService.error("无法读取OCR配置")
             return nil
         }
         
-        NSLog("✅ 成功读取OCR配置")
+        os.Logger.ocrService.info("成功读取OCR配置")
         
         let baseURL = ocrConfig["base_url"] as? String ?? "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-        let apiKey = ocrConfig["api_key"] as? String ?? ""
+        // 优先从 Keychain 获取密钥，回退到 config 文件
+        let apiKey = SettingsManager.shared.getOCRAPIKey()
         let modelName = ocrConfig["model_name"] as? String ?? "doubao-seed-1-6-flash-250715"
         let promptUser = ocrConfig["prompt_user"] as? String ?? "你是一个专业的OCR识别助手。请识别绘本图片中的汉字，并整理断句、使表意顺畅。操作步骤如下：S1.调整图片的角度，使内容正对读者。S2.识别和分割多页，如果输入的绘本图片有多页，请按照从左到右、从上到下的顺序，将图片内容分成多页。S3.识别一页中的汉字，按照自上而下的顺序识别，保留标点符号，忽略拼音、忽略纯数字的段落。S4.整理一页中的汉字，合理断句、补全标点，同一句话去掉内部换行，产出表意顺畅的句子。S5.如果有多页内容，多页内容之间用一个换行、拼接在一起返回。其它要求：1.没识别到内容时，请返回`空字符串`这四个汉字；2.请不要添加任何内容，特别是第一页、第二页这样的多页时的分页语句"
         let timeout = ocrConfig["timeout"] as? TimeInterval ?? 120.0
         let maxRetryCount = ocrConfig["max_retry_count"] as? Int ?? 3
         let retryDelay = ocrConfig["retry_delay"] as? TimeInterval ?? 1.0
         
-        NSLog("✅ 配置信息:")
-        NSLog("   - Base URL: \(baseURL)")
-        NSLog("   - API Key: \(apiKey.isEmpty ? "❌ 空" : "✅ 已配置")")
-        NSLog("   - Model: \(modelName)")
-        NSLog("   - Prompt: \(promptUser)")
-        NSLog("   - Timeout: \(timeout)秒")
-        NSLog("   - Max Retry: \(maxRetryCount)次")
-        NSLog("   - Retry Delay: \(retryDelay)秒")
+        os.Logger.ocrService.info("配置信息:")
+        os.Logger.ocrService.info("   - Base URL: \(baseURL)")
+        os.Logger.ocrService.info("   - API Key: \(apiKey.isEmpty ? "空" : "已配置")")
+        os.Logger.ocrService.info("   - Model: \(modelName)")
+        os.Logger.ocrService.info("   - Prompt: \(promptUser)")
+        os.Logger.ocrService.info("   - Timeout: \(timeout)秒")
+        os.Logger.ocrService.info("   - Max Retry: \(maxRetryCount)次")
+        os.Logger.ocrService.info("   - Retry Delay: \(retryDelay)秒")
         
         guard !apiKey.isEmpty else {
-            NSLog("❌ 未配置豆包大模型API Key")
+            os.Logger.ocrService.error("未配置豆包大模型API Key")
             return nil
         }
         
@@ -470,7 +472,7 @@ public class OCRServiceFactory {
             retryDelay: retryDelay
         )
         
-        NSLog("✅ OCR服务初始化成功")
+        os.Logger.ocrService.info("OCR服务初始化成功")
         return OCRService(configuration: configuration)
     }
 }

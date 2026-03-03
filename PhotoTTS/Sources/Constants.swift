@@ -191,5 +191,22 @@ extension Constants {
         static let lastLaunchDate = "last_launch_date"
         static let maxCacheSize = "max_cache_size"
         static let autoCleanupEnabled = "auto_cleanup_enabled"
+        static let siriPendingSessionId = "siriPendingPlaySessionId"
+        static let didStripRecordAudioBase64 = "PhotoTTS.DidStripRecordAudioBase64"
     }
+    
+    // MARK: - 通知名
+    struct NotificationNames {
+        static let updatePhotoCount = NSNotification.Name("UpdatePhotoCount")
+        static let configUpdated = NSNotification.Name("ConfigUpdated")
+    }
+    
+    // MARK: - TTS限制
+    static let defaultTTSMaxLength = 10240
+    
+    // MARK: - 批量处理限制
+    static let maxBatchImageCount = 100
+    
+    // MARK: - 播放历史限制
+    static let maxPlayHistoryRecords = 500
 }
