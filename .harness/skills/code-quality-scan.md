@@ -10,15 +10,15 @@
 
 ### Step 2 — 并行扫描
 
-使用 `use_subagents` 并行启动 5 个 subagent，每个聚焦一个检查维度。读取 `subagents/` 目录下对应 prompt 模板文件的内容，作为各 subagent 的 prompt 参数。
+使用 `use_subagents` 并行启动 5 个 subagent，每个聚焦一个检查维度。读取 `.harness/subagents/` 目录下对应 prompt 模板文件的内容，作为各 subagent 的 prompt 参数。
 
 | Subagent | 维度 | prompt 模板 |
 |----------|------|------------|
-| 1 | 日志规范 | subagents/scan-logging.md |
-| 2 | 安全规范 | subagents/scan-security.md |
-| 3 | 图片处理规范 | subagents/scan-image-handling.md |
-| 4 | 架构边界 | subagents/scan-architecture.md |
-| 5 | 编码约定 | subagents/scan-conventions.md |
+| 1 | 日志规范 | .harness/subagents/scan-logging.md |
+| 2 | 安全规范 | .harness/subagents/scan-security.md |
+| 3 | 图片处理规范 | .harness/subagents/scan-image-handling.md |
+| 4 | 架构边界 | .harness/subagents/scan-architecture.md |
+| 5 | 编码约定 | .harness/subagents/scan-conventions.md |
 
 ### Step 3 — 汇总报告
 

@@ -1,4 +1,4 @@
-# PRODUCT_SENSE.md -- PhotoTTS
+# 01-prd-sense.md -- PhotoTTS
 
 产品设计核心理念与判断准则，供 AI Agent 功能决策时参照。
 

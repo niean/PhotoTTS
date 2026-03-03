@@ -2,6 +2,10 @@
 
 本文档定义了一套项目无关的 AI 协作工程方法论，用于规范 AI Agent 在软件项目中的行为模式。任何项目均可参照本规范搭建自己的 AI 知识库与操作体系。
 
+
+## 约束
+本文仅供自然人使用，未经人工确认、禁止AI修改。
+
 ---
 
 ## 1. 核心理念
@@ -27,38 +31,49 @@
 
 原则：AGENTS.md 是索引和规则的聚合点，具体知识分散在各文档中，避免单文件过大。
 
-### 2.2 知识库目录：context/
+### 2.2 统一目录：.harness/
+
+所有 AI 协作基础设施统一放在 `.harness/` 目录下（dot 前缀，类似 .github/ 风格），与应用代码分离。
 
 ```
-context/
-  agents/              -- AI 维护的知识库（AI 可读写）
-  users/               -- 人工定义的原始信息（AI 只读）
+AGENTS.md                  -- 入口文件（保留在根目录）
+.harness/
+  context/
+    agents/                -- AI 维护的知识库（AI 可读写）
+    users/                 -- 人工定义的原始信息（AI 只读）
+  skills/                  -- AI 可复用操作定义
+  subagents/               -- Subagent prompt 模板
+  docs/
+    01-harness-desc.md     -- 本文件，通用方法论
+    02-dev-summary.md      -- 开发总结
 ```
 
-- agents/ 存放 AI 可自主更新的项目知识（架构、约定、术语、文件映射等）
-- users/ 存放人工编写的源头信息（产品需求、开发总结等），AI 只读不写；如遇冲突必须提示人工确认
+- .harness/context/agents/ 存放 AI 可自主更新的项目知识（架构、约定、术语、文件映射等）
+- .harness/context/users/ 存放人工编写的源头信息（产品需求等），AI 只读不写；如遇冲突必须提示人工确认
+- .harness/docs/ 存放人工维护的方法论与参考文档（通用方法论、开发总结等），AI 修改前必须经过人工确认
 
 每类知识有且只有一个归属文档，不重复维护。
 
-### 2.3 操作目录：skills/
+### 2.3 操作目录：.harness/skills/
 
 ```
-skills/
-  功能迭代.md
-  构建验证.md
+.harness/skills/
+  feature-iterate.md
+  build-verify.md
   ...
 ```
 
 每个 Skill 是一个独立的 Markdown 文件，定义一个可复用的 AI 操作单元。
 
-### 2.4 方法论目录：docs/
+### 2.4 方法论目录：.harness/docs/
 
 ```
-docs/
-  HE.md   -- 本文件，通用方法论
+.harness/docs/
+    01-harness-desc.md   -- 本文件，通用方法论
+    02-dev-summary.md    -- 开发总结
 ```
 
-存放项目无关的方法论和参考文档，可跨项目复用。
+存放人工维护的方法论和参考文档，可跨项目复用。AI 修改前必须经过人工确认。
 
 ---
 
@@ -68,7 +83,7 @@ docs/
 
 Skill 是可复用的 AI 操作单元，具备以下要素：
 
-- 名称：简洁明确，如"功能迭代""构建验证"
+- 名称：简洁明确，kebab-case 英文命名，如 feature-iterate、build-verify
 - 触发方式：人工指令、其他 Skill 调用、条件自动触发
 - 步骤：有序的操作序列，每步目标明确
 - 输出：操作结果或变更摘要
@@ -94,12 +109,12 @@ Skill 是可复用的 AI 操作单元，具备以下要素：
 
 | Skill | 用途 |
 |-------|------|
-| 功能迭代 | 接收需求 → 读取上下文 → 输出临时 spec → 编码 → 回填知识 |
-| 构建验证 | 执行编译和测试，确认零警告零错误 |
-| 知识库例行检查和更新 | 对比代码与文档，修正过时描述 |
-| PRD基线更新 | 同步需求规格与需求基线 |
-| 代码质量扫描 | 按规范检查源码，输出违规清单 |
-| 废弃代码清理 | 识别死代码，确认后删除 |
+| feature-iterate | 接收需求 → 读取上下文 → 落盘临时 spec → 编码 → 回填知识 → 删除临时 spec |
+| build-verify | 执行编译和测试，确认零警告零错误 |
+| backfill-knowledge | 对比代码与文档，修正过时描述 |
+| backfill-prd-baseline | 同步需求规格与需求基线 |
+| code-quality-scan | 按规范检查源码，输出违规清单 |
+| dead-code-cleanup | 识别死代码，确认后删除 |
 
 ---
 
@@ -115,7 +130,7 @@ Skill 是可复用的 AI 操作单元，具备以下要素：
 
 ### 4.3 知识回填
 
-代码变更后，将稳定知识同步回填到 context/agents/ 对应文档。回填规则在 AGENTS.md 中定义（如架构变化回填到架构文档，新术语回填到术语表）。
+代码变更后，将稳定知识同步回填到 .harness/context/agents/ 对应文档。回填规则在 AGENTS.md 中定义（如架构变化回填到架构文档，新术语回填到术语表）。
 
 ### 4.4 自愈维护
 
@@ -153,7 +168,7 @@ AGENTS.md 中的规范分为两层：
 
 ---
 
-## 6. 产品感知：PRODUCT_SENSE.md
+## 6. 产品感知：01-prd-sense.md
 
 独立的产品定位文档，定义：
 
@@ -169,13 +184,13 @@ AGENTS.md 中的规范分为两层：
 
 | 角色 | 职责 | 权限 |
 |------|------|------|
-| 人工 | 定义产品需求、确认方案、审批删除 | 读写 context/users/，审批 AI 变更 |
-| AI | 按规则执行操作、维护知识库、输出变更摘要 | 读写 context/agents/，只读 context/users/ |
+| 人工 | 定义产品需求、确认方案、审批删除 | 读写 .harness/context/users/ 和 .harness/docs/，审批 AI 变更 |
+| AI | 按规则执行操作、维护知识库、输出变更摘要 | 读写 .harness/context/agents/，只读 .harness/context/users/，确认后可写 .harness/docs/ |
 
 关键原则：
 - AI 不自行决定产品方向，遇到模糊需求必须询问
 - 删除操作（代码、文件）必须人工确认后执行
-- context/users/ 内容与 context/agents/ 冲突时，以 users/ 为准，提示人工处理
+- .harness/context/users/ 内容与 .harness/context/agents/ 冲突时，以 users/ 为准，提示人工处理
 
 ---
 
@@ -184,8 +199,8 @@ AGENTS.md 中的规范分为两层：
 将本方法论应用到新项目时，按以下步骤操作：
 
 1. 创建 AGENTS.md，填写项目背景、通用规范（可从模板复制）、项目规范
-2. 创建 context/agents/ 目录，按需建立知识库文档（概览、架构、约定、术语等）
-3. 创建 context/users/ 目录，放入产品需求基线等人工文档
-4. 创建 skills/ 目录，定义项目需要的可复用操作
-5. 创建 context/agents/PRODUCT_SENSE.md，明确产品定位与判断准则
+2. 创建 .harness/context/agents/ 目录，按需建立知识库文档（概览、架构、约定、术语等）
+3. 创建 .harness/context/users/ 目录，放入产品需求基线等人工文档
+4. 创建 .harness/skills/ 目录，定义项目需要的可复用操作
+5. 创建 .harness/context/users/01-prd-sense.md，明确产品定位与判断准则
 6. 在 AGENTS.md 中注册 Skills 表和知识库索引表
