@@ -3,6 +3,9 @@ import SwiftUI
 // MARK: - 我的 Tab 页
 struct MeTabView: View {
     @ObservedObject var appState: AppState
+    @State private var showNameEditor = false
+    @State private var editingName = ""
+    @State private var displayName = SettingsManager.shared.identityName
     
     private let avatarSize: CGFloat = 64
     private let topPadding: CGFloat = 20
@@ -26,9 +29,18 @@ struct MeTabView: View {
                                 .foregroundColor(Color(.systemGray4))
                         }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Photo TTS")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
+                            HStack(spacing: 4) {
+                                Text(displayName)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .onTapGesture {
+                                editingName = displayName
+                                showNameEditor = true
+                            }
                             Text("拍照阅读，让绘本更精彩")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -71,6 +83,17 @@ struct MeTabView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .alert("修改名称", isPresented: $showNameEditor) {
+                TextField("输入名称", text: $editingName)
+                Button("取消", role: .cancel) {}
+                Button("确定") {
+                    let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    SettingsManager.shared.identityName = trimmed
+                    displayName = SettingsManager.shared.identityName
+                }
+            } message: {
+                Text("最多 \(AppConstants.Identity.nameMaxLength) 个字符，留空则恢复为设备名称")
+            }
         }
     }
 }

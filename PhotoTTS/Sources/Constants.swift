@@ -177,8 +177,15 @@ extension Constants {
         static let ttsAccessKey = "tts_access_key"
     }
     
+    // MARK: - 身份名称
+    struct Identity {
+        /// 身份名称最大字符数
+        static let nameMaxLength = 20
+    }
+
     // MARK: - UserDefaults键值
     struct UserDefaultsKeys {
+        static let identityName = "identity_name"
         static let ttsAppId = "tts_app_id"
         static let ttsCluster = "tts_cluster"
         static let ttsUid = "tts_uid"
@@ -192,7 +199,6 @@ extension Constants {
         static let maxCacheSize = "max_cache_size"
         static let autoCleanupEnabled = "auto_cleanup_enabled"
         static let siriPendingSessionId = "siriPendingPlaySessionId"
-        static let didStripRecordAudioBase64 = "PhotoTTS.DidStripRecordAudioBase64"
     }
     
     // MARK: - 通知名

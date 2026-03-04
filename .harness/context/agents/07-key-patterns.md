@@ -47,7 +47,7 @@ ImageToSpeechCoordinator.performConcurrentOCR：
 ## 模式五：Siri 语音触发播放
 
 流程：
-1. registerAppShortcuts 在 init() 和 scenePhase==.active 时调用，注册 Siri 短语。
+1. registerAppShortcuts 仅在 scenePhase==.active 时调用（首次启动和每次回到前台均触发），注册 Siri 短语。不在 init() 中重复注册，避免 Siri 实体查询导致 getAllSessionMetadata 多次磁盘扫描。
 2. PlaySessionIntent 将 sessionId 写入 UserDefaults（siriPendingPlaySessionId），设 openAppWhenRun=true。
 3. PhotoTTSApp 监听 scenePhase 变为 .active 时调 loadPendingSiriSession()。
 4. loadPendingSiriSession 读取并清除 UserDefaults key，后台加载 SessionRecord，主线程赋值 appState.sessionRecordToPlay。

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import os.log
 import Security
 
@@ -225,6 +226,26 @@ class SettingsManager {
     
     // 家长控制功能已移除
     
+    // MARK: - 身份名称
+    /// 用户身份名称，默认取设备名称
+    var identityName: String {
+        get {
+            let stored = userDefaults.string(forKey: AppConstants.UserDefaultsKeys.identityName)
+            if let stored = stored, !stored.isEmpty {
+                return stored
+            }
+            return UIDevice.current.name
+        }
+        set {
+            let trimmed = String(newValue.prefix(AppConstants.Identity.nameMaxLength))
+            if trimmed.isEmpty {
+                userDefaults.removeObject(forKey: AppConstants.UserDefaultsKeys.identityName)
+            } else {
+                userDefaults.set(trimmed, forKey: AppConstants.UserDefaultsKeys.identityName)
+            }
+        }
+    }
+
     // MARK: - 应用设置
     var isFirstLaunch: Bool {
         get { 

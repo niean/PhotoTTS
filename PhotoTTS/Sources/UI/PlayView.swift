@@ -249,7 +249,9 @@ struct PlayView: View {
         audioPlayer = nil
         audioPlayerDelegate = nil
         UIApplication.shared.isIdleTimerDisabled = false
-        PlayHistoryManager.shared.recordPlay(name: record?.name ?? "未命名", playedAt: Date())
+        if let r = record {
+            PlayHistoryManager.shared.recordPlay(sessionId: r.id, name: r.name, playedAt: Date())
+        }
         onDismiss()
     }
     

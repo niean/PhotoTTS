@@ -251,7 +251,7 @@ struct MakeView: View {
                 self.isSavingSession = false
                 
                 if result.success {
-                    MakeHistoryManager.shared.recordSave(name: record.name, savedAt: Date())
+                    MakeHistoryManager.shared.recordSave(sessionId: record.id, name: record.name, savedAt: Date())
                     let sizeText = result.size != nil ? "\n存储空间: \(self.formatStorageSize(result.size!))" : ""
                     os.Logger.makeView.info("会话记录保存成功: \(record.name)\(sizeText)")
                     self.alertMessage = "会话记录已保存\(sizeText)"

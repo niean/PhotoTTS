@@ -79,12 +79,12 @@ struct PhotoTTSApp: App {
         
         // 初始化会话记录管理器，确保目录被创建
         _ = SessionRecordManager.shared
-        
+
         // 初始化调试日志管理器，开始捕获日志
         _ = DebugLogManager.shared
         
-        // 向系统注册 Siri App Shortcuts，确保 Siri 能识别语音指令
-        Self.registerAppShortcuts(caller: "init")
+        // Siri App Shortcuts 注册由 scenePhase == .active 统一处理，
+        // 首次启动和每次回到前台都会触发，无需在 init() 中重复注册
     }
     
     var body: some Scene {

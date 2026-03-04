@@ -2,6 +2,25 @@ import Foundation
 import UIKit
 import os.log
 
+// MARK: - 会话历史事件（存储在 history.json 中，随会话导入导出）
+/// 单次制作或播放事件
+struct SessionHistoryEvent: Codable {
+    let timestamp: Date
+    /// 发起者身份名称，来自 SettingsManager.identityName
+    let identity: String
+}
+
+// MARK: - 会话历史（每个会话目录下的 history.json）
+struct SessionHistory: Codable {
+    var makeEvents: [SessionHistoryEvent]
+    var playEvents: [SessionHistoryEvent]
+
+    init(makeEvents: [SessionHistoryEvent] = [], playEvents: [SessionHistoryEvent] = []) {
+        self.makeEvents = makeEvents
+        self.playEvents = playEvents
+    }
+}
+
 // MARK: - 会话记录数据模型
 /// 会话记录数据模型，用于存储一次完整的OCR+TTS处理会话
 /// 包含时间、图片、文字、语音、状态信息等

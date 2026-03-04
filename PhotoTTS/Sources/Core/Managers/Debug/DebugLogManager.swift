@@ -107,13 +107,17 @@ class DebugLogManager {
     /// 记录日志
     /// - Parameter message: 日志消息
     func log(_ message: String) {
+        // 在入口处统一剥除 OSLOG 前缀，确保所有来源的日志都被清理
+        let cleanedMessage = stripOSLogPrefix(message)
+        guard !cleanedMessage.isEmpty else { return }
+        
         // 使用 async 非阻塞方式，避免阻塞调用线程
         // 使用 barrier 确保写入操作的线程安全
         logQueue.async(flags: .barrier) { [weak self] in
             guard let self = self else { return }
             
             let timestamp = DateFormatter.logFormatter.string(from: Date())
-            let logEntry = "[\(timestamp)] \(message)\n"
+            let logEntry = "\(timestamp) \(cleanedMessage)\n"
             
             guard let data = logEntry.data(using: .utf8) else { return }
             // 每次打开-追加-关闭，避免长期持有 FileHandle 在 I/O 异常时导致 writeData 崩溃
@@ -179,12 +183,15 @@ class DebugLogManager {
                 lines.removeFirst()
             }
             let startIndex = max(0, lines.count - lineCount)
-            let latestLines = Array(lines[startIndex..<lines.count])
-            logs = latestLines.joined(separator: "\n")
+            // 时间倒序：最新日志在最前面
+            // 读取时也剥除 OSLOG 前缀，确保已存储的旧日志也被清理
+            let latestLines = Array(lines[startIndex..<lines.count].reversed()).map { self.stripOSLogPrefix($0) }
+            var header = ""
             if Int(fullSize) > bytesToRead || lines.count > lineCount {
                 let totalLinesHint = lines.count > lineCount ? "（当前段共 \(lines.count) 行）" : "（仅读取文件尾部 \(bytesToRead/1024)KB）"
-                logs = "[仅显示最新 \(lineCount) 行 \(totalLinesHint)]\n" + logs
+                header = "[仅显示最新 \(lineCount) 行 \(totalLinesHint)]\n"
             }
+            logs = header + latestLines.joined(separator: "\n")
         }
         
         return logs
@@ -263,20 +270,45 @@ class DebugLogManager {
     
     /// 处理日志数据
     private func processLogData(_ data: Data, isStderr: Bool) {
-        if let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !message.isEmpty {
-            // 写入日志文件
-            log(message)
-            
-            // 同时输出到原始流：使用 POSIX write 避免 FileHandle.writeData 在 FD 失效时抛 I/O 异常崩溃
-            let originalFD = isStderr ? originalStdErr : originalStdOut
-            if originalFD > 0, !data.isEmpty {
-                _ = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
-                    guard let baseAddress = buffer.baseAddress else { return -1 }
-                    return write(Int32(originalFD), baseAddress, data.count)
-                }
+        guard let raw = String(data: data, encoding: .utf8) else { return }
+        
+        // 按行处理，剥除 os.Logger 内部元数据前缀后写入日志文件
+        // os.Logger 写入 stderr 时会带如下前缀（对用户毫无意义）：
+        //   OSLOG-UUID N N L hex {t:float,tid:hex} 实际消息
+        let lines = raw.components(separatedBy: .newlines)
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let cleaned = stripOSLogPrefix(trimmed)
+            guard !cleaned.isEmpty else { continue }
+            log(cleaned)
+        }
+        
+        // 同时输出到原始流：使用 POSIX write 避免 FileHandle.writeData 在 FD 失效时抛 I/O 异常崩溃
+        let originalFD = isStderr ? originalStdErr : originalStdOut
+        if originalFD > 0, !data.isEmpty {
+            _ = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+                guard let baseAddress = buffer.baseAddress else { return -1 }
+                return write(Int32(originalFD), baseAddress, data.count)
             }
         }
+    }
+    
+    /// OSLOG 元数据正则（编译一次复用）
+    /// 匹配: OSLOG-<UUID> <fields> {t:<ts>,tid:<hex>} 及尾部可选空格
+    /// 示例: OSLOG-AA9F2DF2-B46D-4921-94CC-291C9ED07AF9 7 80 L 1a {t:1772585718.989001,tid:0x28ab75}
+    private static let oslogRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"OSLOG-[A-F0-9-]+[^{]*\{[^}]*\}\s?"#)
+    }()
+
+    /// 剥除 os.Logger 内部元数据前缀（写入时和读取时通用）
+    /// 格式示例（stderr 原始输出）：OSLOG-AA9F2DF2-...{t:...,tid:...} 实际消息
+    /// 格式示例（已存储行）：0304T08:55:18 OSLOG-AA9F2DF2-...{t:...,tid:...} 实际消息
+    private func stripOSLogPrefix(_ message: String) -> String {
+        guard let regex = Self.oslogRegex else { return message }
+        let nsRange = NSRange(message.startIndex..., in: message)
+        let result = regex.stringByReplacingMatches(in: message, range: nsRange, withTemplate: "")
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     /// 停止捕获日志
@@ -300,7 +332,8 @@ class DebugLogManager {
 extension DateFormatter {
     static let logFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        // 时间头格式：0219T16:24:56（去掉年份，用 T 分隔日期和时间）
+        formatter.dateFormat = "MMdd'T'HH:mm:ss"
         return formatter
     }()
 }

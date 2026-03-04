@@ -19,6 +19,7 @@ ImageToSpeechCoordinator：输入 [Data]（图片数据）；进度 ProcessingPr
 Documents/Sessions/{id}/
   metadata.json   -- 轻量摘要，用于列表快速加载
   record.json     -- 全量字段，但 imageDataList=[] 且 audioDataBase64=""
+  history.json    -- 该会话的制作/播放历史事件（SessionHistory），随会话导入导出
   images/
     image_0.jpg   -- JPEG，最大边长 2048px
     image_1.jpg
@@ -29,6 +30,16 @@ Documents/Sessions/{id}/
 ```
 
 加载时由 SessionRecordManager.loadSession 从独立文件重组回 SessionRecord 对象。
+
+## 会话历史（history.json）
+
+SessionHistoryEvent（Sources/Models/SessionRecord.swift）：timestamp（Date, iso8601）、identity（String, 发起者身份来自 SettingsManager.identityName）。
+
+SessionHistory（Sources/Models/SessionRecord.swift）：makeEvents: [SessionHistoryEvent]、playEvents: [SessionHistoryEvent]。每个会话目录下一个 history.json，由 SessionRecordManager 读写（historyEncoder/historyDecoder 使用 iso8601 日期策略）。导出时随会话目录整体复制，导入时自动包含。
+
+MakeHistoryManager / PlayHistoryManager 不再维护独立 JSON 文件，recordSave / recordPlay 委托 SessionRecordManager.addMakeEvent / addPlayEvent 写入会话级 history.json；loadEntries 聚合所有会话的 history.json 生成 UI 展示条目。
+
+旧数据迁移：启动时 SessionRecordManager.migrateHistoryToSessionsIfNeeded() 一次性将 Documents/make_history.json 和 play_history.json 按会话名称匹配写入对应 history.json（UserDefaults flag: didMigrateHistoryToSessions），旧文件保留不删除。
 
 ## config_local.json 结构
 
@@ -53,6 +64,15 @@ PhotoTTS_YYYYMMDD/
 ```
 
 导入时 ID 重复则跳过。
+
+## UserDefaults 存储
+
+SettingsManager 通过 UserDefaults 存储非敏感用户配置，键名定义在 Constants.UserDefaultsKeys：
+- identityName: 用户身份名称，默认取 UIDevice.current.name（iOS 16+ 返回 "iPhone" 等通用名），最长 20 字符，空值回退设备名称
+- voiceSettings / supportedLanguages / currentLanguage: 语音与语言配置
+- ttsAppId / ttsCluster / ttsUid: TTS 非敏感参数
+- isFirstLaunch / appLaunchCount / lastLaunchDate: 启动统计
+- maxCacheSize / autoCleanupEnabled: 缓存策略
 
 ## 边界约定
 

@@ -18,7 +18,7 @@ struct SessionRecordEntity: AppEntity {
 struct SessionRecordEntityQuery: EntityQuery {
     // 根据 id 列表加载实体（Siri 内部使用）
     func entities(for identifiers: [String]) async throws -> [SessionRecordEntity] {
-        let all = SessionRecordManager.shared.getAllSessionMetadata()
+        let all = SessionRecordManager.shared.getAllSessionMetadata(caller: "Siri-entities")
         return all
             .filter { identifiers.contains($0.id) }
             .map { SessionRecordEntity(id: $0.id, name: $0.name) }
@@ -26,7 +26,7 @@ struct SessionRecordEntityQuery: EntityQuery {
 
     // 候选列表：Siri 提示时展示全部已保存绘本
     func suggestedEntities() async throws -> [SessionRecordEntity] {
-        return SessionRecordManager.shared.getAllSessionMetadata()
+        return SessionRecordManager.shared.getAllSessionMetadata(caller: "Siri-suggested")
             .map { SessionRecordEntity(id: $0.id, name: $0.name) }
     }
 }
@@ -41,7 +41,7 @@ extension SessionRecordEntityQuery: EntityStringQuery {
     //      例：afterSpace = "贝贝熊-作业的烦恼" -> ["贝贝熊", "作业的烦恼"]
     //          query = "作业的烦恼" -> 命中第二段
     func entities(matching string: String) async throws -> [SessionRecordEntity] {
-        let all = SessionRecordManager.shared.getAllSessionMetadata()
+        let all = SessionRecordManager.shared.getAllSessionMetadata(caller: "Siri-matching")
         return all
             .filter { matches(name: $0.name, query: string) }
             .map { SessionRecordEntity(id: $0.id, name: $0.name) }

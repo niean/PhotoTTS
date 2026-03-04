@@ -233,7 +233,7 @@ struct SessionRecordListView: View {
     private func loadSessionList() {
         isLoading = true
         DispatchQueue.global(qos: .userInitiated).async {
-            let metadataList = SessionRecordManager.shared.getAllSessionMetadata()
+            let metadataList = SessionRecordManager.shared.getAllSessionMetadata(caller: "记录列表")
             DispatchQueue.main.async {
                 self.sessionMetadataList = metadataList
                 self.isLoading = false

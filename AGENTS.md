@@ -26,7 +26,7 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 ## 文件与文档
 
 - 除非明确要求，不要主动创建 README 文件
-- 不要删除任何项目文件，包括文档、代码等
+- 不要删除任何项目文件，包括文档、代码等（临时 spec 文件 `agent-specs-*.md` 除外，任务结束后必须删除、且使用`rm -f`非交互模式）
 - AI 自动生成的文档（Skill、Subagent、知识库等），文件名必须使用小写英文（kebab-case），文档正文中补充对应的中文名称或说明
 - Skill、Subagent 文件名使用小写英文（kebab-case），技能名称（文件内标题）使用中文（英文专有名词除外）
 - .harness/context/users/ 目录是人工定义的原始信息，AI 可以读取、但不允许自动修改；如遇 users/ 内容与 AI 知识库（.harness/context/agents/）描述冲突，必须提示给用户，经确认后才能修改
@@ -41,6 +41,8 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 - 接到任务时按需查阅 .harness/context/ 目录（不需要全部读完）
 
 ## 维护
+
+每次修改约束、规范、规则（包括 AGENTS.md、Skills、Subagents、知识库文件）时，必须检查 AGENTS.md 的全局描述，确保新增或变更的内容与已有规则没有矛盾冲突。
 
 当 Agent 因缺少说明而出错时：
 1. 将缺失的说明补充到对应的 .harness/context/agents/ 知识库文件
@@ -113,7 +115,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 
 ## 知识回填规则
 
-Skill: 功能迭代 step 5 的具体回填目标：
+Skill: 功能迭代 step 6 的具体回填目标：
 - 架构边界变化 -> 02-architecture.md
 - 新增术语 -> 04-glossary.md
 - 数据结构或存储格式变化 -> 05-data-boundaries.md

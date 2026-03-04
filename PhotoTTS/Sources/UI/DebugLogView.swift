@@ -75,12 +75,8 @@ struct DebugLogView: View {
                         }
                         Spacer()
                     } else {
-                        ScrollView {
-                            Text(logContent)
-                                .font(.system(.caption, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding()
-                        }
+                        // 使用 UITextView 支持选中特定文字、复制到剪切板
+                        SelectableLogTextView(text: logContent)
                     }
                 }
                 
@@ -157,6 +153,29 @@ struct DebugLogView: View {
         PhotoTTSShortcuts.updateAppShortcutParameters()
         siriRegisterResult = "注册成功"
         os.Logger.siri.info("App Shortcuts 手动注册成功")
+    }
+}
+
+// MARK: - 可选文本视图（UITextView 包装）
+/// 基于 UITextView 实现，支持选中特定文字、复制到剪切板
+/// SwiftUI 的 Text + .textSelection(.enabled) 在 ScrollView 中只能全选，无法选中部分文字
+private struct SelectableLogTextView: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = true
+        textView.backgroundColor = .clear
+        textView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        textView.font = UIFont.monospacedSystemFont(ofSize: UIFont.smallSystemFontSize, weight: .regular)
+        textView.textColor = UIColor.label
+        return textView
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        uiView.text = text
     }
 }
 
