@@ -1,4 +1,4 @@
-# Skill: 回填-Skill提取
+# Skill: 提取-Skill
 
 触发：人工指令。经过一段时间的 AI Coding 后，人工触发本 Skill，让 Agent 从近期编码活动中发现可复用的操作模式，抽象为新的 Skill。
 

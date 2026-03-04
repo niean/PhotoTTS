@@ -83,13 +83,13 @@ struct SessionRecordListView: View {
                                 SessionRecordRow(
                                     metadata: metadata,
                                     isPad: isPad,
-                                    onLoad: allowPlayback ? { loadSession(metadata.id) } : nil,
+                                    onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
                                     onLoadToMake: (mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
-                                    onView: {
+                                    onView: !metadata.isMaking ? {
                                         viewSessionDetail(metadata.id)
-                                    },
-                                    onEdit: allowEditDelete ? { editSessionDetail(metadata.id) } : nil,
-                                    onExport: allowEditDelete ? { exportOneSession(id: metadata.id) } : nil,
+                                    } : nil,
+                                    onEdit: (allowEditDelete && !metadata.isMaking) ? { editSessionDetail(metadata.id) } : nil,
+                                    onExport: (allowEditDelete && !metadata.isMaking) ? { exportOneSession(id: metadata.id) } : nil,
                                     onDelete: allowEditDelete ? {
                                         sessionToDelete = metadata
                                         showDeleteConfirmation = true
@@ -457,7 +457,7 @@ struct SessionRecordRow: View {
     let isPad: Bool
     let onLoad: (() -> Void)?
     let onLoadToMake: (() -> Void)?
-    let onView: () -> Void
+    let onView: (() -> Void)?
     let onEdit: (() -> Void)?
     let onExport: (() -> Void)?
     let onDelete: (() -> Void)?
@@ -498,21 +498,26 @@ struct SessionRecordRow: View {
                     .lineLimit(1)
                 
                 HStack(spacing: isPad ? 12 : 8) {
-                    Label("\(metadata.validImageCount)/\(metadata.totalImageCount)张", systemImage: "photo")
-                        .labelStyle(.titleOnly)
-                        .font(isPad ? .subheadline : .caption)
-                        .foregroundColor(.secondary)
-                    
-                    Label("\(formatDuration(metadata.audioDuration))", systemImage: "waveform")
-                        .labelStyle(.titleOnly)
-                        .font(isPad ? .subheadline : .caption)
-                        .foregroundColor(.secondary)
+                    if metadata.isMaking {
+                        Text("制作中")
+                            .font(isPad ? .subheadline : .caption)
+                            .foregroundColor(.orange)
+                    } else {
+                        Label("\(metadata.validImageCount)/\(metadata.totalImageCount)张", systemImage: "photo")
+                            .labelStyle(.titleOnly)
+                            .font(isPad ? .subheadline : .caption)
+                            .foregroundColor(.secondary)
                         
-                    Label(formatStorageSize(metadata.storageSize), systemImage: "internaldrive")
-                        .labelStyle(.titleOnly)
-                        .font(isPad ? .subheadline : .caption)
-                        .foregroundColor(.secondary)
-
+                        Label("\(formatDuration(metadata.audioDuration))", systemImage: "waveform")
+                            .labelStyle(.titleOnly)
+                            .font(isPad ? .subheadline : .caption)
+                            .foregroundColor(.secondary)
+                            
+                        Label(formatStorageSize(metadata.storageSize), systemImage: "internaldrive")
+                            .labelStyle(.titleOnly)
+                            .font(isPad ? .subheadline : .caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             
@@ -532,8 +537,10 @@ struct SessionRecordRow: View {
                 
                 // 更多按钮
                 Menu {
-                    Button(action: onView) {
-                        Label("查看", systemImage: "eye.circle")
+                    if let onView = onView {
+                        Button(action: onView) {
+                            Label("查看", systemImage: "eye.circle")
+                        }
                     }
                     if let onEdit = onEdit {
                         Button(action: onEdit) {

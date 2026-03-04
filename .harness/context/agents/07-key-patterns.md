@@ -21,6 +21,8 @@
 
 均通过 .fullScreenCover 打开。关闭时调用 onDismiss（onDisappear 中也调用，支持左滑关闭）；PlayHistoryManager 在正常播放结束时记录。
 
+播放互斥：AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点（HomePageView、MakeView.togglePlayback、loadPendingSiriSession）在打开 PlayView 前检查该标志，为 true 时拒绝并记录日志；触发时设 true，onDismiss 回调中设 false。新增播放触发点必须遵守此防御。
+
 双击手势：FullScreenImageContent 支持可选 onDoubleTapBackground 回调。PlayView 传入 togglePlayback，双击切换暂停/播放。通过 optionalDoubleTapGesture 扩展条件添加双击手势，handler 为 nil 时不引入单击识别延迟。
 
 滑动控制：FullScreenImageContent 支持 isSwipeDisabled 参数。播放时禁止手动左右滑动翻页（OnDemand 路径在 DragGesture.onEnded 中 guard，TabView 路径叠加 highPriorityGesture 拦截），暂停时允许。播放自动翻页不受影响。
@@ -82,6 +84,21 @@ ImageToSpeechCoordinator.performConcurrentOCR：
 效果：Siri "暂停"/"继续"/"播放" 自动路由到 MPRemoteCommandCenter；Siri "调高音量"/"调低音量" 通过系统音频会话自动调节。不向 MPNowPlayingInfoCenter 写入播放信息，避免系统在 APP 之上弹出 Now Playing 控件影响体验。
 
 注意：不支持通过 Siri/控制中心 stopCommand 退出全屏 PlayView（Siri 遮罩期间 SwiftUI 无法可靠处理状态变更以关闭 fullScreenCover），退出播放仅通过 PlayView 内的关闭按钮或播放结束自动关闭。
+
+## 模式七：后台制作（Background Make）
+
+场景：用户发起 OCR+TTS 后可切换 Tab，制作在后台继续运行，完成后更新会话记录。
+
+要点：
+1. MakeView.processImages() 调用 BackgroundMakeManager.shared.startMaking(images:)，返回 sessionId。
+2. startMaking 先创建草稿会话（saveDraftSession：图片落盘、metadata.makeStatus=making、名称"YY.MM.DD 未命名"），再创建 MakeTask（持有独立 Coordinator）启动处理。
+3. MakeView 通过 @State observingTaskId 跟踪当前任务，.onReceive(bgMakeManager.objectWillChange) 触发 syncBackgroundTaskState() 同步进度/结果到本地 @State。
+4. 任务完成后 BackgroundMakeManager 在后台调 updateSessionWithResults() 更新 record.json、保存音频文件、设 makeStatus=completed。
+5. 失败时删除草稿会话。
+6. 重连：切回 Tab 1 时通过 appState.makeTaskIdToReconnect 或自动检测，调 reconnectToBackgroundTask() 恢复 UI 状态。
+7. 列表展示：SessionRecordRow 对 isMaking 记录显示"制作中"标签，禁用播放/查看/编辑/导出操作，仅允许删除。
+
+约束：只允许1个后台制作任务（因为制作页面只允许存在1个制作项）。已有活跃任务时 startMaking 返回 nil 拒绝启动新任务。
 
 ## 模式六：全屏覆盖层（fullScreenKind）
 

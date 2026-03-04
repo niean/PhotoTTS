@@ -489,6 +489,158 @@ class SessionRecordManager {
         }
     }
     
+    // MARK: - 草稿会话（后台制作）
+
+    /// 保存草稿会话记录（仅落盘图片和 metadata，makeStatus=making，无 OCR/音频结果）
+    /// - Parameters:
+    ///   - id: 会话ID（由调用方生成，保证与 BackgroundMakeManager 任务对应）
+    ///   - name: 草稿名称（如 "25.03.04 未命名"）
+    ///   - images: 已降采样的图片数组
+    /// - Returns: 是否保存成功
+    func saveDraftSession(id: String, name: String, images: [UIImage]) -> Bool {
+        let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+        do {
+            // 创建会话目录
+            if !fileManager.fileExists(atPath: sessionDir.path) {
+                try fileManager.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+            }
+
+            // 保存图片文件
+            let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+            if !fileManager.fileExists(atPath: imagesDir.path) {
+                try fileManager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+            }
+            let saveMaxPixel = Int(Constants.ImageDisplay.saveImageMaxPixel)
+            for (index, image) in images.enumerated() {
+                let imageToSave = Self.downsampleImageToMaxPixel(image, maxPixelLength: saveMaxPixel) ?? image
+                guard let jpegData = imageToSave.jpegData(compressionQuality: 1.0) else { continue }
+                let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
+                try jpegData.write(to: imageURL)
+            }
+
+            // 预生成头像
+            if !images.isEmpty {
+                writeAvatarImage(sessionDir: sessionDir, imagesDir: imagesDir, avatarImageIndex: 0)
+            }
+
+            // 构建 record（空 OCR/音频，makeStatus=making）
+            let emptySegments = Array(repeating: "", count: images.count)
+            let record = SessionRecord(
+                id: id,
+                name: name,
+                images: images,
+                ocrText: "",
+                ocrTextSegments: emptySegments,
+                audioData: Data(),
+                audioFormat: "mp3",
+                audioDuration: 0,
+                ocrDuration: 0,
+                ttsDuration: 0,
+                validImageCount: 0,
+                makeStatus: .making
+            )
+
+            // 保存 metadata.json
+            let metadata = SessionRecordMetadata(from: record)
+            let metadataData = try JSONEncoder().encode(metadata)
+            let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+            try metadataData.write(to: metadataURL)
+
+            // 保存 record.json
+            let recordData = try JSONEncoder().encode(record)
+            let recordURL = sessionDir.appendingPathComponent("record.json")
+            try recordData.write(to: recordURL)
+
+            invalidateMetadataCache()
+            logger.info("草稿会话保存成功: \(name), id=\(id), 图片数=\(images.count)")
+            return true
+        } catch {
+            logger.error("草稿会话保存失败: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// 更新草稿会话的 OCR/TTS 结果（makeStatus 置为 completed）
+    /// - Parameters:
+    ///   - id: 会话ID
+    ///   - audioResponse: Coordinator 返回的完整音频响应
+    ///   - ocrDuration: OCR 耗时
+    ///   - ttsDuration: TTS 耗时
+    /// - Returns: 是否更新成功
+    func updateSessionWithResults(id: String, audioResponse: AudioResponse, ocrDuration: TimeInterval, ttsDuration: TimeInterval) -> Bool {
+        let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+        guard fileManager.fileExists(atPath: recordURL.path) else {
+            logger.error("更新草稿失败，record.json 不存在: \(id)")
+            return false
+        }
+
+        do {
+            let data = try Data(contentsOf: recordURL)
+            let oldRecord = try JSONDecoder().decode(SessionRecord.self, from: data)
+
+            let ocrText = audioResponse.text
+            let ocrTextSegments = audioResponse.recognizedTexts ?? []
+            let audioData = audioResponse.audioData ?? Data()
+            let audioFormat = audioResponse.format.isEmpty ? "mp3" : audioResponse.format
+
+            let updatedRecord = SessionRecord(
+                id: oldRecord.id,
+                name: oldRecord.name,
+                createdAt: oldRecord.createdAt,
+                updatedAt: Date(),
+                imageDataList: oldRecord.imageDataList,
+                ocrText: ocrText,
+                ocrTextSegments: ocrTextSegments,
+                audioDataBase64: "",
+                audioFormat: audioFormat,
+                audioDuration: audioResponse.duration,
+                ocrDuration: ocrDuration,
+                ttsDuration: ttsDuration,
+                validImageCount: audioResponse.validImageCount ?? oldRecord.totalImageCount,
+                totalImageCount: oldRecord.totalImageCount,
+                textLength: ocrText.count,
+                audioSize: audioData.count,
+                voiceSettings: audioResponse.voiceSettings,
+                avatarImageIndex: oldRecord.avatarImageIndex,
+                storageSize: 0,
+                makeStatus: .completed
+            )
+
+            // 保存音频文件
+            if !audioData.isEmpty {
+                let audioURL = sessionDir.appendingPathComponent("audio.\(audioFormat)")
+                try audioData.write(to: audioURL)
+            }
+
+            // 保存 record.json
+            let updatedRecordData = try JSONEncoder().encode(updatedRecord)
+            try updatedRecordData.write(to: recordURL)
+
+            // 保存 metadata.json
+            let metadata = SessionRecordMetadata(from: updatedRecord)
+            let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+            let metadataData = try JSONEncoder().encode(metadata)
+            try metadataData.write(to: metadataURL)
+
+            // 更新存储大小
+            let storageSize = calculateDirectorySize(sessionDir)
+            let sizeUpdatedRecord = updatedRecord.withStorageSize(storageSize)
+            let sizeUpdatedRecordData = try JSONEncoder().encode(sizeUpdatedRecord)
+            try sizeUpdatedRecordData.write(to: recordURL)
+            let sizeUpdatedMetadata = SessionRecordMetadata(from: sizeUpdatedRecord)
+            let sizeUpdatedMetadataData = try JSONEncoder().encode(sizeUpdatedMetadata)
+            try sizeUpdatedMetadataData.write(to: metadataURL)
+
+            invalidateMetadataCache()
+            logger.info("草稿会话更新完成: \(oldRecord.name), id=\(id), 文本长度=\(ocrText.count), 音频大小=\(audioData.count)")
+            return true
+        } catch {
+            logger.error("更新草稿会话失败: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     // MARK: - 更新会话记录
     
     /// 更新会话记录（名称、头像等可选项，仅更新传入的非 nil 参数）

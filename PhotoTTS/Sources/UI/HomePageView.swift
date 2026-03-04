@@ -1,4 +1,5 @@
 import SwiftUI
+import os.log
 
 /// 首页子页面播放用
 private struct PlayFromHomeItem: Identifiable, Hashable {
@@ -38,6 +39,11 @@ struct HomePageView: View {
                 // 会话记录
                 SessionRecordListView(
                     onLoadSession: { record in
+                        guard !appState.isPlayViewActive else {
+                            os.Logger.audioPlayer.warning("播放互斥: 已有播放中，拒绝首页触发播放 sessionId=\(record.id)")
+                            return
+                        }
+                        appState.isPlayViewActive = true
                         sessionToPlayFromHome = PlayFromHomeItem(id: record.id)
                     },
                     mode: .embedded
@@ -51,6 +57,7 @@ struct HomePageView: View {
         .fullScreenCover(item: $sessionToPlayFromHome) { item in
             PlayView(recordId: item.id, onDismiss: {
                 sessionToPlayFromHome = nil
+                appState.isPlayViewActive = false
             })
         }
         .navigationBarHidden(true)

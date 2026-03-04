@@ -18,10 +18,15 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 | 代码质量扫描 | 人工指令 | .harness/skills/code-quality-scan.md |
 | 废弃代码清理 | 人工指令 | .harness/skills/dead-code-cleanup.md |
 | 构建验证 | 功能迭代完成后自动执行，或人工指令 | .harness/skills/build-verify.md |
-| 回填-Skill提取 | 人工指令 | .harness/skills/backfill-skill-extract.md |
-| 回填-Subagent提取 | 人工指令 | .harness/skills/backfill-subagent-extract.md |
+| 提取-Skill | 人工指令 | .harness/skills/extract-skill.md |
+| 提取-Subagent | 人工指令 | .harness/skills/extract-subagent.md |
 | 回填-产品SENSE更新 | 人工指令 | .harness/skills/backfill-prd-sense.md |
 | 回填-AGENTS更新 | 人工指令 | .harness/skills/backfill-agents.md |
+| 治理巡检 | 人工指令 | .harness/skills/governance-review.md |
+| 任务总结 | AI自动触发（任务完成后） | .harness/skills/task-summary.md |
+
+触发规则：表中标注"AI自动触发"的 Skill，AI 必须在对应时机自动执行，不需要人工指令。当前自动触发清单：
+- 任务完成后：执行 Skill: 任务总结（适用于所有任务，包括功能迭代、人工指令触发的 Skill、以及其他独立任务）
 
 ## 文件与文档
 

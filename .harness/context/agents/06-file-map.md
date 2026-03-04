@@ -26,6 +26,10 @@
 - 会话记录保存/编辑（SessionRecordUnifiedView）：Sources/UI/SessionRecordDetailView.swift
 - 会话记录存储：SessionRecordManager（Sources/Core/Managers/Session/SessionRecordManager.swift）
 
+## 后台制作
+
+- 后台制作管理器：BackgroundMakeManager（Sources/Core/Managers/BackgroundMake/BackgroundMakeManager.swift），管理多个并发后台制作任务（MakeTask），每个任务持有独立的 ImageToSpeechCoordinator 实例
+
 ## OCR 与 TTS
 
 - 协调器：ImageToSpeechCoordinator（Sources/Core/Coordinators/ImageToSpeechCoordinator.swift）

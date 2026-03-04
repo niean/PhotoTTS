@@ -217,4 +217,8 @@ extension Constants {
     
     // MARK: - 播放历史限制
     static let maxPlayHistoryRecords = 500
+    
+    // MARK: - 后台制作
+    /// 草稿会话默认名称后缀（前缀为 "YY.MM.DD "）
+    static let draftSessionNameSuffix = "未命名"
 }

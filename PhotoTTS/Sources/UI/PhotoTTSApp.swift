@@ -21,6 +21,7 @@ extension os.Logger {
     static let debugLog = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "DebugLog")
     static let sessionRecord = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SessionRecord")
     static let playHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PlayHistory")
+    static let backgroundMake = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "BackgroundMake")
 }
 
 // MARK: - AppDelegate：锁定竖屏，拦截横屏
@@ -56,6 +57,10 @@ class AppState: ObservableObject {
     @Published var sessionIdToLoadIntoMake: String? = nil
     /// Siri 触发播放的会话记录，PlayView 消费后置 nil
     @Published var sessionRecordToPlay: SessionRecord? = nil
+    /// 从记录列表点击制作中记录时写入，制作页消费后置 nil
+    @Published var makeTaskIdToReconnect: String? = nil
+    /// 播放互斥：当前是否有 PlayView 处于活跃状态，任意时刻只允许一个记录播放
+    @Published var isPlayViewActive: Bool = false
     init() {}
 }
 
@@ -103,6 +108,7 @@ struct PhotoTTSApp: App {
             .fullScreenCover(item: $appState.sessionRecordToPlay) { record in
                 PlayView(recordId: record.id, onDismiss: {
                     appState.sessionRecordToPlay = nil
+                    appState.isPlayViewActive = false
                 })
             }
             // 监听 App 进入前台（包含 Siri 拉起场景）
@@ -138,6 +144,11 @@ struct PhotoTTSApp: App {
                     return
                 }
                 DispatchQueue.main.async {
+                    guard !appState.isPlayViewActive else {
+                        os.Logger.audioPlayer.warning("播放互斥: 已有播放中，拒绝Siri触发播放 sessionId=\(sessionId)")
+                        return
+                    }
+                    appState.isPlayViewActive = true
                     appState.sessionRecordToPlay = record
                 }
             }

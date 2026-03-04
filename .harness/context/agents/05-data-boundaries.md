@@ -2,7 +2,9 @@
 
 ## 会话记录
 
-SessionRecord（Sources/Models/SessionRecord.swift）：Codable、Identifiable、Hashable。字段：id、name、createdAt、updatedAt、imageDataList（Base64）、ocrText、ocrTextSegments、audioDataBase64、audioFormat、audioDuration、ocrDuration、ttsDuration、validImageCount、totalImageCount、textLength、audioSize、voiceSettings、avatarImageIndex、storageSize。record.json 中不存储实际的音频和图片二进制。
+SessionRecord（Sources/Models/SessionRecord.swift）：Codable、Identifiable、Hashable。字段：id、name、createdAt、updatedAt、imageDataList（Base64）、ocrText、ocrTextSegments、audioDataBase64、audioFormat、audioDuration、ocrDuration、ttsDuration、validImageCount、totalImageCount、textLength、audioSize、voiceSettings、avatarImageIndex、storageSize、makeStatus。record.json 中不存储实际的音频和图片二进制。
+
+MakeStatus（Sources/Models/SessionRecord.swift）：enum MakeStatus: String, Codable { case making; case completed }。SessionRecord.makeStatus 和 SessionRecordMetadata.makeStatus 均为 Optional，nil 表示 completed（向下兼容旧数据）。SessionRecordMetadata.isMaking 计算属性便于 UI 判断。
 
 ## 语音与配置
 

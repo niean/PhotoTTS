@@ -2,6 +2,15 @@ import Foundation
 import UIKit
 import os.log
 
+// MARK: - 制作状态
+/// 会话记录的制作状态
+enum MakeStatus: String, Codable {
+    /// 制作中（OCR+TTS处理中）
+    case making
+    /// 制作完成（可播放、可保存）
+    case completed
+}
+
 // MARK: - 会话历史事件（存储在 history.json 中，随会话导入导出）
 /// 单次制作或播放事件
 struct SessionHistoryEvent: Codable {
@@ -72,6 +81,10 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     // MARK: - 存储信息
     var storageSize: Int64
     
+    // MARK: - 制作状态
+    /// 制作状态：nil 或 .completed 表示已完成，.making 表示制作中（向后兼容旧数据）
+    let makeStatus: MakeStatus?
+    
     // MARK: - 初始化
     init(
         id: String = UUID().uuidString,
@@ -89,7 +102,8 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         validImageCount: Int,
         voiceSettings: VoiceSettings? = nil,
         avatarImageIndex: Int = 0,
-        storageSize: Int64 = 0
+        storageSize: Int64 = 0,
+        makeStatus: MakeStatus? = nil
     ) {
         self.id = id
         self.name = name
@@ -118,6 +132,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.voiceSettings = voiceSettings
         self.avatarImageIndex = min(max(0, avatarImageIndex), images.count > 0 ? images.count - 1 : 0)
         self.storageSize = storageSize
+        self.makeStatus = makeStatus
     }
     
     // MARK: - Hashable（用于 navigationDestination(item:) 等，仅以 id 区分）
@@ -129,7 +144,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     }
     
     /// 按成员复制
-    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64) {
+    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -149,6 +164,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.voiceSettings = voiceSettings
         self.avatarImageIndex = avatarImageIndex
         self.storageSize = storageSize
+        self.makeStatus = makeStatus
     }
     
     // MARK: - Codable 自定义编码
@@ -176,6 +192,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         try container.encodeIfPresent(voiceSettings, forKey: .voiceSettings)
         try container.encode(avatarImageIndex, forKey: .avatarImageIndex)
         try container.encode(storageSize, forKey: .storageSize)
+        try container.encodeIfPresent(makeStatus, forKey: .makeStatus)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -198,6 +215,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         case voiceSettings
         case avatarImageIndex
         case storageSize
+        case makeStatus
     }
     
     // 自定义解码
@@ -222,11 +240,12 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         voiceSettings = try container.decodeIfPresent(VoiceSettings.self, forKey: .voiceSettings)
         avatarImageIndex = try container.decodeIfPresent(Int.self, forKey: .avatarImageIndex) ?? 0
         storageSize = try container.decodeIfPresent(Int64.self, forKey: .storageSize) ?? 0
+        makeStatus = try container.decodeIfPresent(MakeStatus.self, forKey: .makeStatus)
     }
     
     /// 返回带新 storageSize 的副本（用于保存后写回 record.json）
     func withStorageSize(_ size: Int64) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus)
     }
     
     // MARK: - 辅助方法
@@ -300,6 +319,11 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
     let audioDuration: TimeInterval
     let avatarImageIndex: Int
     let storageSize: Int64
+    /// 制作状态：nil 或 .completed 表示已完成，.making 表示制作中（向后兼容旧数据）
+    let makeStatus: MakeStatus?
+    
+    /// 是否正在制作中
+    var isMaking: Bool { makeStatus == .making }
     
     init(from record: SessionRecord) {
         self.id = record.id
@@ -312,9 +336,10 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         self.audioDuration = record.audioDuration
         self.avatarImageIndex = record.avatarImageIndex
         self.storageSize = record.storageSize
+        self.makeStatus = record.makeStatus
     }
     
-    init(id: String, name: String, createdAt: Date, updatedAt: Date, totalImageCount: Int, validImageCount: Int, textLength: Int, audioDuration: TimeInterval, avatarImageIndex: Int, storageSize: Int64) {
+    init(id: String, name: String, createdAt: Date, updatedAt: Date, totalImageCount: Int, validImageCount: Int, textLength: Int, audioDuration: TimeInterval, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -325,11 +350,17 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         self.audioDuration = audioDuration
         self.avatarImageIndex = avatarImageIndex
         self.storageSize = storageSize
+        self.makeStatus = makeStatus
     }
     
     /// 返回带新 storageSize 的元数据副本（用于保存后写回 metadata.json）
     func withStorageSize(_ size: Int64) -> SessionRecordMetadata {
-        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: size)
+        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus)
+    }
+    
+    /// 返回带新 makeStatus 的元数据副本
+    func withMakeStatus(_ status: MakeStatus?) -> SessionRecordMetadata {
+        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: status)
     }
     
     // 为了兼容旧数据，提供自定义解码
@@ -345,6 +376,7 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         audioDuration = try container.decode(TimeInterval.self, forKey: .audioDuration)
         avatarImageIndex = try container.decodeIfPresent(Int.self, forKey: .avatarImageIndex) ?? 0
         storageSize = try container.decodeIfPresent(Int64.self, forKey: .storageSize) ?? 0
+        makeStatus = try container.decodeIfPresent(MakeStatus.self, forKey: .makeStatus)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -359,6 +391,7 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         try container.encode(audioDuration, forKey: .audioDuration)
         try container.encode(avatarImageIndex, forKey: .avatarImageIndex)
         try container.encode(storageSize, forKey: .storageSize)
+        try container.encodeIfPresent(makeStatus, forKey: .makeStatus)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -372,6 +405,7 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         case audioDuration
         case avatarImageIndex
         case storageSize
+        case makeStatus
     }
     
     // Hashable 实现

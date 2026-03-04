@@ -1,4 +1,4 @@
-# Skill: 回填-Subagent提取
+# Skill: 提取-Subagent
 
 触发：人工指令。经过一段时间的 AI Coding 后，人工触发本 Skill，让 Agent 从近期编码活动中发现适合并行化的检查或任务，抽象为新的 Subagent prompt 模板。
 

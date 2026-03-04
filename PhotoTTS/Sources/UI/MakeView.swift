@@ -5,10 +5,7 @@ import os.log
 
 // MARK: - 制作视图
 struct MakeView: View {
-    @StateObject private var coordinator = ImageToSpeechCoordinator(
-        networkService: NetworkService(),
-        settingsManager: SettingsManager.shared
-    )
+    @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
     @ObservedObject var appState: AppState
     
     @State private var capturedImage: UIImage?
@@ -51,6 +48,9 @@ struct MakeView: View {
     /// 制作页 OCR+TTS 完成后用当前数据全屏播放
     @State private var currentSessionToPlay: SessionRecord? = nil
     
+    // 后台制作：当前观察的任务 sessionId
+    @State private var observingTaskId: String? = nil
+    
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
         
     var body: some View {
@@ -87,6 +87,10 @@ struct MakeView: View {
                         appState.sessionIdToLoadIntoMake = nil
                         loadRecordIntoMake(sessionId: id)
                     }
+                    if let id = appState.makeTaskIdToReconnect {
+                        appState.makeTaskIdToReconnect = nil
+                        reconnectToBackgroundTask(sessionId: id)
+                    }
                 }
             }
             .onAppear {
@@ -96,14 +100,24 @@ struct MakeView: View {
                         appState.sessionIdToLoadIntoMake = nil
                         loadRecordIntoMake(sessionId: id)
                     }
+                    if let id = appState.makeTaskIdToReconnect {
+                        appState.makeTaskIdToReconnect = nil
+                        reconnectToBackgroundTask(sessionId: id)
+                    }
                 }
+            }
+            .onReceive(bgMakeManager.objectWillChange) { _ in
+                syncBackgroundTaskState()
             }
             .fullScreenCover(isPresented: Binding(
                 get: { currentSessionToPlay != nil },
                 set: { if !$0 { currentSessionToPlay = nil } }
             )) {
                 if let record = currentSessionToPlay {
-                    PlayView(preloadedRecord: record, onDismiss: { currentSessionToPlay = nil })
+                    PlayView(preloadedRecord: record, onDismiss: {
+                        currentSessionToPlay = nil
+                        appState.isPlayViewActive = false
+                    })
                 } else {
                     EmptyView()
                 }
@@ -299,6 +313,9 @@ struct MakeView: View {
         dragSourceIndex = nil
         dragTargetIndex = nil
         isProcessingReorder = false
+        
+        // 清理后台制作观察
+        observingTaskId = nil
     }
     
     /// 处理从首页跳转过来的待办：拍照、选图
@@ -359,7 +376,7 @@ struct MakeView: View {
             error: error,
             showProcessingOverlay: isProcessing || (error != nil && !processingOverlayDismissed),
             onDismissErrorOverlay: { processingOverlayDismissed = true },
-            onCancelProcessing: { coordinator.cancelProcessing() },
+            onCancelProcessing: { cancelBackgroundTask() },
             isPlaying: false,
             playbackProgress: 0,
             ocrDuration: ocrDuration,
@@ -501,7 +518,12 @@ struct MakeView: View {
             os.Logger.audioPlayer.error("没有音频数据，请先完成OCR和TTS处理")
             return
         }
+        guard !appState.isPlayViewActive else {
+            os.Logger.audioPlayer.warning("播放互斥: 已有播放中，拒绝制作页触发播放")
+            return
+        }
         if let record = buildCurrentSessionRecord() {
+            appState.isPlayViewActive = true
             currentSessionToPlay = record
         }
     }
@@ -555,127 +577,115 @@ struct MakeView: View {
         }
     }
     
-    // MARK: - 统一处理函数
-    
-    // 统一的图片处理函数（批量模式）
+    // MARK: - 后台制作
+
+    /// 启动后台制作任务
     private func processImages() {
         guard !selectedImages.isEmpty else { return }
 
-        var imageDataList: [Data] = []
-        for image in selectedImages {
-            if let data = image.jpegData(compressionQuality: 0.8) {
-                imageDataList.append(data)
-            }
-        }
-        
-        guard !imageDataList.isEmpty else {
-            error = NSError(domain: "PhotoTTS", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法转换图片数据"])
-            return
-        }
-        
-        processImagesWithData(imageDataList)
-    }
-    
-    // 统一的数据处理函数
-    private func processImagesWithData(_ imageDataList: [Data]) {
         isProcessing = true
         processingProgress = 0.0
         currentOperation = "开始处理图片..."
         error = nil
         ocrResult = ""
         audioData = nil
-        
-        // 重置计时器
         ocrDuration = 0.0
         ttsDuration = 0.0
         ocrStartTime = Date()
         ttsStartTime = nil
-        
-        // 进度处理函数
-        let progressHandler: (ProcessingProgress) -> Void = { [self] progress in
-            DispatchQueue.main.async {
-                // 统一的进度转换逻辑
-                let normalizedProgress = max(0.0, min(1.0, progress.percentage / 100.0))
-                self.processingProgress = Float(normalizedProgress)
-                self.currentOperation = progress.message
-                
-                // 记录TTS开始时间
-                if progress.message.contains("TTS") && self.ttsStartTime == nil {
-                    self.ttsStartTime = Date()
-                    os.Logger.makeView.debug("TTS开始时间: \(self.ttsStartTime!)")
+
+        if let sessionId = bgMakeManager.startMaking(images: selectedImages) {
+            observingTaskId = sessionId
+            os.Logger.makeView.info("已启动后台制作任务: sessionId=\(sessionId)")
+        } else {
+            isProcessing = false
+            error = NSError(domain: "PhotoTTS", code: -1, userInfo: [NSLocalizedDescriptionKey: "启动制作失败，请重试"])
+        }
+    }
+
+    /// 取消当前观察的后台任务
+    private func cancelBackgroundTask() {
+        guard let taskId = observingTaskId else { return }
+        bgMakeManager.cancelTask(sessionId: taskId)
+        observingTaskId = nil
+        isProcessing = false
+        processingProgress = 0.0
+        currentOperation = ""
+    }
+
+    /// 同步后台任务状态到本地 @State（由 onReceive 触发）
+    private func syncBackgroundTaskState() {
+        guard let taskId = observingTaskId,
+              let task = bgMakeManager.task(for: taskId) else { return }
+
+        processingProgress = task.progress
+        currentOperation = task.operationMessage
+        ocrDuration = task.ocrDuration
+        ttsDuration = task.ttsDuration
+
+        if task.isCompleted {
+            isProcessing = false
+            observingTaskId = nil
+
+            if task.isSuccess, let response = task.audioResponse {
+                ocrResult = response.text
+                audioData = response.audioData
+                audioResponse = response
+                ocrTextSegments = task.ocrTextSegments
+                processingProgress = 1.0
+                currentOperation = "处理完成"
+
+                if !response.text.isEmpty {
+                    parseOCRTextSegments(response.text)
                 }
-                
-                // 计算OCR耗时
-                if progress.message.contains("OCR") && self.ocrStartTime != nil {
-                    let currentTime = Date()
-                    self.ocrDuration = currentTime.timeIntervalSince(self.ocrStartTime!)
-                    os.Logger.makeView.debug("OCR已耗时: \(String(format: "%.2f", self.ocrDuration))秒")
+
+                let totalDuration = task.ocrDuration + task.ttsDuration
+                os.Logger.makeView.info("处理完成! OCR:\(String(format: "%.2f", task.ocrDuration))s, TTS:\(String(format: "%.2f", task.ttsDuration))s, 总:\(String(format: "%.2f", totalDuration))s, 文字:\(response.text.count)字符")
+
+                // 自动播放：仅当用户在制作页时触发，后台完成不自动播放以免打断当前操作
+                if response.audioData != nil && appState.selectedTab == 1 {
+                    os.Logger.makeView.debug("开始自动播放")
+                    togglePlayback()
+                } else if response.audioData != nil {
+                    os.Logger.makeView.info("后台制作完成，跳过自动播放")
                 }
-                
-                // 计算TTS耗时
-                if progress.message.contains("TTS") && self.ttsStartTime != nil {
-                    let currentTime = Date()
-                    self.ttsDuration = currentTime.timeIntervalSince(self.ttsStartTime!)
-                    os.Logger.makeView.debug("TTS已耗时: \(String(format: "%.2f", self.ttsDuration))秒")
-                }
+
+                // 消费完成后移除任务
+                bgMakeManager.removeTask(sessionId: taskId)
+            } else {
+                error = task.error
+                processingProgress = 0.0
+                currentOperation = "处理失败"
+                os.Logger.makeView.error("处理失败: \(task.error?.localizedDescription ?? "未知错误")")
+                bgMakeManager.removeTask(sessionId: taskId)
             }
         }
-        
-        // 完成处理函数
-        let completionHandler: (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void = { [self] result in
-            DispatchQueue.main.async {
-                self.isProcessing = false
-                
-                // 计算最终耗时
-                let endTime = Date()
-                if let ocrStart = self.ocrStartTime {
-                    self.ocrDuration = endTime.timeIntervalSince(ocrStart)
-                }
-                if let ttsStart = self.ttsStartTime {
-                    self.ttsDuration = endTime.timeIntervalSince(ttsStart)
-                }
-                
-                switch result {
-                case .success(let audioResponse):
-                    self.ocrResult = audioResponse.text
-                    self.audioData = audioResponse.audioData
-                    self.audioResponse = audioResponse
-                    self.processingProgress = 1.0
-                    self.currentOperation = "处理完成"
-                    
-                    // 解析OCR文本分段，用于音频播放同步和展示
-                    if !audioResponse.text.isEmpty {
-                        self.parseOCRTextSegments(audioResponse.text)
-                    }
-                    
-                    // 统一的完成日志
-                    let totalDuration = self.ocrDuration + self.ttsDuration
-                    os.Logger.makeView.info("处理完成!")
-                    os.Logger.makeView.info("OCR耗时: \(String(format: "%.2f", self.ocrDuration))秒")
-                    os.Logger.makeView.info("TTS耗时: \(String(format: "%.2f", self.ttsDuration))秒")
-                    os.Logger.makeView.info("总耗时: \(String(format: "%.2f", totalDuration))秒")
-                    os.Logger.makeView.info("文字长度: \(audioResponse.text.count)字符")
-                    os.Logger.makeView.info("音频大小: \(ByteCountFormatter.string(fromByteCount: Int64(audioResponse.audioData?.count ?? 0), countStyle: .file))")
-                    
-                    // 自动播放语音（有音频时）
-                    if audioResponse.audioData != nil {
-                        os.Logger.makeView.debug("开始自动播放")
-                        self.togglePlayback()
-                    } else {
-                        os.Logger.makeView.warning("没有音频数据，无法播放")
-                    }
-                    
-                case .failure(let processingError):
-                    self.error = processingError
-                    self.processingProgress = 0.0
-                    self.currentOperation = "处理失败"
-                    os.Logger.makeView.error("处理失败: \(processingError.localizedDescription)")
-                }
-            }
+    }
+
+    /// 重连到指定后台任务（从列表页跳转或 tab 切回）
+    private func reconnectToBackgroundTask(sessionId: String) {
+        guard let task = bgMakeManager.task(for: sessionId) else {
+            os.Logger.makeView.warning("重连失败: 任务不存在 sessionId=\(sessionId)")
+            return
         }
-        
-        // 批量处理函数
-        coordinator.convertBatchImagesToSpeech(imageDataList, progressHandler: progressHandler, completion: completionHandler)
+
+        observingTaskId = sessionId
+
+        if task.isCompleted {
+            // 任务已完成，直接同步结果
+            syncBackgroundTaskState()
+        } else {
+            // 任务进行中，同步当前进度
+            isProcessing = true
+            processingProgress = task.progress
+            currentOperation = task.operationMessage
+            ocrDuration = task.ocrDuration
+            ttsDuration = task.ttsDuration
+            error = nil
+            ocrResult = ""
+            audioData = nil
+        }
+        os.Logger.makeView.info("已重连后台任务: sessionId=\(sessionId)")
     }
 
     // MARK: - 批量处理相关函数
