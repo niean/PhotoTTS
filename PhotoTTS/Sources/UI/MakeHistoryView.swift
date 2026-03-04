@@ -190,7 +190,12 @@ struct MakeHistoryViewWithBar: View {
     }
     
     private func loadEntries() {
-        entries = MakeHistoryManager.shared.loadEntries()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let loaded = MakeHistoryManager.shared.loadEntries()
+            DispatchQueue.main.async {
+                entries = loaded
+            }
+        }
     }
 }
 

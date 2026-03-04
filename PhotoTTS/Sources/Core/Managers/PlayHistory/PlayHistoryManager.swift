@@ -76,6 +76,8 @@ class PlayHistoryManager {
         }
         return byName.map { PlayHistoryEntry(name: $0.key, lastPlayedAt: $0.value.latest, playCount: $0.value.count, identity: $0.value.identity) }
             .sorted { $0.lastPlayedAt > $1.lastPlayedAt }
+            .prefix(Constants.maxPlayHistoryRecords)
+            .map { $0 }
     }
 
     /// 导出为 JSON 文件，返回可分享的 URL

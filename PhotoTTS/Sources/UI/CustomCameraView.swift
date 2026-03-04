@@ -730,7 +730,7 @@ struct MultiImagePicker: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration()
         configuration.filter = .images
-        configuration.selectionLimit = 50 // 最多选择50张
+        configuration.selectionLimit = Constants.maxPhotoPickerSelectionCount
         configuration.preferredAssetRepresentationMode = .current
         
         let picker = PHPickerViewController(configuration: configuration)

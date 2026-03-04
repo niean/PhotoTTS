@@ -193,13 +193,10 @@ final class PhotoTTSAppTests: XCTestCase {
     
     func testConstantsValues() {
         XCTAssertEqual(Constants.appName, "Photo TTS")
-        XCTAssertGreaterThan(Constants.defaultTimeout, 0)
-        XCTAssertGreaterThan(Constants.maxRetryCount, 0)
         XCTAssertGreaterThan(Constants.maxImageSize, 0)
-        XCTAssertFalse(Constants.supportedImageFormats.isEmpty)
-        XCTAssertFalse(Constants.supportedAudioFormats.isEmpty)
-        XCTAssertTrue(Constants.supportedImageFormats.contains("jpg"))
-        XCTAssertTrue(Constants.supportedAudioFormats.contains("mp3"))
+        XCTAssertGreaterThan(Constants.cornerRadius, 0)
+        XCTAssertGreaterThan(Constants.Network.requestTimeout, 0)
+        XCTAssertGreaterThan(Constants.Network.maxRetryCount, 0)
     }
     
     func testOCRConstants() {

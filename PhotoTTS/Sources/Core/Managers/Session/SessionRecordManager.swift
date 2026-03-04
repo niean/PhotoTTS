@@ -458,6 +458,16 @@ class SessionRecordManager {
     // MARK: - 记录头像
     private static let avatarFileName = "avatar.jpg"
     
+    /// 当 avatar.jpg 缺失时，将传入的已解码图片写入会话目录（用于列表页回退加载后补写）
+    func saveAvatarIfMissing(sessionId: String, image: UIImage) {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let avatarURL = sessionDir.appendingPathComponent(Self.avatarFileName)
+        guard !fileManager.fileExists(atPath: avatarURL.path) else { return }
+        if let jpegData = image.jpegData(compressionQuality: 0.85) {
+            try? jpegData.write(to: avatarURL)
+        }
+    }
+    
     /// 从会话目录加载预生成的头像图
     func loadAvatar(sessionId: String) -> UIImage? {
         let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)

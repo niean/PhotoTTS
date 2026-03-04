@@ -202,7 +202,7 @@ struct MakeView: View {
               let audioResponse = audioResponse else { return nil }
         let audioFormat = audioResponse.format.isEmpty ? "mp3" : audioResponse.format
         return SessionRecord(
-            name: "未命名会话",
+            name: Constants.defaultSessionName,
             images: images,
             ocrText: ocrResult,
             ocrTextSegments: ocrTextSegments,
@@ -243,7 +243,7 @@ struct MakeView: View {
             
             // 创建会话记录
             let record = SessionRecord(
-                name: name.isEmpty ? "未命名会话" : name,
+                name: name.isEmpty ? Constants.defaultSessionName : name,
                 images: images,
                 ocrText: self.ocrResult,
                 ocrTextSegments: self.ocrTextSegments,
@@ -742,16 +742,16 @@ struct MakeView: View {
                         self.appState.cameraOverlayImages = self.selectedImages
                         self.appState.fullScreenKind = .camera
                     } else {
-                        alertMessage = "需要相机权限才能拍照"
-                        showingAlert = true
-                    }
+                    alertMessage = Constants.cameraPermissionMessage
+                    showingAlert = true
                 }
             }
+        }
         case .denied, .restricted:
-            alertMessage = "请在设置中允许访问相机"
+            alertMessage = Constants.cameraPermissionDeniedMessage
             showingAlert = true
         @unknown default:
-            alertMessage = "相机权限未知状态"
+            alertMessage = Constants.cameraPermissionUnknownMessage
             showingAlert = true
         }
     }

@@ -20,6 +20,7 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 | 构建验证 | 功能迭代完成后自动执行，或人工指令 | .harness/skills/build-verify.md |
 | 提取-Skill | 人工指令 | .harness/skills/extract-skill.md |
 | 提取-Subagent | 人工指令 | .harness/skills/extract-subagent.md |
+| 提取-Harness模板 | 人工指令 | .harness/skills/extract-harness-tpl.md |
 | 回填-产品SENSE更新 | 人工指令 | .harness/skills/backfill-prd-sense.md |
 | 回填-AGENTS更新 | 人工指令 | .harness/skills/backfill-agents.md |
 | 治理巡检 | 人工指令 | .harness/skills/governance-review.md |
@@ -45,6 +46,15 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 - 上下文窗口有限，不需要的文档一律不加载
 - 接到任务时按需查阅 .harness/context/ 目录（不需要全部读完）
 
+## 多步任务上下文管理
+
+上下文窗口有限，多步骤任务（尤其是编排多个子 Skill 的复合任务）必须主动管理上下文消耗：
+- 每个步骤完成后，将该步结果压缩为检查点摘要（不超过 5 行），后续步骤只携带摘要、不回溯详细内容
+- 每个步骤只加载当前必需的文件，不预加载后续步骤的文件
+- 所有步骤均为必选项，禁止因上下文压力跳过或简化任何步骤
+- 如果感知到上下文紧张，应先压缩已有上下文（丢弃中间过程细节、只保留检查点摘要），再继续执行后续步骤
+- 各 Skill 文件中如有更具体的上下文管理要求，以 Skill 文件定义为准
+
 ## 维护
 
 每次修改约束、规范、规则（包括 AGENTS.md、Skills、Subagents、知识库文件）时，必须检查 AGENTS.md 的全局描述，确保新增或变更的内容与已有规则没有矛盾冲突。
@@ -66,8 +76,9 @@ AGENTS.md              -- AI 知识库入口、操作约束RULES（本文件）
   skills/              -- AI 可复用操作定义（功能迭代、构建验证等）
   subagents/           -- Subagent prompt 模板（代码质量扫描等并行任务）
   docs/
+    00-harness-ops.md  -- Harness 项目维护（蒸馏模板、治理操作入口，人工维护）
     01-harness-desc.md -- 通用 AI 协作工程方法论（项目无关，可跨项目复用）
-    02-dev-summary.md  -- 开发总结
+    02-harness-dev.md  -- Harness 开发流程（初始化、人机协作开发，人工维护）
   context/
     agents/            -- AI 知识库
       01-overview.md   -- 项目概览
@@ -87,7 +98,7 @@ PhotoTTS/
     Core/
       Coordinators/    -- 业务协调（ImageToSpeechCoordinator）
       Handlers/        -- OCR/TTS 服务（OCRService、TTSService）
-      Intents/         -- Siri / App Shortcuts 意图（PlaySessionIntent、SessionRecordEntity）
+      Intents/         -- Siri / App Shortcuts 意图（PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts）
       Managers/        -- 数据/设置管理（SessionRecordManager、SettingsManager 等）
     Models/            -- 数据模型（SessionRecord、VoiceSettings、APIResponse）
   Resources/           -- 配置（config_local.json）、素材、更新记录
@@ -154,7 +165,7 @@ Skill: 功能迭代 step 6 的具体回填目标：
 - 新增或修改 Manager / Coordinator / Service 层逻辑时，应同步补充或更新单元测试（PhotoTTSTests/）
 - 错误信息分两层：面向用户的提示使用中文自然语言、不含技术细节；面向开发者的日志使用 `os.Logger`，可包含错误码和上下文
 - 日志中禁止输出 API Key、Access Key、Token 等敏感字段；如需标识密钥，仅输出末四位（如 `key=***abcd`）
-- 网络请求必须设置超时（默认见 `Constants.defaultTimeout`），不允许无限等待
+- 网络请求必须设置超时（默认见 `Constants.Network.requestTimeout`），不允许无限等待
 - 异步操作（OCR/TTS/文件IO）必须在非主线程执行，回调结果切回主线程更新 UI
 - 图片禁止一次性全量加载到内存；播放和浏览必须按需加载当前帧，并通过有限缓存（NSCache）预加载相邻帧
 - 图片解码必须使用 Image I/O 降采样（CGImageSourceCreateThumbnailAtIndex），禁止先解码全尺寸再缩放，否则 IOSurface 分配失败会导致闪退
@@ -186,3 +197,4 @@ Skill: 功能迭代 step 6 的具体回填目标：
 | .harness/context/agents/07-key-patterns.md | 实现跨 Tab 跳转、PlayView 打开、图片加载、OCR 并发、全屏覆盖等模式时 |
 | .harness/context/users/01-prd-baseline.md | 实现新功能或页面时，确认功能需求与产品约束 |
 | .harness/context/users/01-prd-specs.md | 需要了解某功能的原始产品需求规格、或处理历史遗留逻辑时 |
+| .harness/docs/02-harness-dev.md | 了解 Harness 开发流程（项目初始化、人机协作开发步骤）时 |

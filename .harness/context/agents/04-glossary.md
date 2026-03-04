@@ -15,7 +15,7 @@
 - FullScreenImageContent：全屏大图通用组件，支持按需加载（sessionId + totalImageCount）和预加载（preloadedImages 数组）两种模式。
 - OnDemandImagePage：FullScreenImageContent 内部子组件，单帧按需加载图片，先查缓存再后台加载。
 - PhotoProcessingView：MakeView 主内容视图，负责图片预览、处理状态叠层、操作按钮，通过回调与 MakeView 通信。
-- SessionRecordUnifiedView：会话记录保存/编辑统一视图（位于 SessionRecordDetailView.swift），mode 枚举区分 save 与 edit。
+- SessionRecordUnifiedView：会话记录保存/编辑/查看统一视图（位于 SessionRecordDetailView.swift），mode 枚举区分 save、edit 与 view。
 - MultiImagePicker：多选图组件（定义于 CustomCameraView.swift），UIViewControllerRepresentable 封装 PHPickerViewController，以 fullScreenCover 方式弹出。
 - AudioPlayerDelegate：AVAudioPlayerDelegate 封装类（定义于 MakeView.swift），持有播放结束回调闭包，避免在 View 结构体上实现 NSObject 协议。
 - AppLoadingView / AppIntroView：位于 AppPagesView.swift；AppLoadingView 模拟加载进度后将 fullScreenKind 置 nil；AppIntroView 用于"关于"页面展示介绍信息。

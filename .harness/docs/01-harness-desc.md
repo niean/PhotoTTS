@@ -45,12 +45,11 @@ AGENTS.md                  -- 入口文件（保留在根目录）
   subagents/               -- Subagent prompt 模板
   docs/
     01-harness-desc.md     -- 本文件，通用方法论
-    02-dev-summary.md      -- 开发总结
 ```
 
 - .harness/context/agents/ 存放 AI 可自主更新的项目知识（架构、约定、术语、文件映射等）
 - .harness/context/users/ 存放人工编写的源头信息（产品需求等），AI 只读不写；如遇冲突必须提示人工确认
-- .harness/docs/ 存放人工维护的方法论与参考文档（通用方法论、开发总结等），AI 修改前必须经过人工确认
+- .harness/docs/ 存放人工维护的方法论与参考文档（通用方法论等），AI 修改前必须经过人工确认
 
 每类知识有且只有一个归属文档，不重复维护。
 
@@ -70,7 +69,6 @@ AGENTS.md                  -- 入口文件（保留在根目录）
 ```
 .harness/docs/
     01-harness-desc.md   -- 本文件，通用方法论
-    02-dev-summary.md    -- 开发总结
 ```
 
 存放人工维护的方法论和参考文档，可跨项目复用。AI 修改前必须经过人工确认。

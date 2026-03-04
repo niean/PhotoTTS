@@ -192,7 +192,12 @@ struct PlayHistoryViewWithBar: View {
     }
     
     private func loadEntries() {
-        entries = PlayHistoryManager.shared.loadEntries()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let loaded = PlayHistoryManager.shared.loadEntries()
+            DispatchQueue.main.async {
+                entries = loaded
+            }
+        }
     }
 }
 

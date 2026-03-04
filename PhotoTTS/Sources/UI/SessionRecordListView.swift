@@ -591,15 +591,24 @@ struct SessionRecordRow: View {
     private func loadAvatarImage() {
         guard metadata.totalImageCount > 0 else { return }
         let sid = metadata.id
+        let avatarIdx = min(max(0, metadata.avatarImageIndex), metadata.totalImageCount - 1)
         loadingId = sid
         DispatchQueue.global(qos: .utility).async {
-            let image = SessionRecordManager.shared.loadAvatar(sessionId: sid)
-                ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: min(max(0, metadata.avatarImageIndex), metadata.totalImageCount - 1), maxDimension: Self.rowAvatarMaxDimension)
-                ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: Self.rowAvatarMaxDimension)
-            DispatchQueue.main.async {
-                if loadingId == sid {
-                    avatarImage = image
+            // 优先加载预生成的 avatar.jpg
+            if let avatar = SessionRecordManager.shared.loadAvatar(sessionId: sid) {
+                DispatchQueue.main.async {
+                    if loadingId == sid { avatarImage = avatar }
                 }
+                return
+            }
+            // 回退：从原图按需生成，并写回 avatar.jpg 供下次直接命中
+            let fallback = SessionRecordManager.shared.loadImage(sessionId: sid, index: avatarIdx, maxDimension: Self.rowAvatarMaxDimension)
+                ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: Self.rowAvatarMaxDimension)
+            if let img = fallback {
+                SessionRecordManager.shared.saveAvatarIfMissing(sessionId: sid, image: img)
+            }
+            DispatchQueue.main.async {
+                if loadingId == sid { avatarImage = fallback }
             }
         }
     }

@@ -280,7 +280,7 @@ struct SettingsView: View {
         
         // 使用SettingsManager统一保存配置
         if SettingsManager.shared.updateUserConfig(configText) {
-            alertMessage = "⚠️ 配置：配置保存成功！"
+            alertMessage = "配置保存成功"
             showingAlert = true
             // 重置编辑状态
             isJSONEditing = false
@@ -297,7 +297,7 @@ struct SettingsView: View {
             // 更新界面显示
             configText = SettingsManager.shared.loadDefaultConfig()
             
-            alertMessage = "⚠️ 配置：已还原为默认配置！"
+            alertMessage = "已还原为默认配置"
             showingAlert = true
             // 重置编辑状态
             isJSONEditing = false

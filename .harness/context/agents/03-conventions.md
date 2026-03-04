@@ -58,7 +58,7 @@
 - 面向用户：中文自然语言，不含技术细节，通过 Alert/Toast 展示。
 - 面向开发者：os.Logger，可含错误码和上下文，禁止输出完整密钥（仅末四位 `key=***abcd`）。
 - 异步错误回调切回主线程后再更新 UI。
-- 网络超时默认 Constants.defaultTimeout（30s），大文件可用 Constants.Network.resourceTimeout（60s），不允许无超时。
+- 网络超时默认 Constants.Network.requestTimeout（30s），大文件可用 Constants.Network.resourceTimeout（60s），不允许无超时。
 
 ## 日志规范
 

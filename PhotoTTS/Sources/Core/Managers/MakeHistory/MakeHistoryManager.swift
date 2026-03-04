@@ -70,6 +70,8 @@ class MakeHistoryManager {
             }
         }
         return Array(byName.values).sorted { $0.savedAt > $1.savedAt }
+            .prefix(Constants.maxMakeHistoryRecords)
+            .map { $0 }
     }
 
     /// 导出为 JSON 文件，文件名形如 PhotoTTS_Makes_20260212.json

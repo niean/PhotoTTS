@@ -7,25 +7,13 @@ struct Constants {
     // MARK: - 应用信息
     static let appName = "Photo TTS"
     static let appVersion = "1.0.0"
-    static let appBuild = "1"
-    
-    // MARK: - 网络配置
-    static let defaultTimeout: TimeInterval = 30
-    static let maxRetryCount = 3
     
     // MARK: - 文件配置
     static let maxImageSize: Int64 = 10 * 1024 * 1024 // 10MB
-    static let supportedImageFormats = ["jpg", "jpeg", "png", "heic"]
-    static let supportedAudioFormats = ["mp3", "wav", "aac"]
-    
-    // MARK: - 缓存配置
-    static let maxCacheSize: Int64 = 100 * 1024 * 1024 // 100MB
-    static let cacheExpirationDays = 7
     
     // MARK: - 用户界面配置
     static let cornerRadius: CGFloat = 12
     static let shadowRadius: CGFloat = 4
-    static let animationDuration: Double = 0.3
     
     // MARK: - OCR配置
     static let defaultOCRConcurrentCount = 8
@@ -41,31 +29,14 @@ struct Constants {
     static let ocrTextSeparator = "\n\n"
     
     // MARK: - 权限配置
-    static let cameraPermissionMessage = "需要相机权限来拍摄照片"
-    static let photoLibraryPermissionMessage = "需要相册权限来选择照片"
-    static let microphonePermissionMessage = "需要麦克风权限来录制音频"
+    static let cameraPermissionMessage = "需要相机权限才能拍照"
+    static let cameraPermissionDeniedMessage = "请在设置中允许访问相机"
+    static let cameraPermissionUnknownMessage = "相机权限未知状态"
 }
 
 // MARK: - 颜色扩展
 extension Color {
-    static let primaryBlue = Color.blue
-    static let secondaryGray = Color.gray
-    static let background = Color.white
-    static let secondaryBackground = Color.gray.opacity(0.1)
     static let label = Color.black
-    static let secondaryLabel = Color.gray
-}
-
-// MARK: - 字体扩展
-extension Font {
-    static let titleLarge = Font.largeTitle
-    static let titleMedium = Font.title
-    static let titleSmall = Font.title2
-    static let headline = Font.headline
-    static let bodyLarge = Font.body
-    static let bodyMedium = Font.body
-    static let bodySmall = Font.caption
-    static let caption = Font.caption2
 }
 
 // MARK: - 向后兼容性别名
@@ -77,12 +48,6 @@ extension Constants {
     // MARK: - 布局常量
     struct Layout {
         static let defaultMargin: CGFloat = 10
-        static let screenPadding: CGFloat = 20
-        static let itemSpacing: CGFloat = 16
-        static let sectionSpacing: CGFloat = 24
-        static let buttonHeight: CGFloat = 44
-        static let iconSize: CGFloat = 24
-        static let avatarSize: CGFloat = 40
         static let topNavigationBarPadding: CGFloat = 55
     }
 
@@ -123,14 +88,7 @@ extension Constants {
     // MARK: - 缓存配置扩展
     struct Cache {
         static let maxCacheSize: Int64 = 100 * 1024 * 1024 // 100MB
-        static let maxMemoryCost: Int64 = 50 * 1024 * 1024 // 50MB
         static let defaultAutoCleanupEnabled = true
-    }
-    
-    // MARK: - 相机配置扩展
-    struct Camera {
-        static let maxPhotoCount = 10
-        static let maxPhotoSize: Int64 = 10 * 1024 * 1024 // 10MB
     }
     
     // MARK: - 语音配置扩展
@@ -143,14 +101,6 @@ extension Constants {
         static let volumeMax: Double = 1.0
     }
     
-    // MARK: - 时间配置扩展
-    struct Time {
-        static let defaultDailyLimit: TimeInterval = 3600 // 1小时
-        static let maxDailyUsage: TimeInterval = 7200 // 2小时
-        static let secondsPerHour: TimeInterval = 3600
-        static let minutesPerHour: TimeInterval = 60
-    }
-    
     // MARK: - 语言配置扩展
     struct Language {
         static let defaultLanguages = ["zh-CN", "en-US", "ja-JP"]
@@ -159,9 +109,14 @@ extension Constants {
     
     // MARK: - API配置扩展
     struct API {
-        static let maxBatchSize = 5
         static let minKeyLength = 32
         static let keyPrefix = "sk-"
+    }
+    
+    // MARK: - 服务默认配置
+    struct ServiceDefaults {
+        static let ttsBaseURL = "https://openspeech.bytedance.com/api/v1/tts"
+        static let ocrBaseURL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     }
     
     // MARK: - API端点配置
@@ -192,7 +147,6 @@ extension Constants {
         static let voiceSettings = "voice_settings"
         static let supportedLanguages = "supported_languages"
         static let currentLanguage = "current_language"
-        // 家长控制功能已移除
         static let isFirstLaunch = "is_first_launch"
         static let appLaunchCount = "app_launch_count"
         static let lastLaunchDate = "last_launch_date"
@@ -217,6 +171,15 @@ extension Constants {
     
     // MARK: - 播放历史限制
     static let maxPlayHistoryRecords = 500
+    
+    // MARK: - 制作历史限制
+    static let maxMakeHistoryRecords = 500
+    
+    // MARK: - 相册选择器
+    static let maxPhotoPickerSelectionCount = 50
+    
+    // MARK: - 默认会话名称
+    static let defaultSessionName = "未命名会话"
     
     // MARK: - 后台制作
     /// 草稿会话默认名称后缀（前缀为 "YY.MM.DD "）

@@ -46,7 +46,7 @@ class TTSService {
         
         os.Logger.ttsService.info("成功读取TTS配置")
         
-        let baseURL = ttsConfig["base_url"] as? String ?? "https://openspeech.bytedance.com/api/v1/tts"
+        let baseURL = ttsConfig["base_url"] as? String ?? Constants.ServiceDefaults.ttsBaseURL
         let appId = ttsConfig["appid"] as? String ?? ""
         // 优先从 Keychain 获取密钥，回退到 config 文件
         let accessKey = SettingsManager.shared.getTTSAccessKey()
@@ -62,7 +62,7 @@ class TTSService {
         
         os.Logger.ttsService.info("TTS配置信息:")
         os.Logger.ttsService.info("   - Base URL: \(baseURL)")
-        os.Logger.ttsService.info("   - App ID: \(appId)")
+        os.Logger.ttsService.info("   - App ID: \(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置"))")
         os.Logger.ttsService.info("   - Access Key: \(accessKey.isEmpty ? "空" : "已配置")")
         os.Logger.ttsService.info("   - Cluster: \(cluster)")
         os.Logger.ttsService.info("   - Voice Type: \(voiceType)")
@@ -291,9 +291,13 @@ class TTSService {
                     completion(.failure(TTSError.noAudioData))
                     
                 } catch {
-                    // 如果不是JSON，检查是否是直接的音频数据
-                    if data.count > 0 {
-                        self.logInfo("收到二进制数据，可能是音频文件，大小: \(data.count) 字节")
+                    // 如果不是JSON，校验 Content-Type 或音频格式魔数，避免将非音频数据误判为有效音频
+                    let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+                    let isAudioContentType = contentType.contains("audio/")
+                    let isAudioMagicBytes = Self.hasAudioMagicBytes(data)
+                    
+                    if data.count > 0 && (isAudioContentType || isAudioMagicBytes) {
+                        self.logInfo("收到二进制音频数据，大小: \(data.count) 字节，Content-Type: \(contentType)")
                         let audioResponse = AudioResponse(
                             audioData: data,
                             format: self.configuration.encoding,
@@ -303,7 +307,7 @@ class TTSService {
                         return
                     }
                     
-                    self.logError("响应数据为空或无法解析")
+                    self.logError("响应数据无法解析为音频: Content-Type=\(contentType), 数据大小=\(data.count)")
                     completion(.failure(TTSError.invalidResponse))
                 }
                 
@@ -313,6 +317,19 @@ class TTSService {
             logError("TTS转换失败: JSON序列化错误 - \(error.localizedDescription)")
             completion(.failure(error))
         }
+    }
+    
+    // MARK: - 音频格式校验
+    /// 检查数据是否包含常见音频格式的魔数（MP3/WAV）
+    private static func hasAudioMagicBytes(_ data: Data) -> Bool {
+        guard data.count >= 4 else { return false }
+        // MP3: 帧同步字节 0xFF 0xE0+
+        if data[0] == 0xFF && (data[1] & 0xE0 == 0xE0) { return true }
+        // MP3: ID3 标签
+        if data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33 { return true }
+        // WAV: "RIFF"
+        if data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 { return true }
+        return false
     }
     
     // MARK: - 日志方法

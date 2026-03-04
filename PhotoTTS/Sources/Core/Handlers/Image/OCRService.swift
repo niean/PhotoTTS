@@ -439,7 +439,7 @@ public class OCRServiceFactory {
         
         os.Logger.ocrService.info("成功读取OCR配置")
         
-        let baseURL = ocrConfig["base_url"] as? String ?? "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+        let baseURL = ocrConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
         // 优先从 Keychain 获取密钥，回退到 config 文件
         let apiKey = SettingsManager.shared.getOCRAPIKey()
         let modelName = ocrConfig["model_name"] as? String ?? "doubao-seed-1-6-flash-250715"
@@ -452,7 +452,7 @@ public class OCRServiceFactory {
         os.Logger.ocrService.info("   - Base URL: \(baseURL)")
         os.Logger.ocrService.info("   - API Key: \(apiKey.isEmpty ? "空" : "已配置")")
         os.Logger.ocrService.info("   - Model: \(modelName)")
-        os.Logger.ocrService.info("   - Prompt: \(promptUser)")
+        os.Logger.ocrService.info("   - Prompt长度: \(promptUser.count)")
         os.Logger.ocrService.info("   - Timeout: \(timeout)秒")
         os.Logger.ocrService.info("   - Max Retry: \(maxRetryCount)次")
         os.Logger.ocrService.info("   - Retry Delay: \(retryDelay)秒")
