@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import AVFoundation
+import MediaPlayer
 import os.log
 
 /// 播放视图
@@ -43,8 +44,14 @@ struct PlayView: View {
                     totalImageCount: record.totalImageCount,
                     preloadedImages: useOnDemand ? nil : record.getImages(),
                     currentIndex: $currentImageIndex,
+                    isSwipeDisabled: isPlaying,
                     onTapBackground: {
                         isOverlayVisible.toggle()
+                        if isOverlayVisible { startOverlayAutoHideTimer() }
+                    },
+                    onDoubleTapBackground: {
+                        guard audioPlayer != nil else { return }
+                        togglePlayback()
                         if isOverlayVisible { startOverlayAutoHideTimer() }
                     },
                     overlayContent: {
@@ -96,6 +103,15 @@ struct PlayView: View {
             overlayAutoHideTimer?.invalidate()
             overlayAutoHideTimer = nil
             onDismiss()  // 右进左出：左滑返回时同步清空导航状态
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.remotePlaybackCommand)) { notification in
+            guard let action = notification.userInfo?["action"] as? String else { return }
+            switch action {
+            case "play": resumeIfPaused()
+            case "pause": pauseIfPlaying()
+            case "toggle": togglePlayback()
+            default: break
+            }
         }
     }
     
@@ -193,6 +209,7 @@ struct PlayView: View {
             playbackProgress = 0
             startPlaybackTimer()
             UIApplication.shared.isIdleTimerDisabled = true
+            setupRemoteTransportControls()
         } catch {
             os.Logger.audioPlayer.error("PlayView 创建播放器失败: \(error.localizedDescription)")
         }
@@ -216,7 +233,9 @@ struct PlayView: View {
         for (index, range) in textSegmentRanges.enumerated() {
             if pos >= range.start && pos < range.end {
                 if index != currentImageIndex && index < record.totalImageCount {
-                    currentImageIndex = index
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        currentImageIndex = index
+                    }
                 }
                 return
             }
@@ -227,18 +246,28 @@ struct PlayView: View {
     }
     
     private func togglePlayback() {
-        guard let player = audioPlayer else { return }
-        if player.isPlaying {
-            player.pause()
-            isPlaying = false
-            playbackTimer?.invalidate()
-            UIApplication.shared.isIdleTimerDisabled = false
+        guard audioPlayer != nil else { return }
+        if audioPlayer?.isPlaying == true {
+            pauseIfPlaying()
         } else {
-            player.play()
-            isPlaying = true
-            startPlaybackTimer()
-            UIApplication.shared.isIdleTimerDisabled = true
+            resumeIfPaused()
         }
+    }
+    
+    private func resumeIfPaused() {
+        guard let player = audioPlayer, !player.isPlaying else { return }
+        player.play()
+        isPlaying = true
+        startPlaybackTimer()
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
+    
+    private func pauseIfPlaying() {
+        guard let player = audioPlayer, player.isPlaying else { return }
+        player.pause()
+        isPlaying = false
+        playbackTimer?.invalidate()
+        UIApplication.shared.isIdleTimerDisabled = false
     }
     
     private func onPlaybackFinished() {
@@ -249,6 +278,7 @@ struct PlayView: View {
         audioPlayer = nil
         audioPlayerDelegate = nil
         UIApplication.shared.isIdleTimerDisabled = false
+        clearRemoteTransportControls()
         if let r = record {
             PlayHistoryManager.shared.recordPlay(sessionId: r.id, name: r.name, playedAt: Date())
         }
@@ -262,6 +292,7 @@ struct PlayView: View {
         audioPlayer = nil
         audioPlayerDelegate = nil
         UIApplication.shared.isIdleTimerDisabled = false
+        clearRemoteTransportControls()
     }
     
     private func stopAndDismiss() {
@@ -272,6 +303,57 @@ struct PlayView: View {
     private func configureAudioSession() {
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
+    }
+    
+    // MARK: - Now Playing / 远程控制
+    
+    /// 注册 MPRemoteCommandCenter 远程命令，使 Siri 暂停/继续/音量控制生效
+    private func setupRemoteTransportControls() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+        
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.playCommand.addTarget { _ in
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Constants.NotificationNames.remotePlaybackCommand,
+                    object: nil,
+                    userInfo: ["action": "play"]
+                )
+            }
+            return .success
+        }
+        
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.pauseCommand.addTarget { _ in
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Constants.NotificationNames.remotePlaybackCommand,
+                    object: nil,
+                    userInfo: ["action": "pause"]
+                )
+            }
+            return .success
+        }
+        
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.addTarget { _ in
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Constants.NotificationNames.remotePlaybackCommand,
+                    object: nil,
+                    userInfo: ["action": "toggle"]
+                )
+            }
+            return .success
+        }
+    }
+    
+    /// 清除远程命令
+    private func clearRemoteTransportControls() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.playCommand.removeTarget(nil)
+        commandCenter.pauseCommand.removeTarget(nil)
+        commandCenter.togglePlayPauseCommand.removeTarget(nil)
     }
     
     /// 5 秒内无点击、无操作按钮时自动隐藏操作栏
@@ -294,24 +376,30 @@ struct FullScreenImageContent<Overlay: View>: View {
     var preloadedImages: [UIImage]? = nil
     @Binding var currentIndex: Int
     var onTapBackground: (() -> Void)? = nil
+    var onDoubleTapBackground: (() -> Void)? = nil
+    var isSwipeDisabled: Bool = false
     @ViewBuilder let overlayContent: () -> Overlay
     
     /// 兼容旧用法：直接传入图片数组（如 App 内全屏看图）
-    init(images: [UIImage], currentIndex: Binding<Int>, onTapBackground: (() -> Void)? = nil, @ViewBuilder overlayContent: @escaping () -> Overlay) {
+    init(images: [UIImage], currentIndex: Binding<Int>, isSwipeDisabled: Bool = false, onTapBackground: (() -> Void)? = nil, onDoubleTapBackground: (() -> Void)? = nil, @ViewBuilder overlayContent: @escaping () -> Overlay) {
         self.sessionId = nil
         self.totalImageCount = images.count
         self.preloadedImages = images
         self._currentIndex = currentIndex
+        self.isSwipeDisabled = isSwipeDisabled
         self.onTapBackground = onTapBackground
+        self.onDoubleTapBackground = onDoubleTapBackground
         self.overlayContent = overlayContent
     }
     
-    init(sessionId: String? = nil, totalImageCount: Int = 0, preloadedImages: [UIImage]? = nil, currentIndex: Binding<Int>, onTapBackground: (() -> Void)? = nil, @ViewBuilder overlayContent: @escaping () -> Overlay) {
+    init(sessionId: String? = nil, totalImageCount: Int = 0, preloadedImages: [UIImage]? = nil, currentIndex: Binding<Int>, isSwipeDisabled: Bool = false, onTapBackground: (() -> Void)? = nil, onDoubleTapBackground: (() -> Void)? = nil, @ViewBuilder overlayContent: @escaping () -> Overlay) {
         self.sessionId = sessionId
         self.totalImageCount = totalImageCount
         self.preloadedImages = preloadedImages
         self._currentIndex = currentIndex
+        self.isSwipeDisabled = isSwipeDisabled
         self.onTapBackground = onTapBackground
+        self.onDoubleTapBackground = onDoubleTapBackground
         self.overlayContent = overlayContent
     }
     
@@ -327,27 +415,35 @@ struct FullScreenImageContent<Overlay: View>: View {
                 CustomZStack(backgroundColor: Color.clear) {
                     Color(red: 0.85, green: 0.95, blue: 0.88)
                         .ignoresSafeArea(.all)
+                        .optionalDoubleTapGesture(onDoubleTapBackground)
                         .onTapGesture { onTapBackground?() }
                     
                     if useOnDemand, let sid = sessionId {
                         // 按需路径：只渲染当前页 + 手势切换，提前预加载相邻图避免闪动
                         GeometryReader { geometry in
-                            OnDemandImagePage(sessionId: sid, index: currentIndex, size: geometry.size, onTap: onTapBackground)
+                            OnDemandImagePage(sessionId: sid, index: currentIndex, size: geometry.size, onTap: onTapBackground, onDoubleTap: onDoubleTapBackground)
                                 .id(currentIndex)
+                                .transition(.opacity)
                                 .contentShape(Rectangle())
                                 .gesture(
                                     DragGesture(minimumDistance: 40)
                                         .onEnded { value in
+                                            guard !isSwipeDisabled else { return }
                                             let t = value.translation.width
                                             if t < -40 {
-                                                currentIndex = min(currentIndex + 1, imageCount - 1)
+                                                withAnimation(.easeInOut(duration: 0.3)) {
+                                                    currentIndex = min(currentIndex + 1, imageCount - 1)
+                                                }
                                             } else if t > 40 {
-                                                currentIndex = max(0, currentIndex - 1)
+                                                withAnimation(.easeInOut(duration: 0.3)) {
+                                                    currentIndex = max(0, currentIndex - 1)
+                                                }
                                             }
                                         }
                                 )
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .animation(.easeInOut(duration: 0.3), value: currentIndex)
                         .onAppear {
                             preloadAdjacentImages(sessionId: sid, current: currentIndex, total: imageCount)
                         }
@@ -367,12 +463,21 @@ struct FullScreenImageContent<Overlay: View>: View {
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
+                        // 播放时拦截滑动手势，暂停时允许
+                        .overlay {
+                            if isSwipeDisabled {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .highPriorityGesture(DragGesture())
+                            }
+                        }
                     }
                     overlayContent()
                 }
                 .ignoresSafeArea(.all)
             }
         }
+        .optionalDoubleTapGesture(onDoubleTapBackground)
         .onTapGesture { onTapBackground?() }
     }
     
@@ -402,6 +507,7 @@ struct FullScreenImageContent<Overlay: View>: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .cornerRadius(8)
+                .optionalDoubleTapGesture(onDoubleTapBackground)
                 .onTapGesture { onTapBackground?() }
         }
         .frame(width: size.width, height: size.height)
@@ -415,6 +521,7 @@ private struct OnDemandImagePage: View {
     let index: Int
     let size: CGSize
     var onTap: (() -> Void)? = nil
+    var onDoubleTap: (() -> Void)? = nil
     @State private var image: UIImage? = nil
     
     private static let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
@@ -434,6 +541,7 @@ private struct OnDemandImagePage: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .cornerRadius(8)
+                    .optionalDoubleTapGesture(onDoubleTap)
                     .onTapGesture { onTap?() }
             } else {
                 Color.clear
@@ -460,6 +568,18 @@ private struct OnDemandImagePage: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - 仅在 handler 非空时添加双击手势，避免对单击手势引入识别延迟
+private extension View {
+    @ViewBuilder
+    func optionalDoubleTapGesture(_ handler: (() -> Void)?) -> some View {
+        if let handler = handler {
+            self.onTapGesture(count: 2, perform: handler)
+        } else {
+            self
         }
     }
 }

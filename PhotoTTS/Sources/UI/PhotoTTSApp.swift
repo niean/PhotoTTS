@@ -56,7 +56,6 @@ class AppState: ObservableObject {
     @Published var sessionIdToLoadIntoMake: String? = nil
     /// Siri 触发播放的会话记录，PlayView 消费后置 nil
     @Published var sessionRecordToPlay: SessionRecord? = nil
-
     init() {}
 }
 

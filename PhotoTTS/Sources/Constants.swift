@@ -205,6 +205,8 @@ extension Constants {
     struct NotificationNames {
         static let updatePhotoCount = NSNotification.Name("UpdatePhotoCount")
         static let configUpdated = NSNotification.Name("ConfigUpdated")
+        /// 远程播放控制命令（MPRemoteCommandCenter -> PlayView），userInfo["action"]: "play"/"pause"/"toggle"
+        static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")
     }
     
     // MARK: - TTS限制

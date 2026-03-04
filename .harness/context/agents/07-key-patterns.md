@@ -21,6 +21,12 @@
 
 均通过 .fullScreenCover 打开。关闭时调用 onDismiss（onDisappear 中也调用，支持左滑关闭）；PlayHistoryManager 在正常播放结束时记录。
 
+双击手势：FullScreenImageContent 支持可选 onDoubleTapBackground 回调。PlayView 传入 togglePlayback，双击切换暂停/播放。通过 optionalDoubleTapGesture 扩展条件添加双击手势，handler 为 nil 时不引入单击识别延迟。
+
+滑动控制：FullScreenImageContent 支持 isSwipeDisabled 参数。播放时禁止手动左右滑动翻页（OnDemand 路径在 DragGesture.onEnded 中 guard，TabView 路径叠加 highPriorityGesture 拦截），暂停时允许。播放自动翻页不受影响。
+
+翻页动画：OnDemand 路径通过 .transition(.opacity) + .animation(.easeInOut(duration: 0.3), value: currentIndex) 实现平滑淡入淡出。手动滑动和自动翻页均在修改 currentIndex 时用 withAnimation 包裹。
+
 ## 模式三：图片按需加载与缓存
 
 用于 PlayView 全屏播放翻页，避免全量加载大图。
@@ -44,7 +50,9 @@ ImageToSpeechCoordinator.performConcurrentOCR：
 
 扩展 OCR 能力应在此函数上修改，不在 UI 层自行实现并发。
 
-## 模式五：Siri 语音触发播放
+## 模式五：Siri 语音触发播放与控制
+
+### 触发播放
 
 流程：
 1. registerAppShortcuts 仅在 scenePhase==.active 时调用（首次启动和每次回到前台均触发），注册 Siri 短语。不在 init() 中重复注册，避免 Siri 实体查询导致 getAllSessionMetadata 多次磁盘扫描。
@@ -61,6 +69,19 @@ ImageToSpeechCoordinator.performConcurrentOCR：
 - 去掉 "-" 后全文 contains 匹配
 
 陷阱：AppShortcutsProvider 的每条 phrase 必须含 \(.applicationName)，否则 appintentsmetadataprocessor 报 halting error。
+
+### 播放中控制（暂停/继续/音量）
+
+基于 MPRemoteCommandCenter，无需自定义 AppIntent：
+
+1. PlayView.startPlayback 调用 setupRemoteTransportControls()，注册 play/pause/togglePlayPause 三个远程命令。
+2. 远程命令处理器通过 NotificationCenter（Constants.NotificationNames.remotePlaybackCommand）发送 action（"play"/"pause"/"toggle"）。
+3. PlayView 通过 .onReceive 监听通知，分发到 resumeIfPaused/pauseIfPlaying/togglePlayback。
+4. stopAudio / onPlaybackFinished 调 clearRemoteTransportControls()，移除命令处理器。
+
+效果：Siri "暂停"/"继续"/"播放" 自动路由到 MPRemoteCommandCenter；Siri "调高音量"/"调低音量" 通过系统音频会话自动调节。不向 MPNowPlayingInfoCenter 写入播放信息，避免系统在 APP 之上弹出 Now Playing 控件影响体验。
+
+注意：不支持通过 Siri/控制中心 stopCommand 退出全屏 PlayView（Siri 遮罩期间 SwiftUI 无法可靠处理状态变更以关闭 fullScreenCover），退出播放仅通过 PlayView 内的关闭按钮或播放结束自动关闭。
 
 ## 模式六：全屏覆盖层（fullScreenKind）
 
