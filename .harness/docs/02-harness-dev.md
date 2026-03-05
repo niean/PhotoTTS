@@ -21,10 +21,8 @@
     - AI知识库（主要是 .harness/context/agents/ 文档库）
 5. 验收需求。查看任务报告，按需擦屁股(如补充功能测试)
 6. [可选]回填知识。经过多轮迭代后，可以考虑 更新产品知识库、Harness知识库，指令和更新对象如下
-    - 执行 `回填-AGENTS更新`，更新对象 `AGENTS.md`
-    - 执行 `回填-知识库更新`，更新对象 `.harness/context/agents/ 文档库`
-    - 执行 `回填-产品基线更新`，更新对象 `.harness/context/users/01-prd-baseline.md`
-    - 执行 `回填-产品SENSE更新`，更新对象 `.harness/context/users/01-prd-sense.md`
+    - 执行 `回填知识库`，更新对象 `.harness/context/agents/ 文档库` + `AGENTS.md`
+    - 执行 `回填产品文档`，更新对象 `.harness/context/users/01-prd-baseline.md` + `01-prd-sense.md`
 
 
 ## 全自动开发（尚未就绪）

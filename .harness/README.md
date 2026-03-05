@@ -20,20 +20,17 @@
 | .harness/docs/00-harness-ops.md | Harness 项目维护操作入口（人工维护） |
 | .harness/docs/01-harness-desc.md | 通用 AI 协作工程方法论（项目无关，可直接复用） |
 | .harness/docs/02-harness-dev.md | Harness 开发流程（初始化、人机协作开发，人工维护） |
-| .harness/skills/feature-iterate.md | Skill: 功能迭代 |
-| .harness/skills/build-verify.md | Skill: 构建验证 |
-| .harness/skills/code-quality-scan.md | Skill: 代码质量扫描 |
-| .harness/skills/dead-code-cleanup.md | Skill: 废弃代码清理 |
-| .harness/skills/backfill-knowledge.md | Skill: 回填-知识库更新 |
-| .harness/skills/backfill-agents.md | Skill: 回填-AGENTS更新 |
-| .harness/skills/backfill-prd-baseline.md | Skill: 回填-产品基线更新 |
-| .harness/skills/backfill-prd-sense.md | Skill: 回填-产品SENSE更新 |
+| .harness/skills/iterate-feature.md | Skill: 迭代功能 |
+| .harness/skills/verify-build.md | Skill: 验证构建 |
+| .harness/skills/governance-code.md | Skill: 治理代码 |
+| .harness/skills/backfill-knowledge.md | Skill: 回填知识库 |
+| .harness/skills/backfill-prd.md | Skill: 回填产品文档 |
 | .harness/skills/extract-harness-tpl.md | Skill: 提取-Harness模板 |
-| .harness/skills/extract-skill.md | Skill: 提取-Skill |
-| .harness/skills/extract-subagent.md | Skill: 提取-Subagent |
-| .harness/skills/governance-review.md | Skill: 治理巡检 |
-| .harness/skills/task-summary.md | Skill: 任务总结 |
+| .harness/skills/governance-capability.md | Skill: 治理技能 |
+| .harness/skills/governance-all.md | Skill: 治理全部 |
+| .harness/skills/summarize-task.md | Skill: 总结任务 |
 | .harness/subagents/scan-example.md | Subagent 示例模板（按维度拆分为多个文件） |
+| .harness/subagents/scan-dead-code.md | Subagent: 废弃代码扫描 |
 | .harness/context/agents/.gitignore | agents 目录 gitignore（忽略临时 spec 文件） |
 | .harness/context/agents/01-overview.md | 知识库: 项目概览 |
 | .harness/context/agents/02-architecture.md | 知识库: 架构与模块边界 |

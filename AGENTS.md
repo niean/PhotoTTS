@@ -12,29 +12,25 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 
 | Skill | 触发 | 文件 |
 |-------|------|------|
-| 功能迭代 | 人工下发功能需求 | .harness/skills/feature-iterate.md |
-| 回填-知识库更新 | 人工指令 | .harness/skills/backfill-knowledge.md |
-| 回填-产品基线更新 | 人工指令 | .harness/skills/backfill-prd-baseline.md |
-| 代码质量扫描 | 人工指令 | .harness/skills/code-quality-scan.md |
-| 废弃代码清理 | 人工指令 | .harness/skills/dead-code-cleanup.md |
-| 构建验证 | 功能迭代完成后自动执行，或人工指令 | .harness/skills/build-verify.md |
-| 提取-Skill | 人工指令 | .harness/skills/extract-skill.md |
-| 提取-Subagent | 人工指令 | .harness/skills/extract-subagent.md |
+| 迭代功能 | 人工下发功能需求 | .harness/skills/iterate-feature.md |
+| 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
+| 回填产品文档 | 人工指令 | .harness/skills/backfill-prd.md |
+| 治理代码 | 人工指令 | .harness/skills/governance-code.md |
+| 验证构建 | 功能迭代完成后自动执行，或人工指令 | .harness/skills/verify-build.md |
+| 治理技能 | 人工指令 | .harness/skills/governance-capability.md |
 | 提取-Harness模板 | 人工指令 | .harness/skills/extract-harness-tpl.md |
-| 回填-产品SENSE更新 | 人工指令 | .harness/skills/backfill-prd-sense.md |
-| 回填-AGENTS更新 | 人工指令 | .harness/skills/backfill-agents.md |
-| 治理巡检 | 人工指令 | .harness/skills/governance-review.md |
-| 任务总结 | AI自动触发（任务完成后） | .harness/skills/task-summary.md |
+| 治理全部 | 人工指令 | .harness/skills/governance-all.md |
+| 总结任务 | AI自动触发（任务完成后） | .harness/skills/summarize-task.md |
 
 触发规则：表中标注"AI自动触发"的 Skill，AI 必须在对应时机自动执行，不需要人工指令。当前自动触发清单：
-- 任务完成后：执行 Skill: 任务总结（适用于所有任务，包括功能迭代、人工指令触发的 Skill、以及其他独立任务）
+- 任务完成后：执行 Skill: 总结任务（适用于所有任务，包括功能迭代、人工指令触发的 Skill、以及其他独立任务）
 
 ## 文件与文档
 
 - 除非明确要求，不要主动创建 README 文件
 - 不要删除任何项目文件，包括文档、代码等（临时 spec 文件 `agent-specs-*.md` 除外，任务结束后必须删除、且使用`rm -f`非交互模式）
 - AI 自动生成的文档（Skill、Subagent、知识库等），文件名必须使用小写英文（kebab-case），文档正文中补充对应的中文名称或说明
-- Skill、Subagent 文件名使用小写英文（kebab-case），技能名称（文件内标题）使用中文（英文专有名词除外）
+- Skill、Subagent 文件名使用小写英文（kebab-case），统一采用 动词-名词 语序（如 governance-code、backfill-knowledge）；技能名称（文件内标题）使用中文（英文专有名词除外），同样采用 动词-名词 语序（如 治理代码、回填知识库）
 - .harness/context/users/ 目录是人工定义的原始信息，AI 可以读取、但不允许自动修改；如遇 users/ 内容与 AI 知识库（.harness/context/agents/）描述冲突，必须提示给用户，经确认后才能修改
 - .harness/docs/ 目录是人工维护的方法论与参考文档，AI 修改前必须经过人工确认
 - 文档内容禁用 emoji 图标、加粗、斜体等润色，使用普通文字
@@ -131,13 +127,13 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 
 ## 知识回填规则
 
-Skill: 功能迭代 step 6 的具体回填目标：
+Skill: 迭代功能 step 6 的具体回填目标：
 - 架构边界变化 -> 02-architecture.md
 - 新增术语 -> 04-glossary.md
 - 数据结构或存储格式变化 -> 05-data-boundaries.md
 - 新增源文件 -> 06-file-map.md
 - 新增跨文件模式 -> 07-key-patterns.md
-- 产品方向或判断准则调整 -> 提示用户，由人工更新 users/01-prd-sense.md 或触发 Skill: 回填-产品SENSE更新
+- 产品方向或判断准则调整 -> 提示用户，由人工更新 users/01-prd-sense.md 或触发 Skill: 回填产品文档
 
 ## 代码生成
 

@@ -107,12 +107,11 @@ Skill 是可复用的 AI 操作单元，具备以下要素：
 
 | Skill | 用途 |
 |-------|------|
-| feature-iterate | 接收需求 → 读取上下文 → 落盘临时 spec → 编码 → 回填知识 → 删除临时 spec |
-| build-verify | 执行编译和测试，确认零警告零错误 |
+| iterate-feature | 接收需求 → 读取上下文 → 落盘临时 spec → 编码 → 回填知识 → 删除临时 spec |
+| verify-build | 执行编译和测试，确认零警告零错误 |
 | backfill-knowledge | 对比代码与文档，修正过时描述 |
-| backfill-prd-baseline | 同步需求规格与需求基线 |
-| code-quality-scan | 按规范检查源码，输出违规清单 |
-| dead-code-cleanup | 识别死代码，确认后删除 |
+| backfill-prd | 同步需求规格与产品文档（基线、判断准则） |
+| governance-code | 按规范检查源码 + 识别死代码，输出统一违规清单 |
 
 ---
 
