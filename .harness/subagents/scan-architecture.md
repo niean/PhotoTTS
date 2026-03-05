@@ -1,10 +1,14 @@
-# Subagent: 架构边界扫描
+# Subagent: 扫描架构边界
 
 ## 任务
 
 扫描项目源代码，检查是否遵守架构边界约束。逐文件读取并检查，输出违规清单。
 
-## 扫描范围
+## 输入参数
+
+- {files}：需要扫描的文件路径列表（可选）。提供时仅扫描指定文件；未提供时扫描下方"默认扫描范围"中的全部文件。
+
+## 默认扫描范围
 
 - /Users/niean/code/github.com/niean/PhotoTTS/PhotoTTS/Sources/UI/ 目录下全部 .swift 文件
 - /Users/niean/code/github.com/niean/PhotoTTS/PhotoTTS/Sources/Core/ 目录下全部 .swift 文件

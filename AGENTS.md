@@ -6,6 +6,19 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经豆包 OCR
 
 # 一、通用规范（项目无关）
 
+## Agents（角色 Agent）
+
+Agents 是专职角色，每个 Agent 有独立的职责边界和上下文焦点。Skill 编排流程中通过 Phase 指定由哪个 Agent 执行。详细定义见 `.harness/agents/` 目录。
+
+| Agent | 运行形态 | 模板文件 | 职责 |
+|-------|---------|---------|------|
+| Orchestrator | 主 Agent | .harness/agents/orchestrator.md | 任务路由、流程编排、上下文管理 |
+| Analyst | subagent（只读） | .harness/agents/analyst.md | 需求理解、结构化 spec 输出 |
+| Coder | 主 Agent（实现阶段） | .harness/agents/coder.md | 代码实现 |
+| Reviewer | subagent + 主 Agent | .harness/agents/reviewer.md | 代码扫描、构建验证、验收 |
+
+Agent 与 Skill 的关系：Skill 定义"做什么"（流程步骤），Agent 定义"谁来做"（角色与上下文）。多 Agent Skill 的每个 Phase 指定执行角色，Phase 间通过"检查点摘要"（不超过 10 行）交接上下文。
+
 ## Skills（可复用操作）
 
 Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按定义步骤执行。触发方式见下表"触发"列。详细定义见 `.harness/skills/` 目录。
@@ -23,14 +36,52 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 | 总结任务 | AI自动触发（任务完成后） | .harness/skills/summarize-task.md |
 
 触发规则：表中标注"AI自动触发"的 Skill，AI 必须在对应时机自动执行，不需要人工指令。当前自动触发清单：
-- 任务完成后：执行 Skill: 总结任务（适用于所有任务，包括功能迭代、人工指令触发的 Skill、以及其他独立任务）
+- 任务完成后：执行 Skill: 总结任务（仅适用于按 Skill: 迭代功能 完整流程执行的任务；未走迭代功能流程的简单任务无需执行）
+
+## 流程合规
+
+以下为不可跳过的强制流程规则，违反任一条即视为流程违规：
+
+### 功能需求必须触发 Skill: 迭代功能
+
+- 当用户下发功能需求（无论来自 01-prd-specs.md 引用还是直接描述），必须按 Skill: 迭代功能 的完整 Phase 1-6 流程执行
+- 禁止跳过任何 Phase，禁止将多 Agent 编排简化为单一角色直接实现
+- Phase 2（意图理解）必须通过 Analyst subagent 执行，输出结构化 spec
+- Phase 5（验收）必须包含构建验证和代码扫描 subagent
+
+### 用户确认是硬性门禁
+
+- Skill: 迭代功能 Phase 3 是强制门禁：Analyst 输出的意图理解摘要必须呈现给用户，等待用户明确确认后才能进入 Phase 4（实现）
+- 未经用户确认不得开始编码实现
+
+### Agent 架构声明与角色标注是强制输出规范
+
+- 每次任务执行时，必须在任务开始时声明当前采用的架构：
+  - 多 Agent 架构（Orchestrator / Analyst / Coder / Reviewer）：功能迭代、代码治理等需要多角色协作的任务
+  - 单 Agent 架构：简单查询、文档检查、小范围修改等单一角色即可完成的任务，声明格式如 `本次任务采用单 Agent 架构，由主 Agent 直接执行`
+- 多 Agent 架构时，每个 Phase 或 Step 输出开头必须标注当前执行 Agent，格式为 `[Agent: 角色名]`（如 `[Agent: Orchestrator]`、`[Agent: Coder]`）
+- subagent 执行时标注 `[Agent: 角色名 (subagent)]`（如 `[Agent: Analyst (subagent)]`）
+- 角色名使用英文，与 AGENTS.md Agent 定义表一致
+- 非功能迭代任务（治理、回填等）同样适用：每个独立步骤必须标注执行 Agent
+
+### 消息输出面向用户
+
+- 约束类、流程类术语（如"硬性门禁""强制门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
+- 用户消息应简洁、面向结果，避免内部流程术语干扰用户阅读
+
+### Skill: 总结任务 按需自动执行
+
+- 仅按 Skill: 迭代功能 完整流程执行的任务，完成后必须在调用 attempt_completion 之前执行 Skill: 总结任务
+- 未走迭代功能流程的简单任务（文档修改、简单查询等）无需执行总结任务，直接调用 attempt_completion
+- 总结报告必须作为独立消息输出，不得与 attempt_completion 合并在同一响应中
+- 执行顺序：输出总结报告 -> 等待用户确认收到 -> 调用 attempt_completion
 
 ## 文件与文档
 
 - 除非明确要求，不要主动创建 README 文件
 - 不要删除任何项目文件，包括文档、代码等（临时 spec 文件 `agent-specs-*.md` 除外，任务结束后必须删除、且使用`rm -f`非交互模式）
 - AI 自动生成的文档（Skill、Subagent、知识库等），文件名必须使用小写英文（kebab-case），文档正文中补充对应的中文名称或说明
-- Skill、Subagent 文件名使用小写英文（kebab-case），统一采用 动词-名词 语序（如 governance-code、backfill-knowledge）；技能名称（文件内标题）使用中文（英文专有名词除外），同样采用 动词-名词 语序（如 治理代码、回填知识库）
+- Skill、Subagent 文件名使用小写英文（kebab-case），统一采用 动词-名词 语序（如 governance-code、backfill-knowledge）；技能名称（文件内标题）和描述文本使用中文（英文专有名词除外），同样采用 动词-名词 语序（如 治理代码、回填知识库、扫描架构边界），禁止名词-动词 语序（如 ~~架构边界扫描~~）
 - .harness/context/users/ 目录是人工定义的原始信息，AI 可以读取、但不允许自动修改；如遇 users/ 内容与 AI 知识库（.harness/context/agents/）描述冲突，必须提示给用户，经确认后才能修改
 - .harness/docs/ 目录是人工维护的方法论与参考文档，AI 修改前必须经过人工确认
 - 文档内容禁用 emoji 图标、加粗、斜体等润色，使用普通文字
@@ -69,6 +120,7 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 ```
 AGENTS.md              -- AI 知识库入口、操作约束RULES（本文件）
 .harness/
+  agents/              -- Agent 角色 prompt 模板（Orchestrator、Analyst、Coder、Reviewer）
   skills/              -- AI 可复用操作定义（功能迭代、构建验证等）
   subagents/           -- Subagent prompt 模板（代码质量扫描等并行任务）
   docs/

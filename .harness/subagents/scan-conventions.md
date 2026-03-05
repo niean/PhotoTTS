@@ -1,10 +1,14 @@
-# Subagent: 编码约定扫描
+# Subagent: 扫描编码约定
 
 ## 任务
 
 扫描项目源代码，检查是否符合编码约定。逐文件读取并检查，输出违规清单。
 
-## 扫描范围
+## 输入参数
+
+- {files}：需要扫描的文件路径列表（可选）。提供时仅扫描指定文件；未提供时扫描下方"默认扫描范围"中的全部文件。
+
+## 默认扫描范围
 
 读取 /Users/niean/code/github.com/niean/PhotoTTS/PhotoTTS/Sources/ 目录下全部 .swift 文件。
 

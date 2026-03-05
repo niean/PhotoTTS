@@ -30,7 +30,7 @@
 | .harness/skills/governance-all.md | Skill: 治理全部 |
 | .harness/skills/summarize-task.md | Skill: 总结任务 |
 | .harness/subagents/scan-example.md | Subagent 示例模板（按维度拆分为多个文件） |
-| .harness/subagents/scan-dead-code.md | Subagent: 废弃代码扫描 |
+| .harness/subagents/scan-dead-code.md | Subagent: 扫描废弃代码 |
 | .harness/context/agents/.gitignore | agents 目录 gitignore（忽略临时 spec 文件） |
 | .harness/context/agents/01-overview.md | 知识库: 项目概览 |
 | .harness/context/agents/02-architecture.md | 知识库: 架构与模块边界 |

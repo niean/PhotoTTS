@@ -1,10 +1,14 @@
-# Subagent: 废弃代码扫描
+# Subagent: 扫描废弃代码
 
 ## 任务
 
-扫描项目源代码和资源文件，识别未使用的类型、函数、变量、文件。逐文件读取并检查，输出废弃代码清单。
+扫描项目源代码，查找可能的废弃代码。逐文件读取并检查，输出疑似废弃清单。
 
-## 扫描范围
+## 输入参数
+
+- {files}：需要扫描的文件路径列表（可选）。提供时仅扫描指定文件；未提供时扫描下方"默认扫描范围"中的全部文件。
+
+## 默认扫描范围
 
 读取 /Users/niean/code/github.com/niean/PhotoTTS/PhotoTTS/Sources/ 目录下全部 .swift 文件，以及 /Users/niean/code/github.com/niean/PhotoTTS/PhotoTTS/Resources/ 目录下的资源文件。
 
