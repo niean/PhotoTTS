@@ -27,7 +27,7 @@
 
 ### Step 4 -- 人工确认
 
-通过 ask_followup_question 工具向用户展示违规清单，等待用户确认哪些需要修复。
+通过 ask_followup_question 工具向用户展示违规清单。违规清单必须写在 question 参数内部（用户只能看到 question 参数的内容），不要放在 ask_followup_question 调用之外的上下文中。等待用户确认哪些需要修复。
 
 ### Step 5 -- 执行修复
 

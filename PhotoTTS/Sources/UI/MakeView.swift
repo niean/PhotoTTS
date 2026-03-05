@@ -122,7 +122,7 @@ struct MakeView: View {
                     EmptyView()
                 }
             }
-            .fullScreenCover(isPresented: $showPhotoPicker) {
+            .sheet(isPresented: $showPhotoPicker) {
                 MultiImagePicker(
                     selectedImages: $photoPickerSelectedImages,
                     onCompletion: { images in
@@ -981,7 +981,7 @@ struct PhotoProcessingView: View {
                                         .onTapGesture {
                                             onSelectImage(index)
                                         }
-                                        .onLongPressGesture(minimumDuration: 0.5) {
+                                        .onLongPressGesture(minimumDuration: Constants.Gesture.longPressDuration) {
                                             os.Logger.makeView.debug("onLongPress: 长按缩略图 \(index)")
                                         } onPressingChanged: { pressing in
                                         }

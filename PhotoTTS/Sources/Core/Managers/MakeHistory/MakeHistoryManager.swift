@@ -27,7 +27,7 @@ struct MakeHistoryEntry: Codable, Identifiable {
 class MakeHistoryManager {
     static let shared = MakeHistoryManager()
 
-    private let logger = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeHistoryManager")
+    private let logger = os.Logger.makeHistory
 
     private let exportEncoder: JSONEncoder = {
         let e = JSONEncoder()

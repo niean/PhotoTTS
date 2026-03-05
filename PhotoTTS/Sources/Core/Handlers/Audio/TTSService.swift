@@ -50,9 +50,9 @@ class TTSService {
         let appId = ttsConfig["appid"] as? String ?? ""
         // 优先从 Keychain 获取密钥，回退到 config 文件
         let accessKey = SettingsManager.shared.getTTSAccessKey()
-        let cluster = ttsConfig["cluster"] as? String ?? "volcano_tts"
-        let voiceType = ttsConfig["voice_type"] as? String ?? "zh_female_tianmeixiaoyuan_moon_bigtts"
-        let encoding = ttsConfig["encoding"] as? String ?? "mp3"
+        let cluster = ttsConfig["cluster"] as? String ?? Constants.ServiceDefaults.ttsCluster
+        let voiceType = ttsConfig["voice_type"] as? String ?? Constants.ServiceDefaults.ttsVoiceType
+        let encoding = ttsConfig["encoding"] as? String ?? Constants.ServiceDefaults.ttsEncoding
         let bitrate = ttsConfig["bitrate"] as? Int ?? 64
         let rate = ttsConfig["rate"] as? Int ?? 16000
         let speedRatio = ttsConfig["speed_ratio"] as? Double ?? 0.9

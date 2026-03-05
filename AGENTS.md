@@ -96,7 +96,7 @@ PhotoTTS/
       Handlers/        -- OCR/TTS 服务（OCRService、TTSService）
       Intents/         -- Siri / App Shortcuts 意图（PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts）
       Managers/        -- 数据/设置管理（SessionRecordManager、SettingsManager 等）
-    Models/            -- 数据模型（SessionRecord、VoiceSettings、APIResponse）
+    Models/            -- 数据模型（SessionRecord、VoiceSettings、AudioResponse）
   Resources/           -- 配置（config_local.json）、素材、更新记录
 PhotoTTSTests/         -- 单元测试
 PhotoTTSUITests/       -- UI 测试

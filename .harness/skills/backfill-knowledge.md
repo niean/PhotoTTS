@@ -32,7 +32,7 @@
 
 ### Step 4 — 等待人工确认
 
-通过 ask_followup_question 工具向用户展示候选清单。等待用户确认哪些需要落盘，哪些不需要。
+通过 ask_followup_question 工具向用户展示候选清单。候选清单必须写在 question 参数内部（用户只能看到 question 参数的内容），不要放在 ask_followup_question 调用之外的上下文中。等待用户确认哪些需要落盘，哪些不需要。
 
 ### Step 5 — 更新 AGENTS.md
 

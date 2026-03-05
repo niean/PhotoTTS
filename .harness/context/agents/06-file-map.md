@@ -53,7 +53,7 @@
 
 ## 模型与常量
 
-- 模型：Sources/Models/（SessionRecord、APIResponse、VoiceSettings）
+- 模型：Sources/Models/（SessionRecord、AudioResponse（APIResponse.swift）、VoiceSettings）
 - 常量：Sources/Constants.swift
 - 顶导通用：CustomNavigationBar（Sources/UI/CustomNavigationBar.swift）
 

@@ -238,7 +238,8 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         textLength = try container.decode(Int.self, forKey: .textLength)
         audioSize = try container.decode(Int.self, forKey: .audioSize)
         voiceSettings = try container.decodeIfPresent(VoiceSettings.self, forKey: .voiceSettings)
-        avatarImageIndex = try container.decodeIfPresent(Int.self, forKey: .avatarImageIndex) ?? 0
+        let rawAvatarIndex = try container.decodeIfPresent(Int.self, forKey: .avatarImageIndex) ?? 0
+        avatarImageIndex = min(max(0, rawAvatarIndex), max(0, totalImageCount - 1))
         storageSize = try container.decodeIfPresent(Int64.self, forKey: .storageSize) ?? 0
         makeStatus = try container.decodeIfPresent(MakeStatus.self, forKey: .makeStatus)
     }
@@ -250,7 +251,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     
     // MARK: - 辅助方法
     
-    private static let logger = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SessionRecord")
+    private static let logger = os.Logger.sessionRecord
 
     /// 从Base64字符串恢复图片数组
     /// 注意：此方法主要用于兼容旧数据，新数据应从文件系统加载

@@ -5,15 +5,7 @@ import SwiftUI
 struct Constants {
     
     // MARK: - 应用信息
-    static let appName = "Photo TTS"
     static let appVersion = "1.0.0"
-    
-    // MARK: - 文件配置
-    static let maxImageSize: Int64 = 10 * 1024 * 1024 // 10MB
-    
-    // MARK: - 用户界面配置
-    static let cornerRadius: CGFloat = 12
-    static let shadowRadius: CGFloat = 4
     
     // MARK: - OCR配置
     static let defaultOCRConcurrentCount = 8
@@ -34,11 +26,6 @@ struct Constants {
     static let cameraPermissionUnknownMessage = "相机权限未知状态"
 }
 
-// MARK: - 颜色扩展
-extension Color {
-    static let label = Color.black
-}
-
 // MARK: - 向后兼容性别名
 typealias AppConstants = Constants
 
@@ -53,7 +40,6 @@ extension Constants {
 
     // MARK: - 会话详情
     struct SessionDetail {
-        static let contentWidthMax: CGFloat = 700
         static let contentHorizontalPadding: CGFloat = 20
     }
 
@@ -74,6 +60,10 @@ extension Constants {
         static let leftEdgeStartZoneWidth: CGFloat = 30
         /// 左边缘滑返回：最小横向位移，超过此值触发返回（pt）
         static let swipeBackMinTranslation: CGFloat = 80
+        /// 缩略图长按最小持续时间（秒）
+        static let longPressDuration: TimeInterval = 0.5
+        /// 全屏图左右滑动切换的最小距离（pt）
+        static let swipeMinDistance: CGFloat = 40
     }
 
     // MARK: - 网络配置扩展
@@ -89,16 +79,6 @@ extension Constants {
     struct Cache {
         static let maxCacheSize: Int64 = 100 * 1024 * 1024 // 100MB
         static let defaultAutoCleanupEnabled = true
-    }
-    
-    // MARK: - 语音配置扩展
-    struct VoiceRange {
-        static let speedMin: Double = 0.5
-        static let speedMax: Double = 2.0
-        static let pitchMin: Double = -12.0
-        static let pitchMax: Double = 12.0
-        static let volumeMin: Double = 0.0
-        static let volumeMax: Double = 1.0
     }
     
     // MARK: - 语言配置扩展
@@ -117,13 +97,35 @@ extension Constants {
     struct ServiceDefaults {
         static let ttsBaseURL = "https://openspeech.bytedance.com/api/v1/tts"
         static let ocrBaseURL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+        static let ttsCluster = "volcano_tts"
+        static let ttsVoiceType = "zh_female_tianmeixiaoyuan_moon_bigtts"
+        static let ttsEncoding = "mp3"
+        static let ocrModelName = "doubao-seed-1-6-flash-250715"
     }
     
     // MARK: - API端点配置
     struct APIEndpoints {
-        static let ttsSynthesize = "/v1/tts/synthesize"
-        static let test = "/v1/test"
         static let testConnection = "/v1/test/connection"
+    }
+    
+    // MARK: - UI常量
+    struct UI {
+        /// 状态栏覆盖视图的 tag 标识
+        static let statusBarViewTag = 999
+    }
+    
+    // MARK: - 调试日志配置
+    struct DebugLog {
+        /// 单个日志文件最大字节数
+        static let maxLogFileSize: Int64 = 10 * 1024 * 1024 // 10MB
+        /// 最多保留的日志文件数
+        static let maxLogFiles = 5
+    }
+    
+    // MARK: - 播放配置
+    struct Playback {
+        /// 播放页操作栏无操作自动隐藏间隔（秒）
+        static let overlayAutoHideInterval: TimeInterval = 5
     }
     
     // MARK: - 钥匙串键值

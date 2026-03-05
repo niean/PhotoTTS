@@ -13,7 +13,7 @@ class SessionRecordManager {
     
     // MARK: - 属性
     private let fileManager = FileManager.default
-    private let logger = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SessionRecordManager")
+    private let logger = os.Logger.sessionRecord
 
     // 元数据短时效缓存：避免 Siri 实体查询等场景短时间内多次磁盘扫描
     private var metadataCache: [SessionRecordMetadata]?
@@ -472,12 +472,9 @@ class SessionRecordManager {
     func loadAvatar(sessionId: String) -> UIImage? {
         let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
         let avatarURL = sessionDir.appendingPathComponent(Self.avatarFileName)
-        guard fileManager.fileExists(atPath: avatarURL.path),
-              let data = try? Data(contentsOf: avatarURL),
-              let img = UIImage(data: data) else {
-            return nil
-        }
-        return img
+        guard fileManager.fileExists(atPath: avatarURL.path) else { return nil }
+        // 使用 Image I/O 降采样加载头像，与项目其他图片加载路径一致
+        return Self.downsampleImageFromFile(url: avatarURL, maxDimension: Constants.ImageDisplay.recordAvatarMaxDimension)
     }
     
     /// 从指定索引的图片生成头像并写入会话目录 avatar.jpg

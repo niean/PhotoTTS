@@ -22,11 +22,13 @@ struct PlayView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioPlayerDelegate: AudioPlayerDelegate?
     @State private var textSegmentRanges: [(start: Int, end: Int)] = []
+    /// 制作页传入的预加载图片（仅 preloadedRecord 路径使用，避免 getImages 全量 base64 解码）
+    @State private var preloadedImages: [UIImage]? = nil
     @State private var isOverlayVisible = false  // 点击全屏图切换操作栏显隐，起始不展示
     @State private var overlayAutoHideTimer: Timer?  // 5 秒无操作自动隐藏操作栏
     
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
-    private let overlayAutoHideInterval: TimeInterval = 5
+    private let overlayAutoHideInterval: TimeInterval = Constants.Playback.overlayAutoHideInterval
     private var playButtonSize: CGFloat { isPad ? 28 : 25 }
     private var thumbSize: CGFloat { isPad ? 44 : 40 }
     
@@ -42,7 +44,7 @@ struct PlayView: View {
                 FullScreenImageContent(
                     sessionId: useOnDemand ? record.id : nil,
                     totalImageCount: record.totalImageCount,
-                    preloadedImages: useOnDemand ? nil : record.getImages(),
+                    preloadedImages: useOnDemand ? nil : preloadedImages,
                     currentIndex: $currentImageIndex,
                     isSwipeDisabled: isPlaying,
                     onTapBackground: {
@@ -89,6 +91,7 @@ struct PlayView: View {
                 // 刚制作完成：未保存记录，使用预加载图（仅此路径允许一次性在内存）
                 record = pre
                 recordIsFromPreload = true
+                preloadedImages = pre.getImages()
                 textSegmentRanges = computeTextSegmentRanges(pre.ocrTextSegments)
                 isLoading = false
                 if pre.getAudioData() != nil { startPlayback() }
@@ -426,15 +429,15 @@ struct FullScreenImageContent<Overlay: View>: View {
                                 .transition(.opacity)
                                 .contentShape(Rectangle())
                                 .gesture(
-                                    DragGesture(minimumDistance: 40)
+                                    DragGesture(minimumDistance: Constants.Gesture.swipeMinDistance)
                                         .onEnded { value in
                                             guard !isSwipeDisabled else { return }
                                             let t = value.translation.width
-                                            if t < -40 {
+                                            if t < -Constants.Gesture.swipeMinDistance {
                                                 withAnimation(.easeInOut(duration: 0.3)) {
                                                     currentIndex = min(currentIndex + 1, imageCount - 1)
                                                 }
-                                            } else if t > 40 {
+                                            } else if t > Constants.Gesture.swipeMinDistance {
                                                 withAnimation(.easeInOut(duration: 0.3)) {
                                                     currentIndex = max(0, currentIndex - 1)
                                                 }

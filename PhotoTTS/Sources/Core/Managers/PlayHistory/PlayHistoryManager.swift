@@ -31,7 +31,7 @@ struct PlayHistoryEntry: Codable, Identifiable {
 class PlayHistoryManager {
     static let shared = PlayHistoryManager()
 
-    private let logger = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PlayHistoryManager")
+    private let logger = os.Logger.playHistory
 
     private let exportEncoder: JSONEncoder = {
         let e = JSONEncoder()

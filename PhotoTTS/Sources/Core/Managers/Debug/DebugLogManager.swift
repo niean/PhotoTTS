@@ -12,8 +12,8 @@ class DebugLogManager {
     static let shared = DebugLogManager()
     
     private let fileManager = FileManager.default
-    private let maxLogFileSize: Int64 = 10 * 1024 * 1024 // 10MB
-    private let maxLogFiles = 5 // 最多保留5个日志文件
+    private let maxLogFileSize: Int64 = Constants.DebugLog.maxLogFileSize
+    private let maxLogFiles = Constants.DebugLog.maxLogFiles
     
     private var logFileURL: URL {
         let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]

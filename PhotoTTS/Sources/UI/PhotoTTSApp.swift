@@ -22,6 +22,7 @@ extension os.Logger {
     static let sessionRecord = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "SessionRecord")
     static let playHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PlayHistory")
     static let backgroundMake = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "BackgroundMake")
+    static let makeHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeHistory")
 }
 
 // MARK: - AppDelegate：锁定竖屏，拦截横屏
@@ -223,9 +224,9 @@ struct PhotoTTSApp: App {
                 
                 let statusBarView = UIView()
                 statusBarView.backgroundColor = UIColor.clear // 状态栏背景色，保持透明
-                statusBarView.tag = 999 // 用于识别和移除
+                statusBarView.tag = Constants.UI.statusBarViewTag
                 
-                window.viewWithTag(999)?.removeFromSuperview()
+                window.viewWithTag(Constants.UI.statusBarViewTag)?.removeFromSuperview()
                 window.addSubview(statusBarView)
                 statusBarView.translatesAutoresizingMaskIntoConstraints = false
                 

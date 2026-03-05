@@ -5,7 +5,7 @@
 - 底导：底部 Tab 栏，四个 Tab（首页、制作、消息、我的）。
 - 顶导：各 Tab 内顶部导航栏，含标题与返回等按钮。
 - 手势识别：左边缘滑动返回，注释 // 手势识别，参数见 Constants.Gesture。
-- SessionRecord：单条会话记录（Codable/Identifiable/Hashable），含 id、name、createdAt、updatedAt、imageDataList（Base64）、ocrText、ocrTextSegments、audioDataBase64、audioFormat、audioDuration、ocrDuration、ttsDuration、validImageCount、totalImageCount、textLength、audioSize、voiceSettings、avatarImageIndex、storageSize。record.json 中 imageDataList=[] 且 audioDataBase64=""，图片和音频独立文件存储。
+- SessionRecord：单条会话记录（Codable/Identifiable/Hashable），含 id、name、createdAt、updatedAt、imageDataList（Base64）、ocrText、ocrTextSegments、audioDataBase64、audioFormat、audioDuration、ocrDuration、ttsDuration、validImageCount、totalImageCount、textLength、audioSize、voiceSettings、avatarImageIndex、storageSize、makeStatus。record.json 中 imageDataList=[] 且 audioDataBase64=""，图片和音频独立文件存储。
 - SessionRecordMetadata：SessionRecord 轻量摘要，用于列表展示（不含图片/音频），字段：id、name、createdAt、updatedAt、totalImageCount、validImageCount、textLength、audioDuration、avatarImageIndex、storageSize。写入 metadata.json，列表读取时只解析此文件。
 - SessionRecordManager：会话记录本地读写与列表管理，单例。
 - ImageToSpeechCoordinator：协调批量图片 OCR 与 TTS，输出进度与最终 AudioResponse 或错误。
@@ -16,7 +16,7 @@
 - OnDemandImagePage：FullScreenImageContent 内部子组件，单帧按需加载图片，先查缓存再后台加载。
 - PhotoProcessingView：MakeView 主内容视图，负责图片预览、处理状态叠层、操作按钮，通过回调与 MakeView 通信。
 - SessionRecordUnifiedView：会话记录保存/编辑/查看统一视图（位于 SessionRecordDetailView.swift），mode 枚举区分 save、edit 与 view。
-- MultiImagePicker：多选图组件（定义于 CustomCameraView.swift），UIViewControllerRepresentable 封装 PHPickerViewController，以 fullScreenCover 方式弹出。
+- MultiImagePicker：多选图组件（定义于 CustomCameraView.swift），UIViewControllerRepresentable 封装 PHPickerViewController。从 CustomCameraViewController 以 fullScreen 弹出，从 MakeView 以 sheet 弹出。
 - AudioPlayerDelegate：AVAudioPlayerDelegate 封装类（定义于 MakeView.swift），持有播放结束回调闭包，避免在 View 结构体上实现 NSObject 协议。
 - AppLoadingView / AppIntroView：位于 AppPagesView.swift；AppLoadingView 模拟加载进度后将 fullScreenKind 置 nil；AppIntroView 用于"关于"页面展示介绍信息。
 - ExportManifest / ExportSessionInfo：导出包清单数据模型，含 version、exportDate、appName、totalSessions、totalSize、sessions。导入时解析 export_manifest.json 还原会话列表。
