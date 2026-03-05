@@ -2,48 +2,41 @@
 
 ## 会话记录
 
-SessionRecord（Sources/Models/SessionRecord.swift）：Codable、Identifiable、Hashable。字段：id、name、createdAt、updatedAt、imageDataList（Base64）、ocrText、ocrTextSegments、audioDataBase64、audioFormat、audioDuration、ocrDuration、ttsDuration、validImageCount、totalImageCount、textLength、audioSize、voiceSettings、avatarImageIndex、storageSize、makeStatus。record.json 中不存储实际的音频和图片二进制。
+SessionRecord（Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 04-glossary.md。record.json 不存实际音频和图片二进制。
 
-MakeStatus（Sources/Models/SessionRecord.swift）：enum MakeStatus: String, Codable { case making; case completed }。SessionRecord.makeStatus 和 SessionRecordMetadata.makeStatus 均为 Optional，nil 表示 completed（向下兼容旧数据）。SessionRecordMetadata.isMaking 计算属性便于 UI 判断。
+MakeStatus（同文件）：enum { making, completed }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking 计算属性供 UI 判断。
 
 ## 语音与配置
 
-- VoiceSettings（Sources/Models/VoiceSettings.swift）：speed、pitch、volume、voiceType、encoding，与 TTS 请求和 SessionRecord 关联。
-- 配置：config_local.json 结构见 Resources/config_example.json；SettingsManager 读取并可能被设置页覆盖。
+- VoiceSettings（Sources/Models/VoiceSettings.swift）：speed/pitch/volume/voiceType/encoding，关联 TTS 请求和 SessionRecord
+- config_local.json 结构见下方；SettingsManager 读取，设置页可覆盖
 
 ## 协调器输入输出
 
-ImageToSpeechCoordinator：输入 [Data]（图片数据）；进度 ProcessingProgress（stage、currentStep、totalSteps、percentage、message）；完成 Result<AudioResponse, ImageToSpeechProcessingError>。
+ImageToSpeechCoordinator：输入 [Data]（图片）；进度 ProcessingProgress（stage/currentStep/totalSteps/percentage/message）；完成 Result<AudioResponse, ImageToSpeechProcessingError>。
 
 ## 磁盘存储结构
 
 ```
 Documents/Sessions/{id}/
-  metadata.json   -- 轻量摘要，用于列表快速加载
-  record.json     -- 全量字段，但 imageDataList=[] 且 audioDataBase64=""
-  history.json    -- 该会话的制作/播放历史事件（SessionHistory），随会话导入导出
-  images/
-    image_0.jpg   -- JPEG，最大边长 2048px
-    image_1.jpg
-    ...
-  audio.mp3       -- 独立音频文件
-  avatar.jpg      -- 头像缩略图，最大 96pt
-  README.txt      -- 人类可读说明
+  metadata.json   -- 轻量摘要（列表快速加载）
+  record.json     -- 全量字段，imageDataList=[] audioDataBase64=""
+  history.json    -- 制作/播放历史（SessionHistory），随导入导出
+  images/image_0.jpg ... -- JPEG 最大 2048px
+  audio.mp3       -- 独立音频
+  avatar.jpg      -- 头像缩略图 最大 96pt
+  README.txt
 ```
 
-加载时由 SessionRecordManager.loadSession 从独立文件重组回 SessionRecord 对象。
+加载由 SessionRecordManager.loadSession 从文件重组。
 
 ## 会话历史（history.json）
 
-SessionHistoryEvent（Sources/Models/SessionRecord.swift）：timestamp（Date, iso8601）、identity（String, 发起者身份来自 SettingsManager.identityName）。
+SessionHistoryEvent：timestamp(iso8601)/identity(SettingsManager.identityName)。SessionHistory：makeEvents/playEvents。每会话一个 history.json，由 SessionRecordManager 读写（iso8601 日期策略）。导出时随会话目录复制，导入时自动包含。
 
-SessionHistory（Sources/Models/SessionRecord.swift）：makeEvents: [SessionHistoryEvent]、playEvents: [SessionHistoryEvent]。每个会话目录下一个 history.json，由 SessionRecordManager 读写（historyEncoder/historyDecoder 使用 iso8601 日期策略）。导出时随会话目录整体复制，导入时自动包含。
+MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionRecordManager.addMakeEvent/addPlayEvent 写入会话级 history.json；loadEntries 聚合所有会话生成 UI 条目。
 
-MakeHistoryManager / PlayHistoryManager 不再维护独立 JSON 文件，recordSave / recordPlay 委托 SessionRecordManager.addMakeEvent / addPlayEvent 写入会话级 history.json；loadEntries 聚合所有会话的 history.json 生成 UI 展示条目。
-
-旧数据迁移：启动时 SessionRecordManager.migrateHistoryToSessionsIfNeeded() 一次性将 Documents/make_history.json 和 play_history.json 按会话名称匹配写入对应 history.json（UserDefaults flag: didMigrateHistoryToSessions），旧文件保留不删除。
-
-## config_local.json 结构
+## config_local.json
 
 ```json
 {
@@ -53,31 +46,25 @@ MakeHistoryManager / PlayHistoryManager 不再维护独立 JSON 文件，recordS
 }
 ```
 
-SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle 内版本。
+SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle。
 
-## 导出/导入数据结构
+## 导出/导入
 
 ```
 PhotoTTS_YYYYMMDD/
-  export_manifest.json  -- ExportManifest（version、exportDate、appName、totalSessions、totalSize、sessions）
-  Sessions/
-    {id}/               -- 完整会话目录（同磁盘结构）
+  export_manifest.json  -- ExportManifest
+  Sessions/{id}/        -- 完整会话目录
   README.txt
 ```
 
-导入时 ID 重复则跳过。
+导入时 ID 重复跳过。
 
-## UserDefaults 存储
+## UserDefaults
 
-SettingsManager 通过 UserDefaults 存储非敏感用户配置，键名定义在 Constants.UserDefaultsKeys：
-- identityName: 用户身份名称，默认取 UIDevice.current.name（iOS 16+ 返回 "iPhone" 等通用名），最长 20 字符，空值回退设备名称
-- voiceSettings / supportedLanguages / currentLanguage: 语音与语言配置
-- ttsAppId / ttsCluster / ttsUid: TTS 非敏感参数
-- isFirstLaunch / appLaunchCount / lastLaunchDate: 启动统计
-- maxCacheSize / autoCleanupEnabled: 缓存策略
+SettingsManager 通过 UserDefaults 存非敏感配置，键名 Constants.UserDefaultsKeys：identityName（默认设备名，最长 20 字符）、voiceSettings/supportedLanguages/currentLanguage、ttsAppId/ttsCluster/ttsUid、isFirstLaunch/appLaunchCount/lastLaunchDate、maxCacheSize/autoCleanupEnabled。
 
 ## 边界约定
 
-- UI 层不直接构造/解析 OCR/TTS HTTP 请求与响应体。
-- 列表只读 metadata.json；分页通过 getSessionMetadataPage(page:pageSize:searchKeyword:caller:) 按需加载当前页数据（返回 items + totalCount），每页上限定义在 Constants.Pagination.pageSize；全量 getAllSessionMetadata() 仅供导出/清空/Siri等非列表场景。
-- getImages() 仅用于兼容旧数据或未保存的 preloadedRecord，新代码应用 loadImage 按需加载。
+- UI 层不直接构造/解析 OCR/TTS HTTP 请求响应
+- 列表只读 metadata.json；分页 getSessionMetadataPage(page:pageSize:searchKeyword:caller:) 返回 items+totalCount，pageSize 见 Constants.Pagination；全量 getAllSessionMetadata() 仅供导出/清空/Siri
+- getImages() 仅兼容旧数据或 preloadedRecord，新代码用 loadImage 按需加载

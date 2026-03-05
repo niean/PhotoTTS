@@ -8,7 +8,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经豆包 OCR
 
 ## Agents（角色 Agent）
 
-Agents 是专职角色，每个 Agent 有独立的职责边界和上下文焦点。Skill 编排流程中通过 Phase 指定由哪个 Agent 执行。详细定义见 `.harness/agents/` 目录。
+Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Phase 指定执行角色，Phase 间通过"检查点摘要"（不超过 10 行）交接上下文。详细定义见 `.harness/agents/` 目录。
 
 | Agent | 运行形态 | 模板文件 | 职责 |
 |-------|---------|---------|------|
@@ -17,11 +17,9 @@ Agents 是专职角色，每个 Agent 有独立的职责边界和上下文焦点
 | Coder | 主 Agent（实现阶段） | .harness/agents/coder.md | 代码实现 |
 | Reviewer | subagent + 主 Agent | .harness/agents/reviewer.md | 代码扫描、构建验证、验收 |
 
-Agent 与 Skill 的关系：Skill 定义"做什么"（流程步骤），Agent 定义"谁来做"（角色与上下文）。多 Agent Skill 的每个 Phase 指定执行角色，Phase 间通过"检查点摘要"（不超过 10 行）交接上下文。
-
 ## Skills（可复用操作）
 
-Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按定义步骤执行。触发方式见下表"触发"列。详细定义见 `.harness/skills/` 目录。
+触发后读取对应文件、按步骤执行。详细定义见 `.harness/skills/` 目录。
 
 | Skill | 触发 | 文件 |
 |-------|------|------|
@@ -31,85 +29,97 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 | 治理代码 | 人工指令 | .harness/skills/governance-code.md |
 | 验证构建 | 功能迭代完成后自动执行，或人工指令 | .harness/skills/verify-build.md |
 | 治理技能 | 人工指令 | .harness/skills/governance-capability.md |
-| 提取-Harness模板 | 人工指令 | .harness/skills/extract-harness-tpl.md |
+| 提取Harness模板 | 人工指令 | .harness/skills/extract-harness-tpl.md |
 | 治理全部 | 人工指令 | .harness/skills/governance-all.md |
 | 总结任务 | AI自动触发（任务完成后） | .harness/skills/summarize-task.md |
 
-触发规则：表中标注"AI自动触发"的 Skill，AI 必须在对应时机自动执行，不需要人工指令。当前自动触发清单：
-- 任务完成后：执行 Skill: 总结任务（仅适用于按 Skill: 迭代功能 完整流程执行的任务；未走迭代功能流程的简单任务无需执行）
+自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（仅适用于按迭代功能完整流程执行的任务）。
+
+## Subagents（并行扫描任务）
+
+通过 `use_subagents` 启动，各自独立上下文窗口，由 Reviewer 或 Skill 按需调用。详细定义见 `.harness/subagents/` 目录。
+
+| Subagent | 文件 | 调用方 |
+|----------|------|--------|
+| 扫描架构边界 | .harness/subagents/scan-architecture.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描编码约定 | .harness/subagents/scan-conventions.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描安全规范 | .harness/subagents/scan-security.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描图片处理 | .harness/subagents/scan-image-handling.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描日志规范 | .harness/subagents/scan-logging.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描废弃代码 | .harness/subagents/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 2（可选） |
 
 ## 流程合规
 
-以下为不可跳过的强制流程规则，违反任一条即视为流程违规：
-
 ### 功能需求必须触发 Skill: 迭代功能
 
-- 当用户下发功能需求（无论来自 01-prd-specs.md 引用还是直接描述），必须按 Skill: 迭代功能 的完整 Phase 1-6 流程执行
-- 禁止跳过任何 Phase，禁止将多 Agent 编排简化为单一角色直接实现
-- Phase 2（意图理解）必须通过 Analyst subagent 执行，输出结构化 spec
-- Phase 5（验收）必须包含构建验证和代码扫描 subagent
+- 用户下发功能需求时，必须按完整 Phase 1-6 流程执行，禁止跳过或简化
+- Phase 2 必须通过 Analyst subagent 执行，Phase 5 必须包含构建验证和代码扫描
 
 ### 用户确认是硬性门禁
 
-- Skill: 迭代功能 Phase 3 是强制门禁：Analyst 输出的意图理解摘要必须呈现给用户，等待用户明确确认后才能进入 Phase 4（实现）
+- Phase 3：Analyst 输出的意图理解摘要必须呈现给用户，等待明确确认后才能进入 Phase 4
 - 未经用户确认不得开始编码实现
 
-### Agent 架构声明与角色标注是强制输出规范
+### Agent 架构声明与角色标注
 
-- 每次任务执行时，必须在任务开始时声明当前采用的架构：
-  - 多 Agent 架构（Orchestrator / Analyst / Coder / Reviewer）：功能迭代、代码治理等需要多角色协作的任务
-  - 单 Agent 架构：简单查询、文档检查、小范围修改等单一角色即可完成的任务，声明格式如 `本次任务采用单 Agent 架构，由主 Agent 直接执行`
-- 多 Agent 架构时，每个 Phase 或 Step 输出开头必须标注当前执行 Agent，格式为 `[Agent: 角色名]`（如 `[Agent: Orchestrator]`、`[Agent: Coder]`）
-- subagent 执行时标注 `[Agent: 角色名 (subagent)]`（如 `[Agent: Analyst (subagent)]`）
-- 角色名使用英文，与 AGENTS.md Agent 定义表一致
-- 非功能迭代任务（治理、回填等）同样适用：每个独立步骤必须标注执行 Agent
+- 任务开始时声明架构：多 Agent 架构或单 Agent 架构（格式如 `本次任务采用单 Agent 架构，由主 Agent 直接执行`）
+- 每个 Phase/Step 输出标注执行 Agent：`[Agent: 角色名]` 或 `[Agent: 角色名 (subagent)]`
+- 角色名使用英文，非功能迭代任务同样适用
 
 ### 消息输出面向用户
 
-- 约束类、流程类术语（如"硬性门禁""强制门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
-- 用户消息应简洁、面向结果，避免内部流程术语干扰用户阅读
+- 约束类术语（"硬性门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
 
-### Skill: 总结任务 按需自动执行
+### Skill: 总结任务
 
-- 仅按 Skill: 迭代功能 完整流程执行的任务，完成后必须在调用 attempt_completion 之前执行 Skill: 总结任务
-- 未走迭代功能流程的简单任务（文档修改、简单查询等）无需执行总结任务，直接调用 attempt_completion
-- 总结报告必须作为独立消息输出，不得与 attempt_completion 合并在同一响应中
-- 执行顺序：输出总结报告 -> 等待用户确认收到 -> 调用 attempt_completion
+- 仅迭代功能完整流程的任务需执行，简单任务无需执行
+- 执行顺序：输出总结报告（独立消息）-> 用户确认收到 -> attempt_completion
 
 ## 文件与文档
 
-- 除非明确要求，不要主动创建 README 文件
-- 不要删除任何项目文件，包括文档、代码等（临时 spec 文件 `agent-specs-*.md` 除外，任务结束后必须删除、且使用`rm -f`非交互模式）
-- AI 自动生成的文档（Skill、Subagent、知识库等），文件名必须使用小写英文（kebab-case），文档正文中补充对应的中文名称或说明
-- Skill、Subagent 文件名使用小写英文（kebab-case），统一采用 动词-名词 语序（如 governance-code、backfill-knowledge）；技能名称（文件内标题）和描述文本使用中文（英文专有名词除外），同样采用 动词-名词 语序（如 治理代码、回填知识库、扫描架构边界），禁止名词-动词 语序（如 ~~架构边界扫描~~）
-- .harness/context/users/ 目录是人工定义的原始信息，AI 可以读取、但不允许自动修改；如遇 users/ 内容与 AI 知识库（.harness/context/agents/）描述冲突，必须提示给用户，经确认后才能修改
-- .harness/docs/ 目录是人工维护的方法论与参考文档，AI 修改前必须经过人工确认
-- 文档内容禁用 emoji 图标、加粗、斜体等润色，使用普通文字
-- 功能迭代的临时 spec 文件落盘到 `.harness/context/agents/agent-specs-${事项}.md`，任务结束后必须删除；该文件不属于持久知识，仅供单次迭代过程中保持上下文连续性
+- 不主动创建 README；不删除项目文件（临时 spec `agent-specs-*.md` 除外，任务结束 `rm -f` 删除）
+- 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
+- AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/context/users/、.harness/docs/
+- users/ 与 agents/ 知识库冲突时，提示用户确认
+- 文档禁用 emoji/加粗/斜体，使用普通文字
+- 临时 spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`，仅供单次迭代，任务结束必须删除
 
-## 上下文知识库管理
+### 文档引用方向
 
-- 每类知识有且只有一个归属文档，不重复维护
-- 上下文窗口有限，不需要的文档一律不加载
-- 接到任务时按需查阅 .harness/context/ 目录（不需要全部读完）
+.harness/ 文档体系分为四层，引用方向应自上而下：
 
-## 多步任务上下文管理
+| 层级 | 目录 | 职责 |
+|------|------|------|
+| Layer 0 | AGENTS.md | 顶层入口，注册并索引所有 .harness/ 文件 |
+| Layer 1 | .harness/agents/ | Agent 角色定义，读取 AGENTS.md 和 context/ |
+| Layer 2 | .harness/skills/ | Skill 执行计划，引用 agents/ 和 subagents/ |
+| Layer 3 | .harness/subagents/ | 扫描模板，被 agents/ 和 skills/ 调用 |
+| 数据层 | .harness/context/ | 知识库和产品文档，被上层按需读取 |
 
-上下文窗口有限，多步骤任务（尤其是编排多个子 Skill 的复合任务）必须主动管理上下文消耗：
-- 每个步骤完成后，将该步结果压缩为检查点摘要（不超过 5 行），后续步骤只携带摘要、不回溯详细内容
-- 每个步骤只加载当前必需的文件，不预加载后续步骤的文件
-- 所有步骤均为必选项，禁止因上下文压力跳过或简化任何步骤
-- 如果感知到上下文紧张，应先压缩已有上下文（丢弃中间过程细节、只保留检查点摘要），再继续执行后续步骤
-- 各 Skill 文件中如有更具体的上下文管理要求，以 Skill 文件定义为准
+引用方向规则：
+- 向下引用：上层引用下层的具体定义（如 Skills 引用 Agents，Agents 调度 Subagents）
+- 同层编排：同层文件可通过编排引用（如 governance-all.md 编排其他 Skills）
+- 反向指回（限定）：下层仅允许"指回入口"式引用，不反向引用上层的具体定义
+
+允许的特例：
+- AGENTS.md 与 context/agents/03-conventions.md：双向声明摘要-权威源关系（AGENTS.md 项目规范为摘要，03-conventions.md 为权威源）
+- context/agents/01-overview.md 指回 AGENTS.md：入口指引（"操作约束见 AGENTS.md"）
+
+路径规则：
+- .harness/ 下的文档引用项目文件路径时，使用项目根目录相对路径，不使用绝对路径
+
+## 上下文管理
+
+- 每类知识有且只有一个归属文档，不重复维护；按需查阅 .harness/context/，不全部加载
+- 多步任务：每步完成压缩为检查点摘要（不超过 5 行），后续只携带摘要；每步只加载必需文件
+- 所有步骤均为必选项，禁止因上下文压力跳过；上下文紧张时先压缩已有内容再继续
+- 委派产出（subagent、跨 Phase 交接）：产出结构化结论（表格、要点），不搬运原文；需要完整内容时直接读取源文件
+- 产出超限时：缩小单次任务范围或拆分为多个子任务，不重试相同范围
+- 各 Skill 如有更具体的上下文管理要求，以 Skill 文件为准
 
 ## 维护
 
-每次修改约束、规范、规则（包括 AGENTS.md、Skills、Subagents、知识库文件）时，必须检查 AGENTS.md 的全局描述，确保新增或变更的内容与已有规则没有矛盾冲突。
-
-当 Agent 因缺少说明而出错时：
-1. 将缺失的说明补充到对应的 .harness/context/agents/ 知识库文件
-2. 若是普遍性约束，同时在本文件"项目规范"中摘录要点
-3. 在下方"上下文知识库"文档列表中更新对应文件的描述
+修改约束/规范/规则时，检查 AGENTS.md 全局描述确保无矛盾。Agent 因缺少说明出错时：补充到 .harness/context/agents/，普遍性约束摘录到本文件，更新下方知识库索引。
 
 ---
 
@@ -118,38 +128,21 @@ Skills 是可复用的 AI 操作单元。触发后，AI 读取对应文件、按
 ## 仓库结构
 
 ```
-AGENTS.md              -- AI 知识库入口、操作约束RULES（本文件）
+AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
-  agents/              -- Agent 角色 prompt 模板（Orchestrator、Analyst、Coder、Reviewer）
-  skills/              -- AI 可复用操作定义（功能迭代、构建验证等）
-  subagents/           -- Subagent prompt 模板（代码质量扫描等并行任务）
-  docs/
-    00-harness-ops.md  -- Harness 项目维护（蒸馏模板、治理操作入口，人工维护）
-    01-harness-desc.md -- 通用 AI 协作工程方法论（项目无关，可跨项目复用）
-    02-harness-dev.md  -- Harness 开发流程（初始化、人机协作开发，人工维护）
+  agents/              -- Agent 角色模板（Orchestrator、Analyst、Coder、Reviewer）
+  skills/              -- Skill 定义（迭代功能、构建验证等）
+  subagents/           -- Subagent 扫描模板
+  docs/                -- 方法论与参考文档（人工维护）
   context/
-    agents/            -- AI 知识库
-      01-overview.md   -- 项目概览
-      02-architecture.md -- 架构与模块边界
-      03-conventions.md  -- 约定与约束（实现细节）
-      04-glossary.md   -- 术语表
-      05-data-boundaries.md -- 数据与类型边界
-      06-file-map.md   -- 功能与文件映射
-      07-key-patterns.md -- 关键代码模式
-    users/             -- 人工定义的原始信息（AI只读）
-      01-prd-sense.md  -- 产品定位、体验原则与判断准则
-      01-prd-baseline.md -- 稳定的产品需求基线
-      01-prd-specs.md  -- 原始产品需求规格与演进记录
+    agents/            -- AI 知识库（01-overview ~ 07-key-patterns）
+    users/             -- 产品文档（AI只读：prd-sense、prd-baseline、prd-specs）
 PhotoTTS/
   Sources/
-    UI/                -- SwiftUI 视图（PhotoTTSApp、HomePageView、MakeView、PlayView 等）
-    Core/
-      Coordinators/    -- 业务协调（ImageToSpeechCoordinator）
-      Handlers/        -- OCR/TTS 服务（OCRService、TTSService）
-      Intents/         -- Siri / App Shortcuts 意图（PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts）
-      Managers/        -- 数据/设置管理（SessionRecordManager、SettingsManager 等）
-    Models/            -- 数据模型（SessionRecord、VoiceSettings、AudioResponse）
-  Resources/           -- 配置（config_local.json）、素材、更新记录
+    UI/                -- SwiftUI 视图
+    Core/              -- Coordinators、Handlers、Intents、Managers
+    Models/            -- 数据模型
+  Resources/           -- 配置、素材
 PhotoTTSTests/         -- 单元测试
 PhotoTTSUITests/       -- UI 测试
 ```
@@ -157,92 +150,73 @@ PhotoTTSUITests/       -- UI 测试
 ## 构建与测试
 
 ```bash
-# 用 Xcode 打开项目
-open PhotoTTS.xcodeproj
-
-# 命令行构建（模拟器）
-xcodebuild -project PhotoTTS.xcodeproj \
-           -scheme PhotoTTS \
-           -destination 'platform=iOS Simulator,name=iPhone 16' \
-           build
-
-# 运行单元测试
-xcodebuild -project PhotoTTS.xcodeproj \
-           -scheme PhotoTTSTests \
-           -destination 'platform=iOS Simulator,name=iPhone 16' \
-           test
-
-# API 配置（首次运行前需要）
+# 构建（模拟器）
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16' build
+# 单元测试
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16' test
+# API 配置（首次）
 cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
-# 然后填入 OCR/TTS 密钥
 ```
 
 ## 知识回填规则
 
-Skill: 迭代功能 step 6 的具体回填目标：
-- 架构边界变化 -> 02-architecture.md
-- 新增术语 -> 04-glossary.md
-- 数据结构或存储格式变化 -> 05-data-boundaries.md
-- 新增源文件 -> 06-file-map.md
-- 新增跨文件模式 -> 07-key-patterns.md
-- 产品方向或判断准则调整 -> 提示用户，由人工更新 users/01-prd-sense.md 或触发 Skill: 回填产品文档
+Skill: 迭代功能 Phase 6 的回填目标：
+- 架构变化 -> 02-architecture.md
+- 新术语 -> 04-glossary.md
+- 数据结构/存储变化 -> 05-data-boundaries.md
+- 新源文件 -> 06-file-map.md
+- 新跨文件模式 -> 07-key-patterns.md
+- 产品方向调整 -> 提示用户，人工更新 users/01-prd-sense.md 或触发 Skill: 回填产品文档
 
 ## 代码生成
 
-以下各节（代码生成、架构边界、质量守护、安全规范）为快速参考摘要，权威定义和实现细节见 .harness/context/agents/03-conventions.md，以 03-conventions.md 为准。
+以下各节（代码生成、架构边界、质量守护、安全规范）为快速参考摘要，权威定义见 .harness/context/agents/03-conventions.md。
 
-- 日志内容禁用 emoji 图标、加粗、斜体等润色，使用普通文字
-- 日志输出禁止使用 `print()`，统一使用 `os.Logger`（Apple Unified Logging），分类定义在 PhotoTTSApp.swift 的 `extension os.Logger` 中
-- 新增页面如果顶导左上角有返回按钮，必须同时实现左边缘手势识别，注释为 `// 手势识别`，参数从 `Constants.Gesture` 读取
-- 新增常量优先写入 `PhotoTTS/Sources/Constants.swift`，不要散落在各文件
-- 图片入队前必须降采样到 2048px（使用 `SessionRecordManager.downsampleImageToMaxPixel`）
-- 播放时按需加载，最大 1024pt（使用 `SessionRecordManager.loadImage(sessionId:index:maxDimension:)`）
-- 不得把原图直接存入 `SessionRecord.imageDataList`
-- `"空字符串"` 是系统保留字，表示图片无文字内容，不展示给用户，拼接后剔除
-- OCR 失败返回 `""`，保持索引与图片一一对应，不压缩数组
+- 日志：禁止 `print()`，统一 `os.Logger`；内容禁用 emoji/加粗/斜体；禁止输出敏感字段（仅末四位 `key=***abcd`）
+- 手势：顶导有返回按钮时必须实现左边缘手势识别（注释 `// 手势识别`，参数 `Constants.Gesture`）
+- 常量：优先写入 `PhotoTTS/Sources/Constants.swift`
+- 图片：入队降采样 2048px（`downsampleImageToMaxPixel`）；播放按需加载 1024pt（`loadImage`）；不得存原图
+- OCR：`"空字符串"` 是系统保留字，拼接后剔除；失败返回 `""`，保持索引对应
 
 ## 架构边界
 
-- UI 层不直接调用 OCR/TTS API，通过 `ImageToSpeechCoordinator` 或 Manager
-- 全屏页面通过 `AppState.fullScreenKind` 控制，不在局部视图用 `fullScreenCover` 绕过（PlayView 例外）
-- 新增 Tab 重置逻辑时，制作页（tab1）不参与重置
+- UI 不直接调 OCR/TTS API，通过 `ImageToSpeechCoordinator` 或 Manager
+- 全屏页面通过 `AppState.fullScreenKind` 控制（PlayView 例外）
+- 制作页（tab1）不参与 Tab 重置
 
 ## 质量守护
 
-- 代码提交前必须通过 `xcodebuild build`，零警告（包括代码警告和 Xcode IDE 项目配置警告），不允许遗留任何 Warning
-- 新增或修改 Manager / Coordinator / Service 层逻辑时，应同步补充或更新单元测试（PhotoTTSTests/）
-- 错误信息分两层：面向用户的提示使用中文自然语言、不含技术细节；面向开发者的日志使用 `os.Logger`，可包含错误码和上下文
-- 日志中禁止输出 API Key、Access Key、Token 等敏感字段；如需标识密钥，仅输出末四位（如 `key=***abcd`）
-- 网络请求必须设置超时（默认见 `Constants.Network.requestTimeout`），不允许无限等待
-- 异步操作（OCR/TTS/文件IO）必须在非主线程执行，回调结果切回主线程更新 UI
-- 图片禁止一次性全量加载到内存；播放和浏览必须按需加载当前帧，并通过有限缓存（NSCache）预加载相邻帧
-- 图片解码必须使用 Image I/O 降采样（CGImageSourceCreateThumbnailAtIndex），禁止先解码全尺寸再缩放，否则 IOSurface 分配失败会导致闪退
-- 列表页只读 metadata.json，禁止加载 record.json 或图片原数据
-- record.json 不存储音频和图片二进制数据，大文件（图片、音频）必须独立存储
-- 大数据集合（调试日志、历史记录）加载到内存时必须设置条数上限，不允许全量驻留
-- 头像必须在保存时预生成缩略图（avatar.jpg），列表展示时从磁盘加载预生成文件，不得现场从原图生成
+- 零警告：`xcodebuild build` 零警告（含 IDE 配置警告）
+- 测试：新增/修改 Manager/Coordinator/Service 时同步补充单元测试
+- 错误分层：用户提示用中文无技术细节；开发日志用 `os.Logger` 含错误码
+- 网络：必须设超时（`Constants.Network.requestTimeout`）
+- 线程：异步操作非主线程，回调切回主线程更新 UI
+- 图片内存：禁止全量加载，按需加载 + NSCache 预加载相邻帧；解码必须用 Image I/O 降采样，禁止先全尺寸再缩放
+- 列表性能：只读 metadata.json，不加载 record.json 或图片；头像从预生成 avatar.jpg 加载
+- 存储分离：record.json 不存二进制，图片/音频独立存储
+- 内存上限：大数据集合必须设条数上限
 
 ## 安全规范
 
-- API Key、Access Key 等密钥只允许存储在 Keychain（通过 `SettingsManager`），不得硬编码在源码中、不得写入 UserDefaults、不得写入日志
-- `config_local.json` 已加入 `.gitignore`，包含密钥的配置文件禁止提交到版本库；新增配置文件如含敏感信息，必须同步加入 `.gitignore`
-- 所有外部 API 调用必须使用 HTTPS；不得降级为 HTTP，不得在 Info.plist 中开启 App Transport Security 例外
-- 发送到外部 API（OCR/TTS）的图片数据必须经过降采样（2048px），不发送原图，减少数据泄露面
-- API 响应必须校验 HTTP 状态码和数据完整性，不信任未经校验的外部输入；JSON 解码失败时按错误处理，不静默忽略
-- 用户的绘本图片、音频、会话记录仅存储在设备本地（Documents/Sessions/），不主动上传到任何服务器（OCR/TTS 请求除外）
+- 密钥只存 Keychain（通过 `SettingsManager`），不硬编码、不写 UserDefaults、不写日志
+- `config_local.json` 已加入 `.gitignore`，含密钥的配置文件禁止入库
+- 强制 HTTPS，不降级，不开 ATS 例外
+- 发送到外部 API 的图片必须降采样（2048px）
+- API 响应必须校验状态码和数据完整性，JSON 解码失败按错误处理
+- 用户数据仅存设备本地（Documents/Sessions/），不主动上传
 
 ## 上下文知识库
 
 | 文件 | 何时查阅 |
 |------|---------|
-| .harness/context/users/01-prd-sense.md | 功能迭代前，确认产品定位、体验原则和判断准则 |
-| .harness/context/agents/01-overview.md | 任何任务开始时，了解项目边界和入口 |
-| .harness/context/agents/02-architecture.md | 涉及模块新增、依赖关系、跨层调用时 |
-| .harness/context/agents/03-conventions.md | 涉及UI交互约定、编码约定、质量约定、安全约定的实现细节时 |
-| .harness/context/agents/04-glossary.md | 对术语（SessionRecord、fullScreenKind、底导等）不清楚时 |
-| .harness/context/agents/05-data-boundaries.md | 涉及数据结构、磁盘存储、config 格式、导出格式时 |
-| .harness/context/agents/06-file-map.md | 确定功能对应哪些源文件时 |
-| .harness/context/agents/07-key-patterns.md | 实现跨 Tab 跳转、PlayView 打开、图片加载、OCR 并发、全屏覆盖等模式时 |
-| .harness/context/users/01-prd-baseline.md | 实现新功能或页面时，确认功能需求与产品约束 |
-| .harness/context/users/01-prd-specs.md | 需要了解某功能的原始产品需求规格、或处理历史遗留逻辑时 |
-| .harness/docs/02-harness-dev.md | 了解 Harness 开发流程（项目初始化、人机协作开发步骤）时 |
+| .harness/context/users/01-prd-sense.md | 功能迭代前，确认产品定位和判断准则 |
+| .harness/context/agents/01-overview.md | 任务开始时，了解项目边界 |
+| .harness/context/agents/02-architecture.md | 涉及模块新增、跨层调用时 |
+| .harness/context/agents/03-conventions.md | 涉及编码/UI/质量/安全约定细节时 |
+| .harness/context/agents/04-glossary.md | 对术语不清楚时 |
+| .harness/context/agents/05-data-boundaries.md | 涉及数据结构、存储格式时 |
+| .harness/context/agents/06-file-map.md | 确定功能对应源文件时 |
+| .harness/context/agents/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
+| .harness/context/users/01-prd-baseline.md | 确认功能需求与产品约束时 |
+| .harness/context/users/01-prd-specs.md | 了解原始需求规格或历史逻辑时 |
+| .harness/docs/02-harness-dev.md | 了解 Harness 开发流程时 |

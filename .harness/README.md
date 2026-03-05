@@ -14,35 +14,42 @@
 
 请参考 `docs/02-harness-dev.md`中的 `## 人机协作开发`章节
 
-
-## 模板文件清单
-
-| 路径 | 用途 |
-|------|------|
-| AGENTS.md | AI Agent 入口文件，定义通用规范和项目规范 |
-| .harness/README.md | 本文件，模板说明与开发流程指引 |
-| .harness/docs/00-harness-ops.md | Harness 项目维护操作入口（人工维护） |
-| .harness/docs/01-harness-desc.md | 通用 AI 协作工程方法论（项目无关，可直接复用） |
-| .harness/docs/02-harness-dev.md | Harness 开发流程（初始化、人机协作开发，人工维护） |
-| .harness/skills/iterate-feature.md | Skill: 迭代功能 |
-| .harness/skills/verify-build.md | Skill: 验证构建 |
-| .harness/skills/governance-code.md | Skill: 治理代码 |
-| .harness/skills/backfill-knowledge.md | Skill: 回填知识库 |
-| .harness/skills/backfill-prd.md | Skill: 回填产品文档 |
-| .harness/skills/extract-harness-tpl.md | Skill: 提取-Harness模板 |
-| .harness/skills/governance-capability.md | Skill: 治理技能 |
-| .harness/skills/governance-all.md | Skill: 治理全部 |
-| .harness/skills/summarize-task.md | Skill: 总结任务 |
-| .harness/subagents/scan-example.md | Subagent 示例模板（按维度拆分为多个文件） |
-| .harness/subagents/scan-dead-code.md | Subagent: 扫描废弃代码 |
-| .harness/context/agents/.gitignore | agents 目录 gitignore（忽略临时 spec 文件） |
-| .harness/context/agents/01-overview.md | 知识库: 项目概览 |
-| .harness/context/agents/02-architecture.md | 知识库: 架构与模块边界 |
-| .harness/context/agents/03-conventions.md | 知识库: 约定与约束（权威定义） |
-| .harness/context/agents/04-glossary.md | 知识库: 术语表 |
-| .harness/context/agents/05-data-boundaries.md | 知识库: 数据与类型边界 |
-| .harness/context/agents/06-file-map.md | 知识库: 功能与文件映射 |
-| .harness/context/agents/07-key-patterns.md | 知识库: 关键代码模式 |
-| .harness/context/users/01-prd-sense.md | 产品定位、体验原则与判断准则（人工维护） |
-| .harness/context/users/01-prd-baseline.md | 稳定的产品需求基线（人工维护） |
-| .harness/context/users/01-prd-specs.md | 产品需求演进记录（人工维护） |
+## 知识库层级关系
+```
+Layer 0  AGENTS.md（顶层入口、注册表、规则摘要）
+            |
+            |-- 注册 --> agents/、skills/、subagents/ 全部文件
+            |-- 索引 --> context/agents/、context/users/ 全部文件
+            |-- 摘要引用 --> context/agents/03-conventions.md（权威源）
+            |
+Layer 1  .harness/agents/（Agent 角色定义）
+            |
+            |-- orchestrator.md  读取 AGENTS.md，引用 iterate-feature.md、reviewer.md
+            |-- analyst.md       读取 AGENTS.md，读取 context/users/、context/agents/
+            |-- coder.md         读取 AGENTS.md，按需读取 context/agents/03、07
+            |-- reviewer.md      引用 subagents/scan-*.md（调度扫描）
+            |
+Layer 2  .harness/skills/（Skill 执行计划）
+            |
+            |-- iterate-feature.md    引用 agents/analyst.md、coder.md、reviewer.md
+            |-- governance-code.md    引用 agents/coder.md、reviewer.md，调度 subagents/
+            |-- governance-capability.md  读取 AGENTS.md 注册表
+            |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
+            |-- backfill-knowledge.md 读取 AGENTS.md、context/agents/、skills/目录、subagents/目录
+            |-- backfill-prd.md       读取 context/users/ 三个产品文档
+            |-- verify-build.md       独立（仅含构建命令）
+            |-- summarize-task.md     独立（仅含报告模板）
+            |-- extract-harness-tpl.md 读取全部 .harness/ 文件
+            |
+Layer 3  .harness/subagents/（扫描模板）
+            |
+            |-- scan-*.md  引用源码路径，检查规则来自 AGENTS.md/03-conventions.md
+            |              被 reviewer.md 和 governance-code.md 调用
+            |
+Layer 4  .harness/context/（知识库，数据层）
+            |
+            |-- agents/01-overview.md     反向引用 AGENTS.md（"操作约束见 AGENTS.md"）
+            |-- agents/03-conventions.md  反向引用 AGENTS.md（声明自己是权威源，AGENTS.md为摘要）
+            |-- agents/02,04,05,06,07     独立数据文档，不引用其他 .harness 文件
+            |-- users/01-prd-*.md         独立数据文档，AI只读
+```

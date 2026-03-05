@@ -1,47 +1,37 @@
 # Skill: 治理全部
 
-触发：人工指令。对项目进行一轮完整的治理（代码质量、技能体系、知识库、产品文档），编排多个现有 Skill 按顺序执行。
+触发：人工指令。编排多个治理 Skill 按顺序执行。
+
+本 Skill 采用多 Agent 编排（Orchestrator 调度），每个 Step 委托对应子 Skill 执行，子 Skill 架构以其自身定义为准。
+
+输出规范：遵守 AGENTS.md "流程合规 > Agent 架构声明与角色标注"中定义的全部规则。
 
 ## 上下文管理
 
-本 Skill 编排多个子 Skill 顺序执行，累积上下文量大。必须遵守以下规则，防止后续步骤因上下文不足被舍弃：
-
-1. 每个 Step 完成后，立即输出该步的"检查点摘要"（不超过 5 行），记录：步骤名称、执行结果、关键数量指标
-2. 进入下一个 Step 前，只携带已完成步骤的检查点摘要，不回溯已完成步骤的详细内容（如扫描的源文件内容、构建日志原文等）
-3. 每个 Step 读取文件时按需加载，只读取当前步骤必需的文件，不预加载后续步骤的文件
-4. 所有 Step 均为必选项，禁止因上下文压力跳过或简化任何步骤；如果感知到上下文紧张，应先压缩已有上下文（丢弃中间过程细节、只保留检查点摘要），再继续执行
+每步完成后输出检查点摘要（不超过 5 行），后续只携带摘要。每步只加载必需文件。所有步骤必选，禁止跳过；上下文紧张时先压缩再继续。
 
 ## 步骤
 
 ### Step 1 -- 治理代码
-
-执行 Skill: 治理代码（`.harness/skills/governance-code.md`）。完成 5 维度规范扫描 + 扫描废弃代码，输出统一违规清单，经用户确认后执行修复和清理，最后构建验证。
-
-完成后输出检查点摘要，格式：`[Step 1 治理代码] 扫描N项违规，已修复M项，清理K个废弃项`
+- Agent: Orchestrator 调度，委托 Skill: 治理代码（多 Agent 编排）
+- 执行 `.harness/skills/governance-code.md`
+- 摘要：`[Step 1 治理代码] 扫描N项违规，已修复M项，清理K个废弃项`
 
 ### Step 2 -- 治理技能
-
-执行 Skill: 治理技能（`.harness/skills/governance-capability.md`）。对 Skills 和 Subagents 进行扫描修复、清理合并、提取新能力，经用户确认后执行变更。
-
-完成后输出检查点摘要，格式：`[Step 2 治理技能] 修复N项，合并M项，新增K个能力`
+- Agent: Orchestrator 调度，委托 Skill: 治理技能（多 Agent 编排）
+- 执行 `.harness/skills/governance-capability.md`
+- 摘要：`[Step 2 治理技能] 修复N项，合并M项，新增K个能力`
 
 ### Step 3 -- 回填知识库
-
-执行 Skill: 回填知识库（`.harness/skills/backfill-knowledge.md`）。对比实际代码与 `.harness/context/agents/` 文档，修正过时描述、压缩冗余内容，并同步更新 AGENTS.md。
-
-完成后输出检查点摘要，格式：`[Step 3 回填知识库] agents/ 修正N处，AGENTS.md 更新M处`
+- Agent: Orchestrator 调度，委托 Skill: 回填知识库（单 Agent）
+- 执行 `.harness/skills/backfill-knowledge.md`
+- 摘要：`[Step 3 回填知识库] agents/ 修正N处，AGENTS.md 更新M处`
 
 ### Step 4 -- 回填产品文档
-
-执行 Skill: 回填产品文档（`.harness/skills/backfill-prd.md`）。对比 prd-specs.md 近期迭代内容与现有产品文档（baseline、sense），经用户确认后更新。
-
-完成后输出检查点摘要，格式：`[Step 4 回填产品文档] baseline 更新N处，sense 更新M处`
+- Agent: Orchestrator 调度，委托 Skill: 回填产品文档（单 Agent）
+- 执行 `.harness/skills/backfill-prd.md`
+- 摘要：`[Step 4 回填产品文档] baseline 更新N处，sense 更新M处`
 
 ### Step 5 -- 巡检报告
-
-汇总 Step 1~4 的检查点摘要，向用户输出巡检报告，包含：
-- 治理代码：扫描发现的违规数、已修复数、废弃代码清理数量
-- 治理技能：修复的问题数、新增的能力数
-- 知识库变更：修正和压缩的文档列表
-- 产品文档变更：baseline 和 sense 的更新项
-- AGENTS.md 变更：更新的规则或表格行
+- Agent: Orchestrator
+- 汇总 Step 1~4 摘要，输出巡检报告

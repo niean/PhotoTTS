@@ -1,23 +1,22 @@
 # 术语表
 
-- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图数据、相机预选图、tab0/2/3ResetId、跨 Tab 协调标志、sessionRecordToPlay（Siri 触发）等。
-- fullScreenKind：当前全屏类型枚举，nil=主界面，.loading=启动页，.imageViewer=全屏大图，.camera=全屏相机。
-- 底导：底部 Tab 栏，四个 Tab（首页、制作、消息、我的）。
-- 顶导：各 Tab 内顶部导航栏，含标题与返回等按钮。
-- 手势识别：左边缘滑动返回，注释 // 手势识别，参数见 Constants.Gesture。
-- SessionRecord：单条会话记录（Codable/Identifiable/Hashable），含 id、name、createdAt、updatedAt、imageDataList（Base64）、ocrText、ocrTextSegments、audioDataBase64、audioFormat、audioDuration、ocrDuration、ttsDuration、validImageCount、totalImageCount、textLength、audioSize、voiceSettings、avatarImageIndex、storageSize、makeStatus。record.json 中 imageDataList=[] 且 audioDataBase64=""，图片和音频独立文件存储。
-- SessionRecordMetadata：SessionRecord 轻量摘要，用于列表展示（不含图片/音频），字段：id、name、createdAt、updatedAt、totalImageCount、validImageCount、textLength、audioDuration、avatarImageIndex、storageSize。写入 metadata.json，列表读取时只解析此文件。
-- SessionRecordManager：会话记录本地读写与列表管理，单例。
-- ImageToSpeechCoordinator：协调批量图片 OCR 与 TTS，输出进度与最终 AudioResponse 或错误。
-- ProcessingProgress / ProcessingStage：进度与阶段。stage 枚举：ocr、tts、completed、failed；percentage 由 currentStep/totalSteps 计算（0~100）。
-- PlayView：全屏播放页，两种入参：recordId（已保存，按需加载图片）或 preloadedRecord（未保存，内存中图片）。播放结束自动 onDismiss 并向 PlayHistoryManager 记录。
-- CustomZStack：主界面画布，承载底导与全屏容器层级。
-- FullScreenImageContent：全屏大图通用组件，支持按需加载（sessionId + totalImageCount）和预加载（preloadedImages 数组）两种模式。
-- OnDemandImagePage：FullScreenImageContent 内部子组件，单帧按需加载图片，先查缓存再后台加载。
-- PhotoProcessingView：MakeView 主内容视图，负责图片预览、处理状态叠层、操作按钮，通过回调与 MakeView 通信。
-- SessionRecordUnifiedView：会话记录保存/编辑/查看统一视图（位于 SessionRecordDetailView.swift），mode 枚举区分 save、edit 与 view。
-- MultiImagePicker：多选图组件（定义于 CustomCameraView.swift），UIViewControllerRepresentable 封装 PHPickerViewController。从 CustomCameraViewController 以 fullScreen 弹出，从 MakeView 以 sheet 弹出。
-- AudioPlayerDelegate：AVAudioPlayerDelegate 封装类（定义于 MakeView.swift），持有播放结束回调闭包，避免在 View 结构体上实现 NSObject 协议。
-- AppLoadingView / AppIntroView：位于 AppPagesView.swift；AppLoadingView 模拟加载进度后将 fullScreenKind 置 nil；AppIntroView 用于"关于"页面展示介绍信息。
-- ExportManifest / ExportSessionInfo：导出包清单数据模型，含 version、exportDate、appName、totalSessions、totalSize、sessions。导入时解析 export_manifest.json 还原会话列表。
-- config_local.json：本地 API 配置（豆包 OCR、火山引擎 TTS），由 SettingsManager 读取，设置页可编辑。
+- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabResetId、跨 Tab 协调标志、sessionRecordToPlay（Siri 触发）等
+- fullScreenKind：全屏类型枚举（nil=主界面，.loading=启动页，.imageViewer=全屏大图，.camera=全屏相机）
+- 底导：底部 Tab 栏（首页/制作/消息/我的）；顶导：各 Tab 内顶部导航栏
+- 手势识别：左边缘滑动返回（注释 // 手势识别，参数 Constants.Gesture）
+- SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/ocrDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
+- SessionRecordMetadata：SessionRecord 轻量摘要（不含图片/音频），字段：id/name/createdAt/updatedAt/totalImageCount/validImageCount/textLength/audioDuration/avatarImageIndex/storageSize。写入 metadata.json
+- SessionRecordManager：会话记录本地读写与列表管理，单例
+- ImageToSpeechCoordinator：协调批量图片 OCR+TTS，输出进度与 AudioResponse/错误
+- ProcessingProgress/ProcessingStage：进度（stage: ocr/tts/completed/failed，percentage 由 currentStep/totalSteps 算）
+- PlayView：全屏播放页，入参 recordId（已保存按需加载）或 preloadedRecord（未保存内存图片），播放结束自动 onDismiss + PlayHistoryManager 记录
+- CustomZStack：主界面画布，承载底导与全屏容器层级
+- FullScreenImageContent：全屏大图组件，支持按需加载（sessionId+totalImageCount）和预加载（preloadedImages）两种模式
+- OnDemandImagePage：FullScreenImageContent 内部子组件，单帧按需加载，先查缓存再后台加载
+- PhotoProcessingView：MakeView 主内容视图，图片预览/处理状态/操作按钮，通过回调与 MakeView 通信
+- SessionRecordUnifiedView：会话保存/编辑/查看统一视图（位于 SessionRecordDetailView.swift），mode: save/edit/view
+- MultiImagePicker：多选图组件（定义于 CustomCameraView.swift），封装 PHPickerViewController。从 CustomCameraViewController 以 fullScreen 弹出，从 MakeView 以 sheet 弹出
+- AudioPlayerDelegate：AVAudioPlayerDelegate 封装类（定义于 MakeView.swift），持有播放结束回调
+- AppLoadingView/AppIntroView：位于 AppPagesView.swift；前者模拟加载后置 fullScreenKind=nil，后者用于"关于"页面
+- ExportManifest/ExportSessionInfo：导出包清单（version/exportDate/appName/totalSessions/totalSize/sessions），导入时解析 export_manifest.json
+- config_local.json：本地 API 配置（豆包 OCR/火山 TTS），SettingsManager 读取，设置页可编辑
