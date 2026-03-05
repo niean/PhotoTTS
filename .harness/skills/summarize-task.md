@@ -6,8 +6,12 @@
 
 1. 回顾本次任务的完整过程，收集以下信息
 2. 按下方"报告模板"输出任务总结报告，事项可根据实际情况增减
-3. 将总结报告以文本形式输出到消息框，供用户查阅；不落盘文件
-4. 总结报告必须作为独立的消息输出，不得与 attempt_completion 等工具调用合并在同一个响应中；先输出报告，等用户确认收到后，再调用 attempt_completion 结束任务
+3. 将完整报告内容放入 ask_followup_question 的 question 参数中输出，确保报告直接呈现在用户消息框；不落盘文件
+4. 总结报告不得与 attempt_completion 合并在同一个响应中；先通过 ask_followup_question 输出报告并等待用户确认收到，再调用 attempt_completion 结束任务
+
+### 环境约束
+
+Cline 环境下每条 AI 响应必须包含至少一个工具调用，无法发送纯文本消息。因此总结报告通过 ask_followup_question 工具的 question 参数承载完整报告内容，而非写在响应正文中（响应正文在用户消息框中可能不可见）。
 
 ## 报告模板
 

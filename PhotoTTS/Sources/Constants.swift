@@ -112,6 +112,36 @@ extension Constants {
     struct UI {
         /// 状态栏覆盖视图的 tag 标识
         static let statusBarViewTag = 999
+        /// 搜索框占位文字
+        static let searchPlaceholder = "搜索"
+        /// 搜索无结果提示
+        static let searchNoResult = "未找到匹配的记录"
+        /// 搜索栏行的 ScrollView 锚点 id
+        static let searchBarRowId = "searchBarRow"
+    }
+    
+    // MARK: - 搜索栏布局
+    struct SearchBar {
+        /// 搜索栏内部水平内边距
+        static let innerHorizontalPadding: CGFloat = 10
+        /// 搜索栏内部垂直内边距
+        static let innerVerticalPadding: CGFloat = 8
+        /// 搜索栏圆角半径
+        static let cornerRadius: CGFloat = 10
+        /// 搜索栏外部水平边距
+        static let outerHorizontalPadding: CGFloat = 16
+        /// 搜索栏顶部边距
+        static let topPadding: CGFloat = 8
+        /// 搜索栏底部边距
+        static let bottomPadding: CGFloat = 4
+        /// 搜索栏行最小高度（在 List 中作为独立行时使用）
+        static let rowMinHeight: CGFloat = 44
+    }
+    
+    // MARK: - 分页配置
+    struct Pagination {
+        /// 记录列表每页条数
+        static let pageSize = 20
     }
     
     // MARK: - 调试日志配置

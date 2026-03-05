@@ -308,6 +308,71 @@ class SessionRecordManager {
         return metadataList
     }
     
+    /// 分页查询会话记录元数据（支持搜索过滤）
+    /// - Parameters:
+    ///   - page: 页码（从 1 开始）
+    ///   - pageSize: 每页条数
+    ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
+    ///   - caller: 调用方标识，用于日志
+    /// - Returns: 当前页的元数据列表 + 匹配总数
+    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+        var metadataList: [SessionRecordMetadata] = []
+        
+        do {
+            let contents = try fileManager.contentsOfDirectory(at: sessionsDirectory, includingPropertiesForKeys: [.isDirectoryKey], options: [])
+            
+            for url in contents {
+                guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+                      resourceValues.isDirectory == true else {
+                    continue
+                }
+                
+                let metadataURL = url.appendingPathComponent("metadata.json")
+                if fileManager.fileExists(atPath: metadataURL.path) {
+                    if let data = try? Data(contentsOf: metadataURL),
+                       let metadata = try? JSONDecoder().decode(SessionRecordMetadata.self, from: data) {
+                        metadataList.append(metadata)
+                    }
+                }
+            }
+        } catch {
+            logger.error("分页读取会话记录列表失败: \(error.localizedDescription)")
+            return ([], 0)
+        }
+        
+        // 按搜索关键词过滤
+        let trimmed = searchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            metadataList = metadataList.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+        }
+        
+        // 按名字倒序排序（Z-A），其次按创建时间倒序排序（与 getAllSessionMetadata 一致）
+        metadataList.sort { lhs, rhs in
+            if lhs.name != rhs.name {
+                return lhs.name > rhs.name
+            }
+            return lhs.createdAt > rhs.createdAt
+        }
+        
+        let totalCount = metadataList.count
+        
+        // 计算分页切片
+        let safePage = max(1, page)
+        let startIndex = (safePage - 1) * pageSize
+        guard startIndex < totalCount else {
+            let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
+            logger.info("分页查询: 第\(safePage)页超出范围, 总数=\(totalCount), 搜索='\(trimmed)'\(callerTag)")
+            return ([], totalCount)
+        }
+        let endIndex = min(startIndex + pageSize, totalCount)
+        let pageItems = Array(metadataList[startIndex..<endIndex])
+        
+        let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
+        logger.info("分页查询: 第\(safePage)页, \(pageItems.count)/\(totalCount)条, 搜索='\(trimmed)'\(callerTag)")
+        
+        return (pageItems, totalCount)
+    }
+    
     /// 根据ID加载完整的会话记录
     /// - Parameter id: 会话记录ID
     /// - Returns: 会话记录，如果不存在则返回nil

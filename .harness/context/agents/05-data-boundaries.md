@@ -79,5 +79,5 @@ SettingsManager 通过 UserDefaults 存储非敏感用户配置，键名定义�
 ## 边界约定
 
 - UI 层不直接构造/解析 OCR/TTS HTTP 请求与响应体。
-- 列表只读 metadata.json；分页通过 getSessionMetadataPage(offset:limit:)；全量 getAllSessionMetadata() 仅供导出/清空。
+- 列表只读 metadata.json；分页通过 getSessionMetadataPage(page:pageSize:searchKeyword:caller:) 按需加载当前页数据（返回 items + totalCount），每页上限定义在 Constants.Pagination.pageSize；全量 getAllSessionMetadata() 仅供导出/清空/Siri等非列表场景。
 - getImages() 仅用于兼容旧数据或未保存的 preloadedRecord，新代码应用 loadImage 按需加载。

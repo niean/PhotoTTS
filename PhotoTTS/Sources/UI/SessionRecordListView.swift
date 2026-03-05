@@ -14,7 +14,11 @@ enum SessionRecordListMode {
 
 // MARK: - 会话记录列表视图
 struct SessionRecordListView: View {
-    @State private var sessionMetadataList: [SessionRecordMetadata] = []
+    // 分页数据状态
+    @State private var pagedMetadataList: [SessionRecordMetadata] = []
+    @State private var totalCount: Int = 0
+    @State private var currentPage: Int = 1
+    
     @State private var isLoading = true
     @State private var showDeleteConfirmation = false
     @State private var sessionToDelete: SessionRecordMetadata?
@@ -30,6 +34,8 @@ struct SessionRecordListView: View {
     @State private var message = ""  // 操作结果消息
     @State private var needReloadAfterMessage = false  // 提示关闭后是否需要刷新列表
     @State private var showClearConfirmation = false  // 显示清空确认弹窗
+    @State private var searchText: String = ""  // 搜索关键词
+    @State private var searchDebounceTask: DispatchWorkItem?  // 搜索防抖任务
     
     let onLoadSession: (SessionRecord) -> Void
     var onLoadToMake: ((String) -> Void)? = nil
@@ -53,17 +59,95 @@ struct SessionRecordListView: View {
         isPad ? .infinity : .infinity
     }
     
+    // 总页数
+    private var totalPages: Int {
+        let pageSize = Constants.Pagination.pageSize
+        guard totalCount > 0 else { return 1 }
+        return (totalCount + pageSize - 1) / pageSize
+    }
+    
+    // 是否显示分页控件
+    private var showPagination: Bool {
+        totalCount > Constants.Pagination.pageSize
+    }
+    
+    // 搜索栏（微信风格，外层 padding 由 listRowInsets 控制）
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: isPad ? 16 : 14))
+                .foregroundColor(.gray)
+            
+            TextField(Constants.UI.searchPlaceholder, text: $searchText)
+                .font(isPad ? .body : .subheadline)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            
+            if !searchText.isEmpty {
+                Button(action: { searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: isPad ? 16 : 14))
+                        .foregroundColor(.gray)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Constants.SearchBar.innerHorizontalPadding)
+        .padding(.vertical, Constants.SearchBar.innerVerticalPadding)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: Constants.SearchBar.cornerRadius))
+    }
+    
+    // 分页控件
+    private var paginationControl: some View {
+        HStack(spacing: isPad ? 24 : 16) {
+            Button(action: {
+                if currentPage > 1 {
+                    currentPage -= 1
+                    loadPage()
+                }
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: isPad ? 16 : 14, weight: .medium))
+                    .foregroundColor(currentPage > 1 ? .blue : .gray.opacity(0.4))
+            }
+            .disabled(currentPage <= 1)
+            .buttonStyle(.plain)
+            
+            Text("\(currentPage) / \(totalPages)")
+                .font(isPad ? .subheadline : .caption)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
+            
+            Button(action: {
+                if currentPage < totalPages {
+                    currentPage += 1
+                    loadPage()
+                }
+            }) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: isPad ? 16 : 14, weight: .medium))
+                    .foregroundColor(currentPage < totalPages ? .blue : .gray.opacity(0.4))
+            }
+            .disabled(currentPage >= totalPages)
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isPad ? 12 : 8)
+    }
+    
     var body: some View {
         CustomZStack {
             // 主内容区
             HStack {
                 VStack(spacing: 0) {
-                    Spacer()
-                    
                     if isLoading {
+                        Spacer()
                         ProgressView("加载中...")
                             .scaleEffect(isPad ? 1.2 : 1.0)
-                    } else if sessionMetadataList.isEmpty {
+                        Spacer()
+                    } else if totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Spacer()
                         VStack(spacing: isPad ? 24 : 20) {
                             Image(systemName: "book.closed")
                                 .font(.system(size: isPad ? 80 : 60))
@@ -77,30 +161,72 @@ struct SessionRecordListView: View {
                                 .font(isPad ? .subheadline : .caption)
                                 .foregroundColor(.secondary)
                         }
+                        Spacer()
                     } else {
+                        ScrollViewReader { scrollProxy in
                         List {
-                            ForEach(sessionMetadataList) { metadata in
-                                SessionRecordRow(
-                                    metadata: metadata,
-                                    isPad: isPad,
-                                    onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
-                                    onLoadToMake: (mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
-                                    onView: !metadata.isMaking ? {
-                                        viewSessionDetail(metadata.id)
-                                    } : nil,
-                                    onEdit: (allowEditDelete && !metadata.isMaking) ? { editSessionDetail(metadata.id) } : nil,
-                                    onExport: (allowEditDelete && !metadata.isMaking) ? { exportOneSession(id: metadata.id) } : nil,
-                                    onDelete: allowEditDelete ? {
-                                        sessionToDelete = metadata
-                                        showDeleteConfirmation = true
-                                    } : nil
-                                )
+                            // 搜索栏（随列表滚动，默认隐藏在可视区域上方）
+                            searchBar
+                                .frame(minHeight: Constants.SearchBar.rowMinHeight)
+                                .listRowInsets(EdgeInsets(
+                                    top: Constants.SearchBar.topPadding,
+                                    leading: Constants.SearchBar.outerHorizontalPadding,
+                                    bottom: Constants.SearchBar.bottomPadding,
+                                    trailing: Constants.SearchBar.outerHorizontalPadding
+                                ))
+                                .listRowBackground(Color(.systemBackground))
+                                .listRowSeparator(.hidden)
+                                .id(Constants.UI.searchBarRowId)
+                            
+                            if pagedMetadataList.isEmpty {
+                                // 搜索无结果
+                                VStack(spacing: isPad ? 16 : 12) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: isPad ? 48 : 36))
+                                        .foregroundColor(.gray)
+                                    Text(Constants.UI.searchNoResult)
+                                        .font(isPad ? .title3 : .subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, isPad ? 60 : 40)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color(.systemBackground))
+                                .listRowSeparator(.hidden)
+                            } else {
+                                ForEach(pagedMetadataList) { metadata in
+                                    SessionRecordRow(
+                                        metadata: metadata,
+                                        isPad: isPad,
+                                        onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
+                                        onLoadToMake: (mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
+                                        onView: !metadata.isMaking ? {
+                                            viewSessionDetail(metadata.id)
+                                        } : nil,
+                                        onEdit: (allowEditDelete && !metadata.isMaking) ? { editSessionDetail(metadata.id) } : nil,
+                                        onExport: (allowEditDelete && !metadata.isMaking) ? { exportOneSession(id: metadata.id) } : nil,
+                                        onDelete: allowEditDelete ? {
+                                            sessionToDelete = metadata
+                                            showDeleteConfirmation = true
+                                        } : nil
+                                    )
+                                }
+                                
+                                // 分页控件
+                                if showPagination {
+                                    paginationControl
+                                        .listRowInsets(EdgeInsets())
+                                        .listRowBackground(Color(.systemBackground))
+                                        .listRowSeparator(.hidden)
+                                }
                             }
                         }
                         .listStyle(.plain)
+                        .onAppear {
+                            scrollToHideSearchBar(proxy: scrollProxy)
+                        }
+                        } // ScrollViewReader
                     }
-                    
-                    Spacer()
                 }
                 .frame(maxWidth: maxContentWidth)
                 .padding(.top, showTopNav ? (isPad ? 50 : 45) : 8)
@@ -123,12 +249,12 @@ struct SessionRecordListView: View {
                             Button(action: { exportToShareSheet() }) {
                                 Label("导出", systemImage: "square.and.arrow.up")
                             }
-                            .disabled(sessionMetadataList.isEmpty)
+                            .disabled(totalCount == 0)
                             Divider()
                             Button(role: .destructive, action: { showClearConfirmation = true }) {
                                 Label("清空", systemImage: "trash")
                             }
-                            .disabled(sessionMetadataList.isEmpty)
+                            .disabled(totalCount == 0)
                         } label: {
                             Image(systemName: "plus.circle")
                                 .font(.system(size: isPad ? 24 : 22))
@@ -140,7 +266,17 @@ struct SessionRecordListView: View {
         }
         .navigationBarHidden(true) // 隐藏系统导航栏
         .onAppear {
-            loadSessionList()
+            loadPage()
+        }
+        .onChange(of: searchText) {
+            // 搜索防抖：0.3s
+            searchDebounceTask?.cancel()
+            let task = DispatchWorkItem {
+                currentPage = 1
+                loadPage()
+            }
+            searchDebounceTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: task)
         }
         .alert("删除会话记录", isPresented: $showDeleteConfirmation) {
             Button("取消", role: .cancel) {
@@ -213,7 +349,7 @@ struct SessionRecordListView: View {
             Button("确定", role: .cancel) {
                 if needReloadAfterMessage {
                     needReloadAfterMessage = false
-                    loadSessionList()
+                    loadPage()
                 }
             }
         } message: {
@@ -229,14 +365,40 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 加载会话记录列表
-    private func loadSessionList() {
+    // 自动滚动到第一条记录，隐藏搜索栏
+    private func scrollToHideSearchBar(proxy: ScrollViewProxy) {
+        // 搜索框有输入文本时，不隐藏
+        guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let firstId = pagedMetadataList.first?.id else { return }
+        DispatchQueue.main.async {
+            proxy.scrollTo(firstId, anchor: .top)
+        }
+    }
+    
+    // 按需加载当前页数据
+    private func loadPage() {
         isLoading = true
+        let page = currentPage
+        let pageSize = Constants.Pagination.pageSize
+        let keyword = searchText
+        
         DispatchQueue.global(qos: .userInitiated).async {
-            let metadataList = SessionRecordManager.shared.getAllSessionMetadata(caller: "记录列表")
+            let result = SessionRecordManager.shared.getSessionMetadataPage(
+                page: page,
+                pageSize: pageSize,
+                searchKeyword: keyword,
+                caller: "记录列表"
+            )
             DispatchQueue.main.async {
-                self.sessionMetadataList = metadataList
+                self.pagedMetadataList = result.items
+                self.totalCount = result.totalCount
                 self.isLoading = false
+                
+                // 当前页为空但还有数据时（如删除了最后一页的最后一条），回退到上一页
+                if result.items.isEmpty && result.totalCount > 0 && self.currentPage > 1 {
+                    self.currentPage -= 1
+                    self.loadPage()
+                }
             }
         }
     }
@@ -272,8 +434,7 @@ struct SessionRecordListView: View {
             let success = SessionRecordManager.shared.deleteSession(id: id)
             DispatchQueue.main.async {
                 if success {
-                    // 重新加载列表
-                    loadSessionList()
+                    loadPage()
                 }
             }
         }
@@ -352,7 +513,7 @@ struct SessionRecordListView: View {
     
     // 导出所有会话记录到临时目录，然后通过分享面板分享
     private func exportToShareSheet() {
-        guard !sessionMetadataList.isEmpty else {
+        guard totalCount > 0 else {
             message = "没有可导出的会话记录"
             showMessage = true
             return
@@ -403,7 +564,7 @@ struct SessionRecordListView: View {
             let success = SessionRecordManager.shared.updateSession(id: id, name: name, avatarImageIndex: avatarImageIndex)
             DispatchQueue.main.async {
                 if success {
-                    loadSessionList()
+                    loadPage()
                 }
                 completion()
             }
@@ -444,6 +605,7 @@ struct SessionRecordListView: View {
                 } else {
                     self.message = result.errorMessage ?? "清空失败"
                 }
+                self.currentPage = 1
                 self.needReloadAfterMessage = true
                 self.showMessage = true
             }
@@ -671,4 +833,3 @@ extension SessionRecord {
         return formatter.string(from: updatedAt)
     }
 }
-
