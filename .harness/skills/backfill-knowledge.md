@@ -7,13 +7,13 @@
 ## 步骤
 
 ### Step 1 -- 读取现状
-读取 AGENTS.md + .harness/context/agents/ 全部 + context/users/ 目录结构 + skills/ 目录 + subagents/ 目录，按需扫描源码目录。
+读取 AGENTS.md + .harness/context/agents/ 全部 + context/users/ 目录结构 + skills/ 目录 + subskills/ 目录，按需扫描源码目录。
 
 ### Step 2 -- 更新 agents/ 知识库
 对比实际代码与文档，修正过时描述，简化压缩内容。
 
 ### Step 3 -- 提取 AGENTS.md 候选变更
-识别：仓库结构不一致、Skills/Subagents 表过时、知识库索引不一致、摘要与 03-conventions.md 不同步等。列出候选清单（位置、当前描述、建议描述、原因）。
+识别：仓库结构不一致、Skills/Subskills 表过时、知识库索引不一致、摘要与 03-conventions.md 不同步等。列出候选清单（位置、当前描述、建议描述、原因）。
 
 ### Step 4 -- 等待人工确认
 通过 ask_followup_question 展示候选清单（必须写在 question 参数内）。

@@ -6,7 +6,7 @@
 ---
 
 ## 蒸馏模板
-- 提示词：执行 `提取-Harness模板`
+- 提示词：执行 `提取Harness模板`
 
 ## 治理
 - 全部
@@ -25,7 +25,7 @@
 
 ## 架构-Skills（人工触发）
 - 生成
-    - 生成Skill：使用Skill `治理技能`，让AI自动提取新的Skill或Subagent
+    - 生成Skill：使用Skill `治理技能`，让AI自动提取新的Skill或Subskill
     - 生成Skill：任务名`任务总结`、文件名`task-summary.md`，AI自动触发，总结事项包括但不限于 任务意图、关键步骤、结果验收、合规审计、 资源消耗(如耗时、Token消耗)；要求满足Harness风格
     - 生成Skill：任务名`回填-产品文档更新`、文件名`backfill-prd.md`，人工触发，合并原`回填-产品SENSE更新`和`回填-产品基线更新`
 - 修改
@@ -37,6 +37,6 @@
     - 合并Skill：`回填-知识库更新` + `回填-AGENTS更新` → `回填知识库`(backfill-knowledge.md)
     - 合并Skill：`回填-产品基线更新` + `回填-产品SENSE更新` → `回填产品文档`(backfill-prd.md)
 
-## 架构-Subagents（人工触发）
+## 架构-Subskills（人工触发）
 - 生成
-    - 生成Subagent：使用Skill `治理技能`，让AI自动提取新的Subagent
+    - 生成Subskill：使用Skill `治理技能`，让AI自动提取新的Subskill

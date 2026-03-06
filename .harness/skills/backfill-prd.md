@@ -7,7 +7,7 @@
 ## 步骤
 
 ### Step 1 -- 读取现状
-读取 01-prd-sense.md、01-prd-baseline.md、01-prd-specs.md（重点最近几个版本）。
+读取 01-prd-sense.md、02-prd-baseline.md、03-prd-specs.md（重点最近几个版本）。
 
 ### Step 2 -- 提取候选变更
 对比 specs 近期内容与现有文档，识别两类变更：

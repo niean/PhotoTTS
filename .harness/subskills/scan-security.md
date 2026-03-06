@@ -1,4 +1,4 @@
-# Subagent: 扫描安全规范
+# Subskill: 扫描安全规范
 
 ## 任务
 

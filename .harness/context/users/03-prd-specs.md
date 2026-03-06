@@ -48,21 +48,19 @@
 
 [260306]
 - 优化
-    - Harness：单Agent切到多Agent模式后，Harness文档中的规范、还有哪些需要修改？请全面检查
-    - Harness：Harness文档，正确的引用结构应该是怎样的？比如AGENTS.md是顶层
+    - 单Agent切到多Agent模式后，Harness文档中的规范、还有哪些需要修改？请全面检查
+    - Harness文档，正确的引用结构应该是怎样的？比如AGENTS.md是顶层
         - 追加：根据上述梳理，制定文档引用规则、枚举特例，记录到合适的文档，比如 `治理技能`新增 `引用关系治理`
-    - Harness：Subagent，改名为Subskill(本质是Task)
-    - Harness：文档压缩，维持 AI 可理解性和信息量不丢失的前提下，提炼、简化、压缩文档内容，消除冗余文字，节省上下文
+    - 文档压缩：维持 AI 可理解性和信息量不丢失的前提下，提炼、简化、压缩文档内容，消除冗余文字，节省上下文
         - 反馈补偿：本次压缩过程，舍弃的特殊标注事项，打印在消息框、等人工确认是否找回
-    - 制作：CustomCameraViewController，干掉选图功能、清理相关代码，相机页的选图按钮、改为最新1张图片的预览。不要擅自修改其它样式或行为
-        - 追加：原选图按钮，从最新1张图片的预览、改为前后相机切换(按钮和标准相机保持一致)
-- 新增
-    - 制作：OCR，OCR模型除默认选择的豆包之外，还要支持OpenAI Compatible类型，支持通过配置文件、切换OCR模型。我已经给出了配置文件样例 Resources/config_local.json
+    - Subagent，貌似更像是Subskill？
 
 
 [待办]
 - 优化
+    - 归一：MultiImagePicker"从 CustomCameraViewController 以 fullScreen 弹出，从 MakeView 以 sheet 弹出"，丢失两种弹出方式
 - 新增
-    - 制作：TTS，配置文件支持选择豆包之外的TTS服务。豆包Authorization不是标准Bearer
+    - 制作：TTS，配置文件支持选择豆包之外的TTS服务
+    - 制作：OCR，配置文件支持选择豆包之外的OCR模型
     - 整体：上架到AppStore
     - 播放：图片生视频，使绘本故事更具视觉连续性

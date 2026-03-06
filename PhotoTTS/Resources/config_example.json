@@ -1,8 +1,13 @@
 {
   "ocr": {
-    "base_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-    "model_name": "doubao-seed-2-0-lite-260215",
-    "api_key": "your_api_key"
+    "model": "doubao",
+    "doubao": {
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      "model_name": "doubao-seed-2-0-lite-260215",
+      "api_key": "your_api_key"
+    },
+    "openai": {
+    }
   },
   "tts": {
     "base_url": "https://openspeech.bytedance.com/api/v1/tts",

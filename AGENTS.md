@@ -35,18 +35,18 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（仅适用于按迭代功能完整流程执行的任务）。
 
-## Subagents（并行扫描任务）
+## Subskills（并行扫描任务）
 
-通过 `use_subagents` 启动，各自独立上下文窗口，由 Reviewer 或 Skill 按需调用。详细定义见 `.harness/subagents/` 目录。
+通过 `use_subagents` 启动，各自独立上下文窗口，由 Reviewer 或 Skill 按需调用。详细定义见 `.harness/subskills/` 目录。
 
-| Subagent | 文件 | 调用方 |
+| Subskill | 文件 | 调用方 |
 |----------|------|--------|
-| 扫描架构边界 | .harness/subagents/scan-architecture.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描编码约定 | .harness/subagents/scan-conventions.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描安全规范 | .harness/subagents/scan-security.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描图片处理 | .harness/subagents/scan-image-handling.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描日志规范 | .harness/subagents/scan-logging.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描废弃代码 | .harness/subagents/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 2（可选） |
+| 扫描架构边界 | .harness/subskills/scan-architecture.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描编码约定 | .harness/subskills/scan-conventions.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描安全规范 | .harness/subskills/scan-security.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描图片处理 | .harness/subskills/scan-image-handling.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描日志规范 | .harness/subskills/scan-logging.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描废弃代码 | .harness/subskills/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 2（可选） |
 
 ## 流程合规
 
@@ -91,13 +91,13 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 层级 | 目录 | 职责 |
 |------|------|------|
 | Layer 0 | AGENTS.md | 顶层入口，注册并索引所有 .harness/ 文件 |
-| Layer 1 | .harness/agents/ | Agent 角色定义，读取 AGENTS.md 和 context/ |
-| Layer 2 | .harness/skills/ | Skill 执行计划，引用 agents/ 和 subagents/ |
-| Layer 3 | .harness/subagents/ | 扫描模板，被 agents/ 和 skills/ 调用 |
-| 数据层 | .harness/context/ | 知识库和产品文档，被上层按需读取 |
+| Layer 1 | .harness/agents/ | Agent 角色定义 -- "谁来做" |
+| Layer 2 | .harness/skills/ | Skill 流程定义 -- "怎么做" |
+| Layer 3 | .harness/subskills/ | Subskill 任务模板 -- "做什么" |
+| 数据层 | .harness/context/ + .harness/docs/ | 知识库、产品文档、方法论，被上层按需读取 |
 
 引用方向规则：
-- 向下引用：上层引用下层的具体定义（如 Skills 引用 Agents，Agents 调度 Subagents）
+- 向下引用：上层引用下层的具体定义（如 Skills 引用 Agents，Agents 调度 Subskills）
 - 同层编排：同层文件可通过编排引用（如 governance-all.md 编排其他 Skills）
 - 反向指回（限定）：下层仅允许"指回入口"式引用，不反向引用上层的具体定义
 
@@ -132,11 +132,11 @@ AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
   agents/              -- Agent 角色模板（Orchestrator、Analyst、Coder、Reviewer）
   skills/              -- Skill 定义（迭代功能、构建验证等）
-  subagents/           -- Subagent 扫描模板
+  subskills/           -- Subskill 扫描模板
   docs/                -- 方法论与参考文档（人工维护）
   context/
     agents/            -- AI 知识库（01-overview ~ 07-key-patterns）
-    users/             -- 产品文档（AI只读：prd-sense、prd-baseline、prd-specs）
+    users/             -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
 PhotoTTS/
   Sources/
     UI/                -- SwiftUI 视图
@@ -217,6 +217,6 @@ Skill: 迭代功能 Phase 6 的回填目标：
 | .harness/context/agents/05-data-boundaries.md | 涉及数据结构、存储格式时 |
 | .harness/context/agents/06-file-map.md | 确定功能对应源文件时 |
 | .harness/context/agents/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
-| .harness/context/users/01-prd-baseline.md | 确认功能需求与产品约束时 |
-| .harness/context/users/01-prd-specs.md | 了解原始需求规格或历史逻辑时 |
+| .harness/context/users/02-prd-baseline.md | 确认功能需求与产品约束时 |
+| .harness/context/users/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
 | .harness/docs/02-harness-dev.md | 了解 Harness 开发流程时 |

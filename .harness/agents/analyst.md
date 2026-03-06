@@ -13,7 +13,7 @@
 
 1. AGENTS.md
 2. .harness/context/users/01-prd-sense.md
-3. .harness/context/users/01-prd-baseline.md
+3. .harness/context/users/02-prd-baseline.md
 4. .harness/context/agents/01-overview.md
 5. .harness/context/agents/02-architecture.md
 
@@ -26,7 +26,7 @@
 | 07-key-patterns.md | 涉及跨模块交互 |
 | 03-conventions.md | 涉及编码/UI 约定细节 |
 | 04-glossary.md | 术语不清楚时 |
-| 01-prd-specs.md | 了解历史需求规格 |
+| 03-prd-specs.md | 了解历史需求规格 |
 
 ## 输出格式
 

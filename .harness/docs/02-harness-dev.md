@@ -12,9 +12,9 @@
 ```
 
 ## 人机协作开发
-1. 定义需求。更新到 `01-prd-specs.md`
+1. 定义需求。更新到 `03-prd-specs.md`
 2. 提交需求、给AI
-    - 推荐方式：引用`01-prd-specs.md`需求字段、到Chat消息框
+    - 推荐方式：引用`03-prd-specs.md`需求字段、到Chat消息框
 3. 确认需求。人工确认AI识别的需求，如需调整、转回步骤1
 4. 实现需求。AI按照Harness规范，大部分自主执行、少量人工确认(如删除文件)。产出物如下
     - 代码（已验收通过）
@@ -22,11 +22,11 @@
 5. 验收需求。查看任务报告，按需擦屁股(如补充功能测试)
 6. [可选]回填知识。经过多轮迭代后，可以考虑 更新产品知识库、Harness知识库，指令和更新对象如下
     - 执行 `回填知识库`，更新对象 `.harness/context/agents/ 文档库` + `AGENTS.md`
-    - 执行 `回填产品文档`，更新对象 `.harness/context/users/01-prd-baseline.md` + `01-prd-sense.md`
+    - 执行 `回填产品文档`，更新对象 `.harness/context/users/02-prd-baseline.md` + `01-prd-sense.md`
 
 
 ## 全自动开发（尚未就绪）
-1. 定义需求。更新到 `01-prd-specs.md`
+1. 定义需求。更新到 `03-prd-specs.md`
 2. 提交需求、给AI
 3. ...
 

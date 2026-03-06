@@ -1,4 +1,4 @@
-# Subagent: 扫描架构边界
+# Subskill: 扫描架构边界
 
 ## 任务
 

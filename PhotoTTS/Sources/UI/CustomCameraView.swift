@@ -8,7 +8,6 @@ import PhotosUI
 protocol CustomCameraViewControllerDelegate: AnyObject {
     func didCaptureImage(_ image: UIImage)
     func didCancel()
-    func didSelectImagesFromAlbum(_ images: [UIImage])
     func updatePhotoCount(_ count: Int)
     func setPhotoCount(_ count: Int)
 }
@@ -26,7 +25,6 @@ struct CustomCameraView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> CustomCameraViewController {
         let cameraVC = CustomCameraViewController()
         cameraVC.delegate = context.coordinator
-        cameraVC.selectedImages = selectedImages
         cameraVC.setPhotoCount(selectedImages.count)
         return cameraVC
     }
@@ -65,22 +63,6 @@ struct CustomCameraView: UIViewControllerRepresentable {
             parent.presentationMode.wrappedValue.dismiss()
         }
         
-        func didSelectImagesFromAlbum(_ images: [UIImage]) {
-            // 满足 saveImageMaxPixel 限制后加入
-            let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
-            let capped = images.map { SessionRecordManager.downsampleImageToMaxPixel($0, maxPixelLength: maxP) ?? $0 }
-            parent.selectedImages.append(contentsOf: capped)
-            parent.onImagesSelected?(capped)
-            // parent.presentationMode.wrappedValue.dismiss()
-            
-            // 更新相机界面的状态显示
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                let newCount = self.parent.selectedImages.count
-                self.parent.onPhotoCountUpdate?(newCount)
-            }
-        }
-        
         func updatePhotoCount(_ count: Int) {
             // 这个方法在CustomCameraViewController中实现
             // 这里不需要实现，因为delegate会直接调用CustomCameraViewController的方法
@@ -97,8 +79,6 @@ struct CustomCameraView: UIViewControllerRepresentable {
 class CustomCameraViewController: UIViewController {
     weak var delegate: CustomCameraViewControllerDelegate?
     
-    // 批量模式相关属性
-    var selectedImages: [UIImage] = []
     private var currentPhotoCount: Int = 0
     
     private var captureSession: AVCaptureSession?
@@ -108,7 +88,7 @@ class CustomCameraViewController: UIViewController {
     
     private let captureButton = UIButton()
     private let cancelButton = UIButton()
-    private let galleryButton = UIButton()
+    private let flipCameraButton = UIButton()
     private let statusLabel = UILabel()
     
     // 遮罩层视图
@@ -378,31 +358,31 @@ class CustomCameraViewController: UIViewController {
         cancelButton.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
         view.addSubview(cancelButton)
         
-        // 相册按钮
-        galleryButton.setTitle("", for: .normal)
-        galleryButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        galleryButton.layer.cornerRadius = 25
-        galleryButton.layer.borderWidth = 2
-        galleryButton.layer.borderColor = UIColor.white.cgColor
-        galleryButton.layer.shadowColor = UIColor.black.cgColor
-        galleryButton.layer.shadowOffset = CGSize(width: 0, height: 2)
-        galleryButton.layer.shadowOpacity = 0.3
-        galleryButton.layer.shadowRadius = 4
-        galleryButton.addTarget(self, action: #selector(galleryButtonTapped), for: .touchUpInside)
-        view.addSubview(galleryButton)
+        // 前后相机切换按钮
+        flipCameraButton.setTitle("", for: .normal)
+        flipCameraButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        flipCameraButton.layer.cornerRadius = 25
+        flipCameraButton.layer.borderWidth = 2
+        flipCameraButton.layer.borderColor = UIColor.white.cgColor
+        flipCameraButton.layer.shadowColor = UIColor.black.cgColor
+        flipCameraButton.layer.shadowOffset = CGSize(width: 0, height: 2)
+        flipCameraButton.layer.shadowOpacity = 0.3
+        flipCameraButton.layer.shadowRadius = 4
+        flipCameraButton.addTarget(self, action: #selector(flipCameraButtonTapped), for: .touchUpInside)
+        view.addSubview(flipCameraButton)
         
-        // 添加相册图标
-        let galleryIcon = UIImageView()
-        galleryIcon.image = UIImage(systemName: "photo.on.rectangle")
-        galleryIcon.tintColor = .white
-        galleryIcon.translatesAutoresizingMaskIntoConstraints = false
-        galleryButton.addSubview(galleryIcon)
+        // 相机切换图标（与标准相机一致）
+        let flipIcon = UIImageView()
+        flipIcon.image = UIImage(systemName: "arrow.triangle.2.circlepath.camera", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium))
+        flipIcon.tintColor = .white
+        flipIcon.translatesAutoresizingMaskIntoConstraints = false
+        flipCameraButton.addSubview(flipIcon)
         
         NSLayoutConstraint.activate([
-            galleryIcon.centerXAnchor.constraint(equalTo: galleryButton.centerXAnchor),
-            galleryIcon.centerYAnchor.constraint(equalTo: galleryButton.centerYAnchor),
-            galleryIcon.widthAnchor.constraint(equalToConstant: 20),
-            galleryIcon.heightAnchor.constraint(equalToConstant: 20)
+            flipIcon.centerXAnchor.constraint(equalTo: flipCameraButton.centerXAnchor),
+            flipIcon.centerYAnchor.constraint(equalTo: flipCameraButton.centerYAnchor),
+            flipIcon.widthAnchor.constraint(equalToConstant: 24),
+            flipIcon.heightAnchor.constraint(equalToConstant: 20)
         ])
         
         
@@ -444,7 +424,7 @@ class CustomCameraViewController: UIViewController {
     private func setupConstraints() {
         captureButton.translatesAutoresizingMaskIntoConstraints = false
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
-        galleryButton.translatesAutoresizingMaskIntoConstraints = false
+        flipCameraButton.translatesAutoresizingMaskIntoConstraints = false
         
         NSLayoutConstraint.activate([
             // 拍照按钮 - 底部中心
@@ -459,11 +439,11 @@ class CustomCameraViewController: UIViewController {
             cancelButton.widthAnchor.constraint(equalToConstant: 50),
             cancelButton.heightAnchor.constraint(equalToConstant: 50),
             
-            // 相册按钮 - 底部右侧
-            galleryButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
-            galleryButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor),
-            galleryButton.widthAnchor.constraint(equalToConstant: 50),
-            galleryButton.heightAnchor.constraint(equalToConstant: 50)
+            // 前后相机切换按钮 - 底部右侧
+            flipCameraButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
+            flipCameraButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor),
+            flipCameraButton.widthAnchor.constraint(equalToConstant: 50),
+            flipCameraButton.heightAnchor.constraint(equalToConstant: 50)
         ])
     }
     
@@ -527,18 +507,36 @@ class CustomCameraViewController: UIViewController {
         delegate?.didCancel()
     }
     
-    @objc private func galleryButtonTapped() {
-        // 打开多选图片选择器
-        var multiImagePicker = MultiImagePicker(selectedImages: .constant(selectedImages))
-        multiImagePicker.onCompletion = { [weak self] images in
-            DispatchQueue.main.async {
-                self?.delegate?.didSelectImagesFromAlbum(images)
-            }
+    @objc private func flipCameraButtonTapped() {
+        guard let captureSession = captureSession else { return }
+        guard let currentInput = captureSession.inputs.first as? AVCaptureDeviceInput else { return }
+        
+        let currentPosition = currentInput.device.position
+        let newPosition: AVCaptureDevice.Position = (currentPosition == .back) ? .front : .back
+        
+        guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition) else {
+            os.Logger.camera.error("无法获取\(newPosition == .front ? "前置" : "后置")相机")
+            return
         }
         
-        let hostingController = UIHostingController(rootView: multiImagePicker)
-        hostingController.modalPresentationStyle = .fullScreen
-        present(hostingController, animated: true)
+        do {
+            let newInput = try AVCaptureDeviceInput(device: newDevice)
+            
+            captureSession.beginConfiguration()
+            captureSession.removeInput(currentInput)
+            if captureSession.canAddInput(newInput) {
+                captureSession.addInput(newInput)
+            } else {
+                // 回退到原来的输入
+                captureSession.addInput(currentInput)
+                os.Logger.camera.error("无法切换相机")
+            }
+            captureSession.commitConfiguration()
+            
+            os.Logger.camera.debug("相机已切换到\(newPosition == .front ? "前置" : "后置")")
+        } catch {
+            os.Logger.camera.error("切换相机失败: \(error.localizedDescription)")
+        }
     }
     
     
@@ -589,9 +587,9 @@ class CustomCameraViewController: UIViewController {
             cancelButton.isEnabled = true
         }
         
-        if galleryButton.isHidden || !galleryButton.isEnabled {
-            galleryButton.isHidden = false
-            galleryButton.isEnabled = true
+        if flipCameraButton.isHidden || !flipCameraButton.isEnabled {
+            flipCameraButton.isHidden = false
+            flipCameraButton.isEnabled = true
         }
         
         os.Logger.camera.debug("按钮状态更新后 - 拍照按钮状态: isEnabled=\(self.captureButton.isEnabled), isHidden=\(self.captureButton.isHidden)")
@@ -601,7 +599,7 @@ class CustomCameraViewController: UIViewController {
         CATransaction.setDisableActions(true)
         view.bringSubviewToFront(captureButton)
         view.bringSubviewToFront(cancelButton)
-        view.bringSubviewToFront(galleryButton)
+        view.bringSubviewToFront(flipCameraButton)
         view.bringSubviewToFront(statusLabel)
         CATransaction.commit()
         
@@ -667,19 +665,6 @@ extension CustomCameraViewController: AVCapturePhotoCaptureDelegate {
     }
 }
 
-// MARK: - UIImagePickerControllerDelegate
-extension CustomCameraViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        if let image = info[.originalImage] as? UIImage {
-            delegate?.didCaptureImage(image)
-        }
-        picker.dismiss(animated: true)
-    }
-    
-    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        picker.dismiss(animated: true)
-    }
-}
 
 // 图片选择器
 struct ImagePicker: UIViewControllerRepresentable {

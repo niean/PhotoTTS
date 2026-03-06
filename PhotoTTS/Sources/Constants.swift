@@ -161,6 +161,7 @@ extension Constants {
     // MARK: - 钥匙串键值
     struct KeychainKeys {
         static let doubaoAPIKey = "doubao_api_key"
+        static let openaiOCRAPIKey = "openai_ocr_api_key"
         static let ttsAccessKey = "tts_access_key"
     }
     

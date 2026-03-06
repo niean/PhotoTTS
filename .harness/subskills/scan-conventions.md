@@ -1,4 +1,4 @@
-# Subagent: 扫描编码约定
+# Subskill: 扫描编码约定
 
 ## 任务
 

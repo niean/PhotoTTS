@@ -12,7 +12,7 @@
 
 ## Phase 2: 扫描
 - Agent: Reviewer（subagent 并行）
-- 通过 `use_subagents` 启动扫描，读取 `.harness/subagents/` 对应模板作为 prompt
+- 通过 `use_subagents` 启动扫描，读取 `.harness/subskills/` 对应模板作为 prompt
 - 第一批：reviewer.md Step 2 定义的 5 个维度；第二批：scan-dead-code.md
 
 检查点：`[Phase 2 扫描] N个维度完成, 共M项违规 (安全X, 架构Y, ...)`

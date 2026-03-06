@@ -1,4 +1,4 @@
-# Subagent: 扫描日志规范
+# Subskill: 扫描日志规范
 
 ## 任务
 

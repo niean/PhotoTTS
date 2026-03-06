@@ -24,11 +24,11 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 
 | # | 模板 | 维度 |
 |---|------|------|
-| 1 | .harness/subagents/scan-architecture.md | 架构边界 |
-| 2 | .harness/subagents/scan-conventions.md | 编码约定 |
-| 3 | .harness/subagents/scan-security.md | 安全规范 |
-| 4 | .harness/subagents/scan-image-handling.md | 图片处理 |
-| 5 | .harness/subagents/scan-logging.md | 日志规范 |
+| 1 | .harness/subskills/scan-architecture.md | 架构边界 |
+| 2 | .harness/subskills/scan-conventions.md | 编码约定 |
+| 3 | .harness/subskills/scan-security.md | 安全规范 |
+| 4 | .harness/subskills/scan-image-handling.md | 图片处理 |
+| 5 | .harness/subskills/scan-logging.md | 日志规范 |
 
 可选：scan-dead-code.md（涉及文件删除时）。超 5 个分批执行。
 

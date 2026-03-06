@@ -1,4 +1,4 @@
-# Subagent: 扫描废弃代码
+# Subskill: 扫描废弃代码
 
 ## 任务
 
