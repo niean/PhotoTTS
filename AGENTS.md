@@ -1,6 +1,6 @@
 # AGENTS.md -- PhotoTTS
 
-PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经豆包 OCR 识别文字，再由火山引擎 TTS 合成语音播放，面向 3~10 岁儿童绘本听读。
+PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识别文字，再由 TTS 合成语音播放，面向 3~10 岁儿童绘本听读。
 
 ---
 
@@ -23,7 +23,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 | Skill | 触发 | 文件 |
 |-------|------|------|
-| 迭代功能 | 人工下发功能需求 | .harness/skills/iterate-feature.md |
+| 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
 | 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
 | 回填产品文档 | 人工指令 | .harness/skills/backfill-prd.md |
 | 治理代码 | 人工指令 | .harness/skills/governance-code.md |
@@ -50,9 +50,14 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 流程合规
 
-### 功能需求必须触发 Skill: 迭代功能
+### 引用外部步骤的执行约束（不可压缩）
 
-- 用户下发功能需求时，必须按完整 Phase 1-6 流程执行，禁止跳过或简化
+- 当文档引用其它能力的 Step 而未展开描述时，在引用处必须附加约束：`每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报`
+- 本规则永久存在，不允许被压缩、精简或在文档治理中删除
+
+### 功能需求或修改代码必须触发 Skill: 迭代功能
+
+- 用户下发功能需求或修改代码时，必须按完整 Phase 1-7 流程执行，禁止跳过或简化
 - Phase 2 必须通过 Analyst subagent 执行，Phase 5 必须包含构建验证和代码扫描
 
 ### 用户确认是硬性门禁
@@ -62,7 +67,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ### Agent 架构声明与角色标注
 
-- 任务开始时声明架构：多 Agent 架构或单 Agent 架构（格式如 `本次任务采用单 Agent 架构，由主 Agent 直接执行`）
+- 任务开始时声明任务类型和架构（新 Task 或同一 Task 内的第 2+ 次反馈均需声明），格式如 `本次任务类型：功能需求，采用多 Agent 架构` 或 `本次任务类型：修改代码，采用多 Agent 架构`；非迭代功能类任务标注实际类型即可
 - 每个 Phase/Step 输出标注执行 Agent：`[Agent: 角色名]` 或 `[Agent: 角色名 (subagent)]`
 - 角色名使用英文，非功能迭代任务同样适用
 

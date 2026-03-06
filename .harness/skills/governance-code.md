@@ -12,8 +12,10 @@
 
 ## Phase 2: 扫描
 - Agent: Reviewer（subagent 并行）
-- 通过 `use_subagents` 启动扫描，读取 `.harness/subskills/` 对应模板作为 prompt
-- 第一批：reviewer.md Step 2 定义的 5 个维度；第二批：scan-dead-code.md
+- 通过 `use_subagents` 启动扫描，读取 `.harness/subskills/` 对应模板作为 prompt。无 subagent 能力时主 Agent 顺序执行
+- 第一批 5 个维度：架构边界（scan-architecture.md）、编码约定（scan-conventions.md）、安全规范（scan-security.md）、图片处理（scan-image-handling.md）、日志规范（scan-logging.md）
+- 第二批：废弃代码（scan-dead-code.md）
+- 每个维度必须有独立扫描结论，禁止跳过或虚报
 
 检查点：`[Phase 2 扫描] N个维度完成, 共M项违规 (安全X, 架构Y, ...)`
 
@@ -39,8 +41,9 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 零警告。失败回 Phase 4。
 
 ### Step 5b: 回归扫描（可选，修复涉及面广时）
+对修复涉及的文件重新执行 Phase 2 中相关维度的扫描，确认无新增违规或残留问题。无 subagent 时主 Agent 顺序执行。
 
-检查点：`[Phase 5 验证] 构建: 通过/失败, 回归扫描: 通过/N项残留`
+检查点：`[Phase 5 验证] 构建: 通过/失败, 回归扫描: 通过/跳过/N项残留`
 
 ## Phase 6: 收尾
 - Agent: Orchestrator

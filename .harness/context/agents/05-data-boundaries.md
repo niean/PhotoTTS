@@ -41,10 +41,16 @@ MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionReco
 ```json
 {
   "sys": { "ocr_concurrent_count": 8, "tts_text_max_length": 10240 },
-  "ocr": { "base_url": "", "api_key": "", "model_name": "", "prompt_user": "" },
+  "ocr": {
+    "model": "doubao",
+    "doubao": { "base_url": "", "api_key": "", "model_name": "", "prompt_user": "", "timeout": 120, "max_retry_count": 3, "retry_delay": 1.0 },
+    "openai": { "base_url": "", "api_key": "", "model_name": "", "prompt_user": "", "timeout": 120, "max_retry_count": 3, "retry_delay": 1.0 }
+  },
   "tts": { "base_url": "", "appid": "", "access_key": "", "cluster": "", "uid": "", "voice_type": "", "encoding": "mp3", "speed_ratio": 1.0 }
 }
 ```
+
+ocr.model 选择活跃提供商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveOCRModel() 读取活跃模型，loadActiveOCRModelConfig() 返回对应子配置。API Key 按模型存储不同 Keychain key（doubao_api_key/openai_ocr_api_key），通过 getOCRAPIKeyForModel(_:) 获取。
 
 SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle。
 

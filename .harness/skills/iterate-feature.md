@@ -1,6 +1,6 @@
 # Skill: 迭代功能
 
-触发：人工下发功能需求（新 Task 或同一 Task 内的第 2+ 次反馈）。
+触发：人工下发功能需求或修改代码（新 Task 或同一 Task 内的第 2+ 次反馈）。
 
 本 Skill 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（不超过 10 行）交接上下文。
 
@@ -35,14 +35,27 @@
 ## Phase 5: 结果验收
 - Agent: Reviewer，按 `.harness/agents/reviewer.md` Step 1-4 执行
 - 扫描范围：仅本次变更文件
+- 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报
 - 构建失败、扫描违规或验收不通过时回到 Phase 4
 
-检查点：`[Phase 5 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 测试: 通过/跳过`
+必须执行的步骤：
+1. Step 1 构建验证：执行 xcodebuild build，要求零警告
+2. Step 2 代码扫描：对变更文件执行 5 个维度扫描（架构/编码/安全/图片/日志），逐维度输出结论
+3. Step 3 验收标准检查：对照 spec 验收标准逐项验证，输出每项通过/不通过
+4. Step 4 测试验证：有相关测试时执行，无则标注"跳过"及原因
+
+检查点：`[Phase 5 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 验收标准: K项通过, 测试: 通过/跳过`
 
 ## Phase 6: 任务收尾
 - Agent: Orchestrator
 - 按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
 - `rm -f` 删除临时 spec
+
+## Phase 7: 总结任务
+- Agent: Orchestrator
+- 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
+- 执行顺序：输出总结报告（独立消息）-> 用户确认收到 -> attempt_completion
+- 总结报告与 attempt_completion 不得合并
 
 ---
 

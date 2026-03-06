@@ -18,9 +18,11 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 ```
 要求零警告。失败则验收不通过。
 
-### Step 2: 代码扫描（subagent 并行）
+### Step 2: 代码扫描
 
-通过 use_subagents 并行启动，每个 subagent 读取对应模板、填充变更文件列表：
+优先通过 use_subagents 并行启动。无 subagent 能力时，主 Agent 顺序执行每个扫描模板（读取模板 -> 对变更文件逐一扫描 -> 输出结论）。每个维度必须有独立扫描结论，禁止跳过或虚报。
+
+扫描模板列表：
 
 | # | 模板 | 维度 |
 |---|------|------|
