@@ -32,8 +32,8 @@
 ## OCR 与 TTS
 
 - ImageToSpeechCoordinator：Core/Coordinators/ImageToSpeechCoordinator.swift
-- OCRService：Core/Handlers/Image/OCRService.swift
-- TTSService：Core/Handlers/Audio/TTSService.swift
+- OCRService/OCRServiceFactory（多 Provider：doubao/openai）：Core/Handlers/Image/OCRService.swift
+- TTSServiceProtocol/TTSService（火山）/AliqwenTTSService（阿里千问）/TTSServiceFactory（多 Provider：huoshan/aliqwen）：Core/Handlers/Audio/TTSService.swift
 - NetworkService：Core/Managers/Network/NetworkService.swift
 
 ## Siri

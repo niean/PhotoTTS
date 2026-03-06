@@ -404,32 +404,32 @@ class SettingsManager {
         return ocrConfig
     }
     
-    /// 读取当前活跃的OCR模型名称
-    /// - Returns: 模型名称（"doubao"或"openai"），默认"doubao"
-    func getActiveOCRModel() -> String {
+    /// 读取当前活跃的OCR供应商名称
+    /// - Returns: 供应商名称（"doubao"或"openai"），默认"doubao"
+    func getActiveOCRProvider() -> String {
         let ocrConfig = loadOCRConfig()
-        let model = ocrConfig["model"] as? String ?? "doubao"
+        let provider = ocrConfig["provider"] as? String ?? "doubao"
         let supported = ["doubao", "openai"]
-        if supported.contains(model) {
-            return model
+        if supported.contains(provider) {
+            return provider
         }
-        os.Logger.settingsManager.warning("不支持的OCR模型: \(model)，回退到doubao")
+        os.Logger.settingsManager.warning("不支持的OCR供应商: \(provider)，回退到doubao")
         return "doubao"
     }
     
-    /// 读取活跃OCR模型的子配置
-    /// - Returns: 活跃模型的配置字典（base_url/model_name/api_key等），如果读取失败返回空字典
-    func loadActiveOCRModelConfig() -> [String: Any] {
+    /// 读取活跃OCR供应商的子配置
+    /// - Returns: 活跃供应商的配置字典（base_url/model_name/api_key等），如果读取失败返回空字典
+    func loadActiveOCRProviderConfig() -> [String: Any] {
         let ocrConfig = loadOCRConfig()
-        let activeModel = getActiveOCRModel()
-        guard let modelConfig = ocrConfig[activeModel] as? [String: Any] else {
-            os.Logger.settingsManager.error("读取OCR模型[\(activeModel)]子配置失败，使用空配置")
+        let activeProvider = getActiveOCRProvider()
+        guard let providerConfig = ocrConfig[activeProvider] as? [String: Any] else {
+            os.Logger.settingsManager.error("读取OCR供应商[\(activeProvider)]子配置失败，使用空配置")
             return [:]
         }
-        return modelConfig
+        return providerConfig
     }
     
-    /// 获取指定OCR模型的Keychain key
+    /// 获取指定OCR供应商的Keychain key
     /// - Parameter model: 模型名称
     /// - Returns: 对应的Keychain key
     private func keychainKeyForOCRModel(_ model: String) -> String {
@@ -441,8 +441,8 @@ class SettingsManager {
         }
     }
     
-    /// 读取指定OCR模型的API密钥（优先Keychain，回退config，首次回退写入Keychain）
-    /// - Parameter model: 模型名称
+    /// 读取指定OCR供应商的API密钥（优先Keychain，回退config，首次回退写入Keychain）
+    /// - Parameter model: 供应商名称
     /// - Returns: API密钥，如果读取失败返回空字符串
     func getOCRAPIKeyForModel(_ model: String) -> String {
         let keychainKey = keychainKeyForOCRModel(model)
@@ -464,7 +464,7 @@ class SettingsManager {
         return configKey
     }
     
-    /// 读取TTS配置部分
+    /// 读取TTS配置部分（完整tts节点）
     /// - Returns: TTS配置字典，如果读取失败返回空字典
     func loadTTSConfig() -> [String: Any] {
         guard let config = loadConfig(),
@@ -473,6 +473,79 @@ class SettingsManager {
             return [:]
         }
         return ttsConfig
+    }
+    
+    /// 读取当前活跃的TTS供应商名称
+    /// - Returns: 供应商名称（"huoshan"或"aliqwen"），默认"huoshan"
+    func getActiveTTSProvider() -> String {
+        let ttsConfig = loadTTSConfig()
+        let provider = ttsConfig["provider"] as? String ?? "huoshan"
+        let supported = ["huoshan", "aliqwen"]
+        if supported.contains(provider) {
+            return provider
+        }
+        os.Logger.settingsManager.warning("不支持的TTS供应商: \(provider)，回退到huoshan")
+        return "huoshan"
+    }
+    
+    /// 读取活跃TTS供应商的子配置
+    /// - Returns: 活跃供应商的配置字典，如果读取失败返回空字典
+    func loadActiveTTSProviderConfig() -> [String: Any] {
+        let ttsConfig = loadTTSConfig()
+        let activeProvider = getActiveTTSProvider()
+        guard let providerConfig = ttsConfig[activeProvider] as? [String: Any] else {
+            os.Logger.settingsManager.error("读取TTS供应商[\(activeProvider)]子配置失败，使用空配置")
+            return [:]
+        }
+        return providerConfig
+    }
+    
+    /// 获取指定TTS供应商的Keychain key
+    /// - Parameter model: 供应商名称
+    /// - Returns: 对应的Keychain key
+    private func keychainKeyForTTSModel(_ model: String) -> String {
+        switch model {
+        case "aliqwen":
+            return AppConstants.KeychainKeys.aliqwenTTSSecretKey
+        default:
+            return AppConstants.KeychainKeys.ttsAccessKey
+        }
+    }
+    
+    /// 获取指定TTS供应商的密钥字段名（config中的key名）
+    /// - Parameter model: 供应商名称
+    /// - Returns: config中对应的密钥字段名
+    private func configKeyForTTSModel(_ model: String) -> String {
+        switch model {
+        case "aliqwen":
+            return "secret_key"
+        default:
+            return "access_key"
+        }
+    }
+    
+    /// 读取指定TTS供应商的密钥（优先Keychain，回退config，首次回退写入Keychain）
+    /// - Parameter model: 供应商名称
+    /// - Returns: 密钥，如果读取失败返回空字符串
+    func getTTSSecretKeyForModel(_ model: String) -> String {
+        let keychainKey = keychainKeyForTTSModel(model)
+        // 优先从 Keychain 读取
+        if let stored = keychainString(forKey: keychainKey), !stored.isEmpty {
+            return stored
+        }
+        // 回退到 config 文件中对应模型的子配置
+        let ttsConfig = loadTTSConfig()
+        guard let modelConfig = ttsConfig[model] as? [String: Any] else {
+            return ""
+        }
+        let configFieldName = configKeyForTTSModel(model)
+        let configKey = modelConfig[configFieldName] as? String ?? ""
+        // 首次从 config 读取后写入 Keychain
+        if !configKey.isEmpty {
+            _ = keychainSet(configKey, forKey: keychainKey)
+            os.Logger.settingsManager.info("TTS[\(model)] 密钥已从配置文件迁移到Keychain")
+        }
+        return configKey
     }
     
     // MARK: - 具体配置项读取方法

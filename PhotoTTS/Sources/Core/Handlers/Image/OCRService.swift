@@ -433,19 +433,19 @@ public enum OCRError: LocalizedError {
 // MARK: - OCR服务工厂
 public class OCRServiceFactory {
     
-    /// 根据config_local.json中ocr.model字段创建对应的OCR服务
-    /// 支持doubao和openai两种模型，均使用OpenAI Compatible请求格式
+    /// 根据config_local.json中ocr.provider字段创建对应的OCR服务
+    /// 支持doubao和openai两种供应商，均使用OpenAI Compatible请求格式
     public static func createOCRService() -> OCRService? {
         let settingsManager = SettingsManager.shared
-        let activeModel = settingsManager.getActiveOCRModel()
-        let modelConfig = settingsManager.loadActiveOCRModelConfig()
+        let activeModel = settingsManager.getActiveOCRProvider()
+        let modelConfig = settingsManager.loadActiveOCRProviderConfig()
         
         guard !modelConfig.isEmpty else {
-            os.Logger.ocrService.error("无法读取OCR模型[\(activeModel)]配置")
+            os.Logger.ocrService.error("无法读取OCR供应商[\(activeModel)]配置")
             return nil
         }
         
-        os.Logger.ocrService.info("成功读取OCR配置，活跃模型: \(activeModel)")
+        os.Logger.ocrService.info("成功读取OCR配置，活跃供应商: \(activeModel)")
         
         let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
         // 按模型名从对应Keychain key获取密钥，回退到config文件

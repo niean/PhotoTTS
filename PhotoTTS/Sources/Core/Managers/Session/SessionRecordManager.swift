@@ -205,7 +205,7 @@ class SessionRecordManager {
               - image_0.jpg: 第一张图片
               - image_1.jpg: 第二张图片
               - ...
-            - audio.mp3: 生成的音频文件
+            - audio.<格式>: 生成的音频文件（mp3或wav，取决于TTS供应商）
             
             您可以通过"文件"应用查看和管理这些文件。
             """

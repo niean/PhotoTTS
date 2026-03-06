@@ -46,12 +46,12 @@
 
 检查点：`[Phase 5 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 验收标准: K项通过, 测试: 通过/跳过`
 
-## Phase 6: 任务收尾
+## Phase 6: 知识回填
 - Agent: Orchestrator
 - 按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
 - `rm -f` 删除临时 spec
 
-## Phase 7: 总结任务
+## Phase 7: 任务总结
 - Agent: Orchestrator
 - 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
 - 执行顺序：输出总结报告（独立消息）-> 用户确认收到 -> attempt_completion

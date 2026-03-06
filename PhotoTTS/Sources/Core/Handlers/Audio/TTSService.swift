@@ -2,8 +2,19 @@ import Foundation
 import os.log
 import UIKit
 
-// MARK: - TTS配置模型
-struct TTSConfiguration {
+// MARK: - TTS服务协议
+protocol TTSServiceProtocol {
+    /// 语音合成
+    /// - Parameters:
+    ///   - text: 待合成的文字
+    ///   - voiceSettings: 语音设置
+    ///   - completion: 完成回调
+    func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void)
+}
+
+// MARK: - 火山TTS配置模型
+struct HuoshanTTSConfiguration {
+    let provider: String
     let baseURL: String
     let appId: String
     let accessKey: String
@@ -18,15 +29,14 @@ struct TTSConfiguration {
     let retryDelay: TimeInterval
 }
 
-// MARK: - TTS服务
-class TTSService {
-    private let configuration: TTSConfiguration
+// MARK: - 火山TTS服务
+class TTSService: TTSServiceProtocol {
+    private let configuration: HuoshanTTSConfiguration
     private let session: URLSession
     
-    init(configuration: TTSConfiguration) {
+    init(configuration: HuoshanTTSConfiguration) {
         self.configuration = configuration
         
-        // 配置URLSession，设置超时
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = configuration.timeout
         config.timeoutIntervalForResource = configuration.timeout
@@ -35,108 +45,44 @@ class TTSService {
         self.session = URLSession(configuration: config)
     }
     
-    // MARK: - 从配置文件创建TTS服务
-    static func createFromConfig() -> TTSService? {
-        let ttsConfig = SettingsManager.shared.loadTTSConfig()
-        
-        guard !ttsConfig.isEmpty else {
-            os.Logger.ttsService.error("无法读取TTS配置")
-            return nil
-        }
-        
-        os.Logger.ttsService.info("成功读取TTS配置")
-        
-        let baseURL = ttsConfig["base_url"] as? String ?? Constants.ServiceDefaults.ttsBaseURL
-        let appId = ttsConfig["appid"] as? String ?? ""
-        // 优先从 Keychain 获取密钥，回退到 config 文件
-        let accessKey = SettingsManager.shared.getTTSAccessKey()
-        let cluster = ttsConfig["cluster"] as? String ?? Constants.ServiceDefaults.ttsCluster
-        let voiceType = ttsConfig["voice_type"] as? String ?? Constants.ServiceDefaults.ttsVoiceType
-        let encoding = ttsConfig["encoding"] as? String ?? Constants.ServiceDefaults.ttsEncoding
-        let bitrate = ttsConfig["bitrate"] as? Int ?? 64
-        let rate = ttsConfig["rate"] as? Int ?? 16000
-        let speedRatio = ttsConfig["speed_ratio"] as? Double ?? 0.9
-        let timeout = ttsConfig["timeout"] as? TimeInterval ?? 60.0
-        let maxRetryCount = ttsConfig["max_retry_count"] as? Int ?? 3
-        let retryDelay = ttsConfig["retry_delay"] as? TimeInterval ?? 1.0
-        
-        os.Logger.ttsService.info("TTS配置信息:")
-        os.Logger.ttsService.info("   - Base URL: \(baseURL)")
-        os.Logger.ttsService.info("   - App ID: \(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置"))")
-        os.Logger.ttsService.info("   - Access Key: \(accessKey.isEmpty ? "空" : "已配置")")
-        os.Logger.ttsService.info("   - Cluster: \(cluster)")
-        os.Logger.ttsService.info("   - Voice Type: \(voiceType)")
-        os.Logger.ttsService.info("   - Encoding: \(encoding)")
-        os.Logger.ttsService.info("   - Bitrate: \(bitrate) kbps")
-        os.Logger.ttsService.info("   - Rate: \(rate) Hz")
-        os.Logger.ttsService.info("   - Speed Ratio: \(speedRatio)")
-        os.Logger.ttsService.info("   - Timeout: \(timeout)秒")
-        os.Logger.ttsService.info("   - Max Retry: \(maxRetryCount)次")
-        os.Logger.ttsService.info("   - Retry Delay: \(retryDelay)秒")
-        
-        guard !baseURL.isEmpty && !appId.isEmpty && !accessKey.isEmpty else {
-            os.Logger.ttsService.error("TTS配置不完整")
-            return nil
-        }
-        
-        let ttsConfiguration = TTSConfiguration(
-            baseURL: baseURL,
-            appId: appId,
-            accessKey: accessKey,
-            cluster: cluster,
-            voiceType: voiceType,
-            encoding: encoding,
-            bitrate: bitrate,
-            rate: rate,
-            speedRatio: speedRatio,
-            timeout: timeout,
-            maxRetryCount: maxRetryCount,
-            retryDelay: retryDelay
-        )
-        
-        os.Logger.ttsService.info("TTS服务初始化成功")
-        return TTSService(configuration: ttsConfiguration)
-    }
-    
     // MARK: - 语音合成
     func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        logInfo("转换，文字长度: \(text.count)")
+        let providerTag = "[\(configuration.provider)]"
+        logInfo("\(providerTag) 转换，文字长度: \(text.count)")
         
-        // 验证输入
         guard !text.isEmpty else {
             let error = TTSError.invalidInput("文字内容不能为空")
-            logError("TTS转换失败: \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
             completion(.failure(error))
             return
         }
         
-        // 使用带重试的TTS转换
         synthesizeSpeechWithRetry(text: text, voiceSettings: voiceSettings, completion: completion)
     }
     
     private func synthesizeSpeechWithRetry(text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        let providerTag = "[\(configuration.provider)]"
+        
         func attemptTTS(attempt: Int, lastError: Error?) {
-            logInfo("TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
+            logInfo("\(providerTag) TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
             
             synthesizeSpeechOnce(text, voiceSettings: voiceSettings) { [weak self] result in
                 guard let self = self else { return }
                 
                 switch result {
                 case .success(let response):
-                    self.logInfo("TTS API调用成功，尝试 \(attempt)")
+                    self.logInfo("\(providerTag) TTS API调用成功，尝试 \(attempt)")
                     completion(.success(response))
                 case .failure(let error):
-                    self.logError("TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
+                    self.logError("\(providerTag) TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
                     
-                    // 如果不是最后一次尝试，等待重试间隔
                     if attempt < self.configuration.maxRetryCount {
-                        self.logInfo("等待 \(self.configuration.retryDelay) 秒后重试...")
+                        self.logInfo("\(providerTag) 等待 \(self.configuration.retryDelay) 秒后重试...")
                         DispatchQueue.global().asyncAfter(deadline: .now() + self.configuration.retryDelay) {
                             attemptTTS(attempt: attempt + 1, lastError: error)
                         }
                     } else {
-                        // 所有重试都失败了
-                        self.logError("TTS API调用失败，已重试 \(self.configuration.maxRetryCount) 次")
+                        self.logError("\(providerTag) TTS API调用失败，已重试 \(self.configuration.maxRetryCount) 次")
                         completion(.failure(error))
                     }
                 }
@@ -147,11 +93,10 @@ class TTSService {
     }
     
     private func synthesizeSpeechOnce(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        // 获取设备唯一标识符
+        let providerTag = "[\(configuration.provider)]"
         let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let timestamp = Int(Date().timeIntervalSince1970)
         
-        // 构建豆包TTS请求
         let doubaoParams: [String: Any] = [
             "app": [
                 "appid": configuration.appId,
@@ -175,10 +120,9 @@ class TTSService {
             ]
         ]
         
-        // 发送TTS请求
         guard let url = URL(string: configuration.baseURL) else {
             let error = TTSError.invalidURL
-            logError("TTS转换失败: \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
             completion(.failure(error))
             return
         }
@@ -187,7 +131,6 @@ class TTSService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // 添加Authorization头（Bearer Token认证）
         let bearerToken = "Bearer; \(configuration.accessKey)"
         request.setValue(bearerToken, forHTTPHeaderField: "Authorization")
         
@@ -195,62 +138,58 @@ class TTSService {
             let jsonData = try JSONSerialization.data(withJSONObject: doubaoParams)
             request.httpBody = jsonData
             
-            logInfo("发送TTS请求到: \(url)")
+            logInfo("\(providerTag) 发送TTS请求到: \(url)")
             
             session.dataTask(with: request) { data, response, error in
                 if let error = error {
-                    self.logError("TTS转换失败: 网络错误 - \(error.localizedDescription)")
+                    self.logError("\(providerTag) TTS转换失败: 网络错误 - \(error.localizedDescription)")
                     completion(.failure(TTSError.networkError(error)))
                     return
                 }
                 
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    self.logError("TTS转换失败: 无效的HTTP响应")
+                    self.logError("\(providerTag) TTS转换失败: 无效的HTTP响应")
                     completion(.failure(TTSError.invalidResponse))
                     return
                 }
                 
-                self.logInfo("TTS响应状态: \(httpResponse.statusCode)")
+                self.logInfo("\(providerTag) TTS响应状态: \(httpResponse.statusCode)")
                 
                 if httpResponse.statusCode != 200 {
                     let errorMessage = String(data: data ?? Data(), encoding: .utf8) ?? "未知错误"
-                    self.logError("TTS转换失败: HTTP错误 \(httpResponse.statusCode) - \(errorMessage)")
+                    self.logError("\(providerTag) TTS转换失败: HTTP错误 \(httpResponse.statusCode) - \(errorMessage)")
                     completion(.failure(TTSError.httpError(httpResponse.statusCode, errorMessage)))
                     return
                 }
                 
                 guard let data = data else {
-                    self.logError("TTS转换失败: 响应数据为空")
+                    self.logError("\(providerTag) TTS转换失败: 响应数据为空")
                     completion(.failure(TTSError.noData))
                     return
                 }
                 
-                // 检查响应内容类型
                 if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") {
-                    self.logInfo("收到TTS响应，Content-Type: \(contentType)")
+                    self.logInfo("\(providerTag) 收到TTS响应，Content-Type: \(contentType)")
                     
                     if contentType.contains("audio/") {
-                        // 直接返回音频数据
-                        self.logInfo("收到音频数据，大小: \(data.count) 字节")
+                        self.logInfo("\(providerTag) 收到音频数据，大小: \(data.count) 字节")
                         let audioResponse = AudioResponse(
                             audioData: data,
                             format: self.configuration.encoding,
-                            duration: Double(data.count) / 16000.0 // 估算时长
+                            duration: Double(data.count) / 16000.0
                         )
                         completion(.success(audioResponse))
                         return
                     }
                 }
                 
-                // 尝试解析JSON响应
                 do {
                     let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-                    self.logInfo("收到豆包TTS API响应")
+                    self.logInfo("\(providerTag) 收到TTS API响应")
                     
-                    // 检查是否有音频数据（Base64编码）
                     if let audioBase64 = json?["audio"] as? String,
                        let audioData = Data(base64Encoded: audioBase64) {
-                        self.logInfo("成功解析Base64音频数据，大小: \(audioData.count) 字节")
+                        self.logInfo("\(providerTag) 成功解析Base64音频数据，大小: \(audioData.count) 字节")
                         let audioResponse = AudioResponse(
                             audioData: audioData,
                             format: self.configuration.encoding,
@@ -260,10 +199,9 @@ class TTSService {
                         return
                     }
                     
-                    // 检查是否有data字段包含音频
                     if let audioBase64 = json?["data"] as? String,
                        let audioData = Data(base64Encoded: audioBase64) {
-                        self.logInfo("成功解析data字段中的音频数据，大小: \(audioData.count) 字节")
+                        self.logInfo("\(providerTag) 成功解析data字段中的音频数据，大小: \(audioData.count) 字节")
                         let audioResponse = AudioResponse(
                             audioData: audioData,
                             format: self.configuration.encoding,
@@ -273,11 +211,10 @@ class TTSService {
                         return
                     }
                     
-                    // 检查是否有result字段
                     if let result = json?["result"] as? [String: Any],
                        let audioBase64 = result["audio"] as? String,
                        let audioData = Data(base64Encoded: audioBase64) {
-                        self.logInfo("成功解析result中的音频数据，大小: \(audioData.count) 字节")
+                        self.logInfo("\(providerTag) 成功解析result中的音频数据，大小: \(audioData.count) 字节")
                         let audioResponse = AudioResponse(
                             audioData: audioData,
                             format: self.configuration.encoding,
@@ -287,17 +224,16 @@ class TTSService {
                         return
                     }
                     
-                    self.logError("未找到音频数据字段")
+                    self.logError("\(providerTag) 未找到音频数据字段")
                     completion(.failure(TTSError.noAudioData))
                     
                 } catch {
-                    // 如果不是JSON，校验 Content-Type 或音频格式魔数，避免将非音频数据误判为有效音频
                     let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
                     let isAudioContentType = contentType.contains("audio/")
                     let isAudioMagicBytes = Self.hasAudioMagicBytes(data)
                     
                     if data.count > 0 && (isAudioContentType || isAudioMagicBytes) {
-                        self.logInfo("收到二进制音频数据，大小: \(data.count) 字节，Content-Type: \(contentType)")
+                        self.logInfo("\(providerTag) 收到二进制音频数据，大小: \(data.count) 字节，Content-Type: \(contentType)")
                         let audioResponse = AudioResponse(
                             audioData: data,
                             format: self.configuration.encoding,
@@ -307,27 +243,23 @@ class TTSService {
                         return
                     }
                     
-                    self.logError("响应数据无法解析为音频: Content-Type=\(contentType), 数据大小=\(data.count)")
+                    self.logError("\(providerTag) 响应数据无法解析为音频: Content-Type=\(contentType), 数据大小=\(data.count)")
                     completion(.failure(TTSError.invalidResponse))
                 }
                 
             }.resume()
             
         } catch {
-            logError("TTS转换失败: JSON序列化错误 - \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: JSON序列化错误 - \(error.localizedDescription)")
             completion(.failure(error))
         }
     }
     
     // MARK: - 音频格式校验
-    /// 检查数据是否包含常见音频格式的魔数（MP3/WAV）
     private static func hasAudioMagicBytes(_ data: Data) -> Bool {
         guard data.count >= 4 else { return false }
-        // MP3: 帧同步字节 0xFF 0xE0+
         if data[0] == 0xFF && (data[1] & 0xE0 == 0xE0) { return true }
-        // MP3: ID3 标签
         if data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33 { return true }
-        // WAV: "RIFF"
         if data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 { return true }
         return false
     }
@@ -339,6 +271,406 @@ class TTSService {
     
     private func logError(_ message: String) {
         os.Logger.ttsService.error("\(message)")
+    }
+}
+
+// MARK: - 阿里千问TTS配置模型
+struct AliqwenTTSConfiguration {
+    let provider: String
+    let baseURL: String
+    let secretKey: String
+    let model: String
+    let voice: String
+    let languageType: String
+    let instructions: String
+    let stream: Bool
+    let timeout: TimeInterval
+    let maxRetryCount: Int
+    let retryDelay: TimeInterval
+}
+
+// MARK: - 阿里千问TTS服务
+class AliqwenTTSService: TTSServiceProtocol {
+    private let configuration: AliqwenTTSConfiguration
+    private let session: URLSession
+    
+    init(configuration: AliqwenTTSConfiguration) {
+        self.configuration = configuration
+        
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = configuration.timeout
+        config.timeoutIntervalForResource = configuration.timeout
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.session = URLSession(configuration: config)
+    }
+    
+    // MARK: - 语音合成
+    func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        let providerTag = "[\(configuration.provider)]"
+        logInfo("\(providerTag) 转换，文字长度: \(text.count)")
+        
+        guard !text.isEmpty else {
+            let error = TTSError.invalidInput("文字内容不能为空")
+            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
+            completion(.failure(error))
+            return
+        }
+        
+        synthesizeSpeechWithRetry(text: text, voiceSettings: voiceSettings, completion: completion)
+    }
+    
+    private func synthesizeSpeechWithRetry(text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        let providerTag = "[\(configuration.provider)]"
+        
+        func attemptTTS(attempt: Int, lastError: Error?) {
+            logInfo("\(providerTag) TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
+            
+            synthesizeSpeechOnce(text, voiceSettings: voiceSettings) { [weak self] result in
+                guard let self = self else { return }
+                
+                switch result {
+                case .success(let response):
+                    self.logInfo("\(providerTag) TTS API调用成功，尝试 \(attempt)")
+                    completion(.success(response))
+                case .failure(let error):
+                    self.logError("\(providerTag) TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
+                    
+                    if attempt < self.configuration.maxRetryCount {
+                        self.logInfo("\(providerTag) 等待 \(self.configuration.retryDelay) 秒后重试...")
+                        DispatchQueue.global().asyncAfter(deadline: .now() + self.configuration.retryDelay) {
+                            attemptTTS(attempt: attempt + 1, lastError: error)
+                        }
+                    } else {
+                        self.logError("\(providerTag) TTS API调用失败，已重试 \(self.configuration.maxRetryCount) 次")
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        
+        attemptTTS(attempt: 1, lastError: nil)
+    }
+    
+    private func synthesizeSpeechOnce(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        let providerTag = "[\(configuration.provider)]"
+        
+        // 构建阿里千问3-TTS-Flash请求体（DashScope扁平input格式）
+        // 官方文档: https://help.aliyun.com/zh/model-studio/qwen-tts-api
+        let requestBody: [String: Any] = [
+            "model": configuration.model,
+            "input": [
+                "text": text,
+                "voice": configuration.voice,
+                "language_type": configuration.languageType
+            ]
+        ]
+        
+        guard let url = URL(string: configuration.baseURL) else {
+            let error = TTSError.invalidURL
+            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
+            completion(.failure(error))
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(configuration.secretKey)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: requestBody, options: [.sortedKeys])
+            request.httpBody = jsonData
+            
+            logInfo("\(providerTag) 发送TTS请求到: \(url.host ?? "")\(url.path), model=\(configuration.model), textLen=\(text.count)")
+            
+            session.dataTask(with: request) { [weak self] data, response, error in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    self.logError("\(providerTag) TTS转换失败: 网络错误 - \(error.localizedDescription)")
+                    completion(.failure(TTSError.networkError(error)))
+                    return
+                }
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    self.logError("\(providerTag) TTS转换失败: 无效的HTTP响应")
+                    completion(.failure(TTSError.invalidResponse))
+                    return
+                }
+                
+                self.logInfo("\(providerTag) TTS响应状态: \(httpResponse.statusCode)")
+                
+                if httpResponse.statusCode != 200 {
+                    let errorMessage = String(data: data ?? Data(), encoding: .utf8) ?? "未知错误"
+                    self.logError("\(providerTag) TTS转换失败: HTTP错误 \(httpResponse.statusCode) - \(errorMessage)")
+                    completion(.failure(TTSError.httpError(httpResponse.statusCode, errorMessage)))
+                    return
+                }
+                
+                guard let data = data else {
+                    self.logError("\(providerTag) TTS转换失败: 响应数据为空")
+                    completion(.failure(TTSError.noData))
+                    return
+                }
+                
+                // 解析DashScope响应
+                self.parseDashScopeResponse(data: data, providerTag: providerTag, completion: completion)
+                
+            }.resume()
+            
+        } catch {
+            logError("\(providerTag) TTS转换失败: JSON序列化错误 - \(error.localizedDescription)")
+            completion(.failure(error))
+        }
+    }
+    
+    /// 解析DashScope API响应，从 output.audio.url 下载音频文件
+    private func parseDashScopeResponse(data: Data, providerTag: String, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                logError("\(providerTag) TTS转换失败: 响应不是有效的JSON")
+                completion(.failure(TTSError.invalidResponse))
+                return
+            }
+            
+            logInfo("\(providerTag) 收到阿里千问TTS API响应")
+            
+            // 检查API级别错误（code非空字符串表示有错误）
+            if let code = json["code"] as? String, !code.isEmpty,
+               let message = json["message"] as? String {
+                logError("\(providerTag) API返回错误: code=\(code), message=\(message)")
+                completion(.failure(TTSError.httpError(-1, "\(code): \(message)")))
+                return
+            }
+            
+            // 解析 output.audio
+            guard let output = json["output"] as? [String: Any],
+                  let audio = output["audio"] as? [String: Any] else {
+                logError("\(providerTag) 响应中未找到 output.audio 字段")
+                completion(.failure(TTSError.noAudioData))
+                return
+            }
+            
+            // 获取 usage.characters 用于日志
+            let characters = (json["usage"] as? [String: Any])?["characters"] as? Int ?? 0
+            logInfo("\(providerTag) API处理字符数: \(characters)")
+            
+            // 优先从 output.audio.url 下载音频
+            // DashScope返回的URL可能是http，强制转换为https以符合ATS安全策略
+            if let audioURLString = audio["url"] as? String, !audioURLString.isEmpty {
+                let secureURLString = audioURLString.hasPrefix("http://")
+                    ? audioURLString.replacingOccurrences(of: "http://", with: "https://", options: [], range: audioURLString.startIndex..<audioURLString.index(audioURLString.startIndex, offsetBy: min(7, audioURLString.count)))
+                    : audioURLString
+                guard let audioURL = URL(string: secureURLString) else {
+                    logError("\(providerTag) 音频URL无效: \(secureURLString.prefix(80))")
+                    completion(.failure(TTSError.invalidURL))
+                    return
+                }
+                logInfo("\(providerTag) 从URL下载音频: \(secureURLString.prefix(80))...")
+                self.downloadAudio(from: audioURL, providerTag: providerTag, completion: completion)
+                return
+            }
+            
+            // 备用: 从 output.audio.data 解码base64音频
+            if let audioBase64 = audio["data"] as? String, !audioBase64.isEmpty,
+               let audioData = Data(base64Encoded: audioBase64) {
+                logInfo("\(providerTag) 成功解析base64音频数据，大小: \(audioData.count) 字节")
+                let audioResponse = AudioResponse(
+                    audioData: audioData,
+                    format: "wav",
+                    duration: Double(audioData.count) / 16000.0
+                )
+                completion(.success(audioResponse))
+                return
+            }
+            
+            logError("\(providerTag) output.audio 中未找到有效的 url 或 data")
+            completion(.failure(TTSError.noAudioData))
+            
+        } catch {
+            logError("\(providerTag) 响应JSON解析失败: \(error.localizedDescription)")
+            completion(.failure(TTSError.invalidResponse))
+        }
+    }
+    
+    /// 从URL下载音频文件
+    private func downloadAudio(from url: URL, providerTag: String, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
+        session.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                self.logError("\(providerTag) 音频下载失败: \(error.localizedDescription)")
+                completion(.failure(TTSError.networkError(error)))
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+                self.logError("\(providerTag) 音频下载失败: HTTP \(statusCode)")
+                completion(.failure(TTSError.httpError(statusCode, "音频文件下载失败")))
+                return
+            }
+            
+            guard let audioData = data, !audioData.isEmpty else {
+                self.logError("\(providerTag) 音频下载失败: 数据为空")
+                completion(.failure(TTSError.noData))
+                return
+            }
+            
+            // 从Content-Type或URL推断音频格式
+            let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+            let format: String
+            if contentType.contains("wav") || url.pathExtension == "wav" {
+                format = "wav"
+            } else if contentType.contains("mp3") || url.pathExtension == "mp3" {
+                format = "mp3"
+            } else {
+                format = "wav" // DashScope默认返回wav
+            }
+            
+            self.logInfo("\(providerTag) 音频下载成功，大小: \(audioData.count) 字节，格式: \(format)")
+            let audioResponse = AudioResponse(
+                audioData: audioData,
+                format: format,
+                duration: Double(audioData.count) / 16000.0
+            )
+            completion(.success(audioResponse))
+        }.resume()
+    }
+    
+    // MARK: - 日志方法
+    private func logInfo(_ message: String) {
+        os.Logger.ttsService.info("\(message)")
+    }
+    
+    private func logError(_ message: String) {
+        os.Logger.ttsService.error("\(message)")
+    }
+}
+
+// MARK: - TTS服务工厂
+class TTSServiceFactory {
+    
+    /// 根据config_local.json中tts.provider字段创建对应的TTS服务
+    /// 支持huoshan和aliqwen两种供应商
+    static func createFromConfig() -> TTSServiceProtocol? {
+        let settingsManager = SettingsManager.shared
+        let activeModel = settingsManager.getActiveTTSProvider()
+        let modelConfig = settingsManager.loadActiveTTSProviderConfig()
+        
+        guard !modelConfig.isEmpty else {
+            os.Logger.ttsService.error("无法读取TTS供应商[\(activeModel)]配置")
+            return nil
+        }
+        
+        os.Logger.ttsService.info("成功读取TTS配置，活跃供应商: \(activeModel)")
+        
+        switch activeModel {
+        case "aliqwen":
+            return createAliqwenService(modelConfig: modelConfig, settingsManager: settingsManager, activeModel: activeModel)
+        default:
+            return createHuoshanService(modelConfig: modelConfig, settingsManager: settingsManager, activeModel: activeModel)
+        }
+    }
+    
+    // MARK: - 火山TTS创建
+    private static func createHuoshanService(modelConfig: [String: Any], settingsManager: SettingsManager, activeModel: String) -> TTSServiceProtocol? {
+        let ttsConfig = settingsManager.loadTTSConfig()
+        
+        let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.ttsBaseURL
+        let appId = modelConfig["appid"] as? String ?? ""
+        let accessKey = settingsManager.getTTSSecretKeyForModel(activeModel)
+        let cluster = modelConfig["cluster"] as? String ?? Constants.ServiceDefaults.ttsCluster
+        let voiceType = modelConfig["voice_type"] as? String ?? Constants.ServiceDefaults.ttsVoiceType
+        let encoding = modelConfig["encoding"] as? String ?? Constants.ServiceDefaults.ttsEncoding
+        let bitrate = modelConfig["bitrate"] as? Int ?? 64
+        let rate = modelConfig["rate"] as? Int ?? 16000
+        let speedRatio = modelConfig["speed_ratio"] as? Double ?? 0.9
+        let timeout = modelConfig["timeout"] as? TimeInterval
+            ?? ttsConfig["timeout"] as? TimeInterval
+            ?? 60.0
+        let maxRetryCount = modelConfig["max_retry_count"] as? Int
+            ?? ttsConfig["max_retry_count"] as? Int
+            ?? 3
+        let retryDelay = modelConfig["retry_delay"] as? TimeInterval
+            ?? ttsConfig["retry_delay"] as? TimeInterval
+            ?? 1.0
+        
+        os.Logger.ttsService.info("[\(activeModel)] 配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
+        os.Logger.ttsService.info("[\(activeModel)] 凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))")
+        
+        guard !baseURL.isEmpty && !appId.isEmpty && !accessKey.isEmpty else {
+            os.Logger.ttsService.error("[\(activeModel)] TTS配置不完整")
+            return nil
+        }
+        
+        let configuration = HuoshanTTSConfiguration(
+            provider: activeModel,
+            baseURL: baseURL,
+            appId: appId,
+            accessKey: accessKey,
+            cluster: cluster,
+            voiceType: voiceType,
+            encoding: encoding,
+            bitrate: bitrate,
+            rate: rate,
+            speedRatio: speedRatio,
+            timeout: timeout,
+            maxRetryCount: maxRetryCount,
+            retryDelay: retryDelay
+        )
+        
+        os.Logger.ttsService.info("[\(activeModel)] TTS服务初始化成功")
+        return TTSService(configuration: configuration)
+    }
+    
+    // MARK: - 阿里千问TTS创建
+    private static func createAliqwenService(modelConfig: [String: Any], settingsManager: SettingsManager, activeModel: String) -> TTSServiceProtocol? {
+        let ttsConfig = settingsManager.loadTTSConfig()
+        
+        let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.aliqwenTTSBaseURL
+        let secretKey = settingsManager.getTTSSecretKeyForModel(activeModel)
+        let model = modelConfig["model"] as? String ?? Constants.ServiceDefaults.aliqwenTTSModel
+        let voice = modelConfig["voice"] as? String ?? Constants.ServiceDefaults.aliqwenTTSVoice
+        let languageType = modelConfig["language_type"] as? String ?? Constants.ServiceDefaults.aliqwenTTSLanguageType
+        let instructions = modelConfig["instructions"] as? String ?? ""
+        let stream = modelConfig["stream"] as? Bool ?? false
+        let timeout = modelConfig["timeout"] as? TimeInterval
+            ?? ttsConfig["timeout"] as? TimeInterval
+            ?? 120.0
+        let maxRetryCount = modelConfig["max_retry_count"] as? Int
+            ?? ttsConfig["max_retry_count"] as? Int
+            ?? 3
+        let retryDelay = modelConfig["retry_delay"] as? TimeInterval
+            ?? ttsConfig["retry_delay"] as? TimeInterval
+            ?? 1.0
+        
+        os.Logger.ttsService.info("[\(activeModel)] 配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
+        os.Logger.ttsService.info("[\(activeModel)] 凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))")
+        
+        guard !secretKey.isEmpty else {
+            os.Logger.ttsService.error("[\(activeModel)] 未配置TTS Secret Key")
+            return nil
+        }
+        
+        let configuration = AliqwenTTSConfiguration(
+            provider: activeModel,
+            baseURL: baseURL,
+            secretKey: secretKey,
+            model: model,
+            voice: voice,
+            languageType: languageType,
+            instructions: instructions,
+            stream: stream,
+            timeout: timeout,
+            maxRetryCount: maxRetryCount,
+            retryDelay: retryDelay
+        )
+        
+        os.Logger.ttsService.info("[\(activeModel)] TTS服务初始化成功")
+        return AliqwenTTSService(configuration: configuration)
     }
 }
 

@@ -69,8 +69,8 @@ class NetworkService: NetworkServiceProtocol {
     func convertTextToSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
         logInfo("开始TTS转换，文字长度: \(text.count)")
         
-        // 使用TTS服务进行语音合成
-        guard let ttsService = TTSService.createFromConfig() else {
+        // 使用TTS服务工厂创建对应供应商的TTS服务
+        guard let ttsService = TTSServiceFactory.createFromConfig() else {
             let error = NetworkError.missingAPIKey
             logError("TTS转换失败: 无法创建TTS服务")
             completion(.failure(error))

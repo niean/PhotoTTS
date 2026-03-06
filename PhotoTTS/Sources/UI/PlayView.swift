@@ -26,6 +26,7 @@ struct PlayView: View {
     @State private var preloadedImages: [UIImage]? = nil
     @State private var isOverlayVisible = false  // 点击全屏图切换操作栏显隐，起始不展示
     @State private var overlayAutoHideTimer: Timer?  // 5 秒无操作自动隐藏操作栏
+    @State private var imageIndexChangedWhilePaused = false  // 暂停期间用户滑动了图片
     
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
     private let overlayAutoHideInterval: TimeInterval = Constants.Playback.overlayAutoHideInterval
@@ -106,6 +107,12 @@ struct PlayView: View {
             overlayAutoHideTimer?.invalidate()
             overlayAutoHideTimer = nil
             onDismiss()  // 右进左出：左滑返回时同步清空导航状态
+        }
+        .onChange(of: currentImageIndex) { _, _ in
+            // 暂停期间用户滑动图片时标记，恢复播放时 seek 到对应位置
+            if !isPlaying && audioPlayer != nil {
+                imageIndexChangedWhilePaused = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.remotePlaybackCommand)) { notification in
             guard let action = notification.userInfo?["action"] as? String else { return }
@@ -259,10 +266,28 @@ struct PlayView: View {
     
     private func resumeIfPaused() {
         guard let player = audioPlayer, !player.isPlaying else { return }
+        // 暂停期间滑动了图片，seek 到当前图片对应的音频位置
+        if imageIndexChangedWhilePaused {
+            if let seekTime = audioTimeForImageIndex(currentImageIndex) {
+                player.currentTime = seekTime
+            }
+            imageIndexChangedWhilePaused = false
+        }
         player.play()
         isPlaying = true
         startPlaybackTimer()
         UIApplication.shared.isIdleTimerDisabled = true
+    }
+    
+    /// 根据图片索引计算其对应文本段在音频中的起始时间
+    private func audioTimeForImageIndex(_ index: Int) -> TimeInterval? {
+        guard let player = audioPlayer, player.duration > 0,
+              let record = record, !textSegmentRanges.isEmpty else { return nil }
+        let totalChars = record.ocrText.count
+        guard totalChars > 0, index < textSegmentRanges.count else { return nil }
+        let startChar = textSegmentRanges[index].start
+        let ratio = Double(startChar) / Double(totalChars)
+        return ratio * player.duration
     }
     
     private func pauseIfPlaying() {

@@ -101,6 +101,10 @@ extension Constants {
         static let ttsVoiceType = "zh_female_tianmeixiaoyuan_moon_bigtts"
         static let ttsEncoding = "mp3"
         static let ocrModelName = "doubao-seed-1-6-flash-250715"
+        static let aliqwenTTSBaseURL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+        static let aliqwenTTSModel = "qwen3-tts-flash"
+        static let aliqwenTTSVoice = "Cherry"
+        static let aliqwenTTSLanguageType = "Chinese"
     }
     
     // MARK: - API端点配置
@@ -163,6 +167,7 @@ extension Constants {
         static let doubaoAPIKey = "doubao_api_key"
         static let openaiOCRAPIKey = "openai_ocr_api_key"
         static let ttsAccessKey = "tts_access_key"
+        static let aliqwenTTSSecretKey = "aliqwen_tts_secret_key"
     }
     
     // MARK: - 身份名称

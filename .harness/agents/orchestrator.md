@@ -32,8 +32,8 @@
 - Phase 3 意图确认：Orchestrator，等待用户确认
 - Phase 4 代码实现：Coder
 - Phase 5 结果验收：Reviewer -- 构建验证 + 5 维度代码扫描 + 验收标准逐项检查 + 测试验证
-- Phase 6 任务收尾：Orchestrator，回填知识库 + 删除临时 spec
-- Phase 7 总结任务：Orchestrator，自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> attempt_completion
+- Phase 6 知识回填：Orchestrator，回填知识库 + 删除临时 spec
+- Phase 7 任务总结：Orchestrator，自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> attempt_completion
 
 ## 上下文管理
 

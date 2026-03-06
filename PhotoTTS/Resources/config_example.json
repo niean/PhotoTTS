@@ -1,6 +1,6 @@
 {
   "ocr": {
-    "model": "doubao",
+    "provider": "doubao",
     "doubao": {
       "base_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
       "model_name": "doubao-seed-2-0-lite-260215",
@@ -13,8 +13,20 @@
     }
   },
   "tts": {
-    "base_url": "https://openspeech.bytedance.com/api/v1/tts",
-    "appid": "your_appid",
-    "access_key": "your_access_key"
+    "provider": "huoshan",
+    "huoshan": {
+      "base_url": "https://openspeech.bytedance.com/api/v1/tts",
+      "appid": "your_appid",
+      "access_key": "your_access_key"
+    },
+    "aliqwen": {
+      "base_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+      "secret_key": "your_secret_key",
+      "model": "qwen3-tts-flash",
+      "voice": "Cherry",
+      "language_type": "Chinese",
+      "instructions": "你是一位温柔的睡前故事阿姨，声音轻柔、舒缓、温暖、有安全感，专门给小朋友讲睡前故事。讲故事要求：1. 语速非常慢，节奏平稳，不急促、不跳跃。2. 语气亲切、柔软、哄睡感强，像妈妈在床边轻声讲故事。3. 音量适中偏小，不突然提高，不惊吓孩子。4. 句子之间有自然停顿，情绪平和、安静、治愈。5. 不使用夸张、兴奋、尖锐的表达，整体氛围安静、安心、舒适。6. 遇到小动物、星星、月亮、梦境等内容时，语气更轻柔、梦幻。7. 文本中出现连续换行 `/n/n` 表示分页，分页处必须做明显但轻柔的短暂停顿，停顿时间稍长于普通句子间隔，让小朋友有呼吸、放松的空隙，不突兀、不打断情绪。",
+      "stream": false
+    }
   }
 }

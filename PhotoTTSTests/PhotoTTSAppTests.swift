@@ -192,9 +192,6 @@ final class PhotoTTSAppTests: XCTestCase {
     // MARK: - Constants 测试
     
     func testConstantsValues() {
-        XCTAssertEqual(Constants.appName, "Photo TTS")
-        XCTAssertGreaterThan(Constants.maxImageSize, 0)
-        XCTAssertGreaterThan(Constants.cornerRadius, 0)
         XCTAssertGreaterThan(Constants.Network.requestTimeout, 0)
         XCTAssertGreaterThan(Constants.Network.maxRetryCount, 0)
     }

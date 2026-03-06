@@ -58,14 +58,20 @@
         - 追加：新 Task 或同一 Task 内的第 2+ 次反馈，都要在消息框说明任务类型，和`本次任务采用X Agent 架构`放在一起
     - 制作：CustomCameraViewController，干掉选图功能、清理相关代码，相机页的选图按钮、改为最新1张图片的预览。不要擅自修改其它样式或行为
         - 追加：原选图按钮，从最新1张图片的预览、改为前后相机切换(按钮和标准相机保持一致)
+    - 播放：暂停播放后滑动图片，再次播放时，音频应该从当前图片对应的位置开始
 - 新增
     - 制作：OCR，OCR模型除默认选择的豆包之外，还要支持OpenAI Compatible类型，支持通过配置文件、切换OCR模型。我已经给出了配置文件样例 Resources/config_local.json
         - 追加：调试需求，OCR日志打印Provider(如豆包、OpenAI)
+    - 制作：TTS，TTS除默认选择的火山TTS之外，还要支持阿里千问3-TTS-Flash，支持通过配置文件、切换TTS供应商。我已经给出了配置文件样例 Resources/config_local.json。
+        - 资料：阿里千问3-TTS-Flash的文档，可参考 https://help.aliyun.com/zh/model-studio/qwen-tts-api?spm=a2c4g.11186623.0.0.2dd36cc58btaAo#b1320a1664b9a
+        - 追加：阿里千问3-TTS-Flash的调试，请你先写一个功能测试，使用Resources/config_local.json中的配置、进行真实调试，测试通过后再回填到正式代码
+        - 追加：阿里千问3-TTS-Flash的音频格式wav，火山TTS则是mp3。请阅读代码，做好音频格式兼容
+        - 追加：配置文件的 ocr.model、tts.model 改名为 provider，对应的代码+注释+文档等也要同步修改
+        - 追加：调试日志，适当精简阿里千问3-TTS-Flash的日志，如请求Body、URL地址等
 
 
 [待办]
 - 优化
 - 新增
-    - 制作：TTS，配置文件支持选择豆包之外的TTS服务。豆包Authorization不是标准Bearer
     - 整体：上架到AppStore
     - 播放：图片生视频，使绘本故事更具视觉连续性
