@@ -393,7 +393,7 @@ class SettingsManager {
         return sysConfig
     }
     
-    /// 读取OCR配置部分
+    /// 读取OCR配置部分（完整ocr节点）
     /// - Returns: OCR配置字典，如果读取失败返回空字典
     func loadOCRConfig() -> [String: Any] {
         guard let config = loadConfig(),
@@ -402,6 +402,66 @@ class SettingsManager {
             return [:]
         }
         return ocrConfig
+    }
+    
+    /// 读取当前活跃的OCR模型名称
+    /// - Returns: 模型名称（"doubao"或"openai"），默认"doubao"
+    func getActiveOCRModel() -> String {
+        let ocrConfig = loadOCRConfig()
+        let model = ocrConfig["model"] as? String ?? "doubao"
+        let supported = ["doubao", "openai"]
+        if supported.contains(model) {
+            return model
+        }
+        os.Logger.settingsManager.warning("不支持的OCR模型: \(model)，回退到doubao")
+        return "doubao"
+    }
+    
+    /// 读取活跃OCR模型的子配置
+    /// - Returns: 活跃模型的配置字典（base_url/model_name/api_key等），如果读取失败返回空字典
+    func loadActiveOCRModelConfig() -> [String: Any] {
+        let ocrConfig = loadOCRConfig()
+        let activeModel = getActiveOCRModel()
+        guard let modelConfig = ocrConfig[activeModel] as? [String: Any] else {
+            os.Logger.settingsManager.error("读取OCR模型[\(activeModel)]子配置失败，使用空配置")
+            return [:]
+        }
+        return modelConfig
+    }
+    
+    /// 获取指定OCR模型的Keychain key
+    /// - Parameter model: 模型名称
+    /// - Returns: 对应的Keychain key
+    private func keychainKeyForOCRModel(_ model: String) -> String {
+        switch model {
+        case "openai":
+            return AppConstants.KeychainKeys.openaiOCRAPIKey
+        default:
+            return AppConstants.KeychainKeys.doubaoAPIKey
+        }
+    }
+    
+    /// 读取指定OCR模型的API密钥（优先Keychain，回退config，首次回退写入Keychain）
+    /// - Parameter model: 模型名称
+    /// - Returns: API密钥，如果读取失败返回空字符串
+    func getOCRAPIKeyForModel(_ model: String) -> String {
+        let keychainKey = keychainKeyForOCRModel(model)
+        // 优先从 Keychain 读取
+        if let stored = keychainString(forKey: keychainKey), !stored.isEmpty {
+            return stored
+        }
+        // 回退到 config 文件中对应模型的子配置
+        let ocrConfig = loadOCRConfig()
+        guard let modelConfig = ocrConfig[model] as? [String: Any] else {
+            return ""
+        }
+        let configKey = modelConfig["api_key"] as? String ?? ""
+        // 首次从 config 读取后写入 Keychain
+        if !configKey.isEmpty {
+            _ = keychainSet(configKey, forKey: keychainKey)
+            os.Logger.settingsManager.info("OCR[\(model)] API密钥已从配置文件迁移到Keychain")
+        }
+        return configKey
     }
     
     /// 读取TTS配置部分

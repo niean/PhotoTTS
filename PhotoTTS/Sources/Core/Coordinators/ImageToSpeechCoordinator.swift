@@ -122,7 +122,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
     init(networkService: NetworkServiceProtocol, settingsManager: SettingsManager = .shared) {
         self.networkService = networkService
         self.settingsManager = settingsManager
-        self.ocrService = OCRServiceFactory.createDoubaoOCRService()
+        self.ocrService = OCRServiceFactory.createOCRService()
         
         if self.ocrService == nil {
             os.Logger.coordinator.error("ImageToSpeechCoordinator: OCR服务初始化失败")

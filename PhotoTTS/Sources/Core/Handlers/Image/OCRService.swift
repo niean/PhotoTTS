@@ -43,6 +43,7 @@ public struct OCRResult: Codable {
 
 // MARK: - OCR配置
 public struct OCRConfiguration {
+    public let provider: String
     public let apiKey: String
     public let modelName: String
     public let baseURL: String
@@ -52,7 +53,8 @@ public struct OCRConfiguration {
     public let maxRetryCount: Int
     public let retryDelay: TimeInterval
     
-    public init(apiKey: String, modelName: String, baseURL: String, defaultPrompt: String, timeout: TimeInterval = 30.0, maxImageSize: Int = 10 * 1024 * 1024, maxRetryCount: Int = 3, retryDelay: TimeInterval = 1.0) {
+    public init(provider: String = "doubao", apiKey: String, modelName: String, baseURL: String, defaultPrompt: String, timeout: TimeInterval = 30.0, maxImageSize: Int = 10 * 1024 * 1024, maxRetryCount: Int = 3, retryDelay: TimeInterval = 1.0) {
+        self.provider = provider
         self.apiKey = apiKey
         self.modelName = modelName
         self.baseURL = baseURL
@@ -64,7 +66,7 @@ public struct OCRConfiguration {
     }
 }
 
-// MARK: - 豆包大模型OCR服务
+// MARK: - OCR服务（OpenAI Compatible）
 public class OCRService: OCRServiceProtocol, ObservableObject {
     
     // MARK: - 属性
@@ -106,11 +108,12 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
     public func recognizeText(from imageData: Data, withPrompt prompt: String, imageIndex: Int?) async throws -> OCRResult {
         let startTime = Date()
         
-        // 打印图片索引
+        // 打印图片索引和Provider
+        let providerTag = "[\(configuration.provider)]"
         if let index = imageIndex {
-            os.Logger.ocrService.info("开始OCR识别，图片索引: \(index + 1)")
+            os.Logger.ocrService.info("\(providerTag) 开始OCR识别，图片索引: \(index + 1)")
         } else {
-            os.Logger.ocrService.info("开始OCR识别")
+            os.Logger.ocrService.info("\(providerTag) 开始OCR识别")
         }
         
         await MainActor.run {
@@ -131,8 +134,8 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
             
             await updateProgress(0.3, operation: "图片预处理完成")
             
-            // 调用豆包大模型API（带重试）
-            let recognizedText = try await callDoubaoAPIWithRetry(imageData: processedImageData, prompt: prompt, imageIndex: imageIndex)
+            // 调用OCR API（带重试）
+            let recognizedText = try await callOCRAPIWithRetry(imageData: processedImageData, prompt: prompt, imageIndex: imageIndex)
             
             await updateProgress(0.8, operation: "API调用完成")
             
@@ -195,17 +198,18 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         return imageData
     }
     
-    private func callDoubaoAPIWithRetry(imageData: Data, prompt: String, imageIndex: Int?) async throws -> String {
+    private func callOCRAPIWithRetry(imageData: Data, prompt: String, imageIndex: Int?) async throws -> String {
         var lastError: Error?
         
+        let providerTag = "[\(configuration.provider)]"
         let imageIndexText = imageIndex != nil ? "，图片索引: \(imageIndex! + 1)" : ""
         let totalStartTime = Date()
         
         for attempt in 1...configuration.maxRetryCount {
             let attemptStartTime = Date()
             do {
-                os.Logger.ocrService.info("OCR API调用尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)")
-                let result = try await callDoubaoAPI(imageData: imageData, prompt: prompt)
+                os.Logger.ocrService.info("\(providerTag) OCR API调用尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)")
+                let result = try await callOCRAPI(imageData: imageData, prompt: prompt)
                 
                 // 检查返回结果是否为空（且不是系统保留字符）
                 let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -215,7 +219,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                    trimmedResult.count <= AppConstants.ocrEmptyResultIndicator.count + 2 {
                     let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                     let totalDuration = Date().timeIntervalSince(totalStartTime)
-                    os.Logger.ocrService.info("OCR API调用成功（返回空字符串标识），尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，识别结果: \(result)")
+                    os.Logger.ocrService.info("\(providerTag) OCR API调用成功（返回空字符串标识），尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，识别结果: \(result)")
                     return result
                 }
                 
@@ -225,7 +229,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                     lastError = emptyError
                     let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                     let totalDuration = Date().timeIntervalSince(totalStartTime)
-                    os.Logger.ocrService.warning("OCR API返回结果为空（非系统保留字符），尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
+                    os.Logger.ocrService.warning("\(providerTag) OCR API返回结果为空（非系统保留字符），尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
                     
                     // 如果不是最后一次尝试，等待重试间隔
                     if attempt < configuration.maxRetryCount {
@@ -237,13 +241,13 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                 
                 let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                 let totalDuration = Date().timeIntervalSince(totalStartTime)
-                os.Logger.ocrService.info("OCR API调用成功，尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
+                os.Logger.ocrService.info("\(providerTag) OCR API调用成功，尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
                 return result
             } catch {
                 lastError = error
                 let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                 let totalDuration = Date().timeIntervalSince(totalStartTime)
-                os.Logger.ocrService.error("OCR API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，错误: \(error.localizedDescription)")
+                os.Logger.ocrService.error("\(providerTag) OCR API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，错误: \(error.localizedDescription)")
                 
                 // 如果不是最后一次尝试，等待重试间隔
                 if attempt < configuration.maxRetryCount {
@@ -255,14 +259,14 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         
         // 所有重试都失败了
         let totalDuration = Date().timeIntervalSince(totalStartTime)
-        os.Logger.ocrService.error("OCR API调用失败，已重试 \(self.configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
+        os.Logger.ocrService.error("\(providerTag) OCR API调用失败，已重试 \(self.configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
         throw lastError ?? OCRError.networkError(NSError(domain: "OCR", code: -1, userInfo: [NSLocalizedDescriptionKey: "重试失败"]))
     }
     
-    private func callDoubaoAPI(imageData: Data, prompt: String) async throws -> String {
+    private func callOCRAPI(imageData: Data, prompt: String) async throws -> String {
         let imageBase64 = imageData.base64EncodedString()
         
-        // 构建豆包大模型多模态请求体
+        // 构建OpenAI Compatible多模态请求体
         let requestBody: [String: Any] = [
             "model": configuration.modelName,
             "messages": [
@@ -429,40 +433,56 @@ public enum OCRError: LocalizedError {
 // MARK: - OCR服务工厂
 public class OCRServiceFactory {
     
-    public static func createDoubaoOCRService() -> OCRService? {
-        let ocrConfig = SettingsManager.shared.loadOCRConfig()
+    /// 根据config_local.json中ocr.model字段创建对应的OCR服务
+    /// 支持doubao和openai两种模型，均使用OpenAI Compatible请求格式
+    public static func createOCRService() -> OCRService? {
+        let settingsManager = SettingsManager.shared
+        let activeModel = settingsManager.getActiveOCRModel()
+        let modelConfig = settingsManager.loadActiveOCRModelConfig()
         
-        guard !ocrConfig.isEmpty else {
-            os.Logger.ocrService.error("无法读取OCR配置")
+        guard !modelConfig.isEmpty else {
+            os.Logger.ocrService.error("无法读取OCR模型[\(activeModel)]配置")
             return nil
         }
         
-        os.Logger.ocrService.info("成功读取OCR配置")
+        os.Logger.ocrService.info("成功读取OCR配置，活跃模型: \(activeModel)")
         
-        let baseURL = ocrConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
-        // 优先从 Keychain 获取密钥，回退到 config 文件
-        let apiKey = SettingsManager.shared.getOCRAPIKey()
-        let modelName = ocrConfig["model_name"] as? String ?? Constants.ServiceDefaults.ocrModelName
-        let promptUser = ocrConfig["prompt_user"] as? String ?? "你是一个专业的OCR识别助手。请识别绘本图片中的汉字，并整理断句、使表意顺畅。操作步骤如下：S1.调整图片的角度，使内容正对读者。S2.识别和分割多页，如果输入的绘本图片有多页，请按照从左到右、从上到下的顺序，将图片内容分成多页。S3.识别一页中的汉字，按照自上而下的顺序识别，保留标点符号，忽略拼音、忽略纯数字的段落。S4.整理一页中的汉字，合理断句、补全标点，同一句话去掉内部换行，产出表意顺畅的句子。S5.如果有多页内容，多页内容之间用一个换行、拼接在一起返回。其它要求：1.没识别到内容时，请返回`空字符串`这四个汉字；2.请不要添加任何内容，特别是第一页、第二页这样的多页时的分页语句"
-        let timeout = ocrConfig["timeout"] as? TimeInterval ?? 120.0
-        let maxRetryCount = ocrConfig["max_retry_count"] as? Int ?? 3
-        let retryDelay = ocrConfig["retry_delay"] as? TimeInterval ?? 1.0
+        let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
+        // 按模型名从对应Keychain key获取密钥，回退到config文件
+        let apiKey = settingsManager.getOCRAPIKeyForModel(activeModel)
+        let modelName = modelConfig["model_name"] as? String ?? Constants.ServiceDefaults.ocrModelName
+        // prompt_user优先从模型子配置读取，回退到ocr根节点，再回退到默认值
+        let ocrConfig = settingsManager.loadOCRConfig()
+        let promptUser = modelConfig["prompt_user"] as? String
+            ?? ocrConfig["prompt_user"] as? String
+            ?? "你是一个专业的OCR识别助手。请识别绘本图片中的汉字，并整理断句、使表意顺畅。操作步骤如下：S1.调整图片的角度，使内容正对读者。S2.识别和分割多页，如果输入的绘本图片有多页，请按照从左到右、从上到下的顺序，将图片内容分成多页。S3.识别一页中的汉字，按照自上而下的顺序识别，保留标点符号，忽略拼音、忽略纯数字的段落。S4.整理一页中的汉字，合理断句、补全标点，同一句话去掉内部换行，产出表意顺畅的句子。S5.如果有多页内容，多页内容之间用一个换行、拼接在一起返回。其它要求：1.没识别到内容时，请返回`空字符串`这四个汉字；2.请不要添加任何内容，特别是第一页、第二页这样的多页时的分页语句"
+        let timeout = modelConfig["timeout"] as? TimeInterval
+            ?? ocrConfig["timeout"] as? TimeInterval
+            ?? 120.0
+        let maxRetryCount = modelConfig["max_retry_count"] as? Int
+            ?? ocrConfig["max_retry_count"] as? Int
+            ?? 3
+        let retryDelay = modelConfig["retry_delay"] as? TimeInterval
+            ?? ocrConfig["retry_delay"] as? TimeInterval
+            ?? 1.0
         
         os.Logger.ocrService.info("配置信息:")
+        os.Logger.ocrService.info("   - Active Model: \(activeModel)")
         os.Logger.ocrService.info("   - Base URL: \(baseURL)")
-        os.Logger.ocrService.info("   - API Key: \(apiKey.isEmpty ? "空" : "已配置")")
-        os.Logger.ocrService.info("   - Model: \(modelName)")
+        os.Logger.ocrService.info("   - API Key: \(apiKey.isEmpty ? "空" : "***" + apiKey.suffix(4))")
+        os.Logger.ocrService.info("   - Model Name: \(modelName)")
         os.Logger.ocrService.info("   - Prompt长度: \(promptUser.count)")
         os.Logger.ocrService.info("   - Timeout: \(timeout)秒")
         os.Logger.ocrService.info("   - Max Retry: \(maxRetryCount)次")
         os.Logger.ocrService.info("   - Retry Delay: \(retryDelay)秒")
         
         guard !apiKey.isEmpty else {
-            os.Logger.ocrService.error("未配置豆包大模型API Key")
+            os.Logger.ocrService.error("未配置OCR[\(activeModel)] API Key")
             return nil
         }
         
         let configuration = OCRConfiguration(
+            provider: activeModel,
             apiKey: apiKey,
             modelName: modelName,
             baseURL: baseURL,
@@ -472,7 +492,7 @@ public class OCRServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ocrService.info("OCR服务初始化成功")
+        os.Logger.ocrService.info("OCR服务初始化成功，模型: \(activeModel)")
         return OCRService(configuration: configuration)
     }
 }
