@@ -32,7 +32,7 @@
 
 ## 常量
 
-- 统一收归 `Sources/Constants.swift`，已有分类：Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Camera/VoiceRange/Time/Language/API/APIEndpoints/KeychainKeys/UserDefaultsKeys
+- 统一收归 `Sources/Constants.swift`，已有分类：Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames
 - 新增优先归入已有分类；不属于任何分类可新建 struct（PascalCase）
 - 禁止业务文件硬编码魔法值
 - 运行时可变配置通过 config_local.json + SettingsManager
@@ -43,7 +43,7 @@
 
 ## 编译
 
-零警告（含 Xcode IDE 配置警告），提交前 xcodebuild build 验证。
+零警告（含 Xcode IDE 配置警告、xcodebuild 工具级警告如 destination 匹配歧义），提交前 xcodebuild build 验证。构建命令必须指定 `arch=arm64` 消除 destination 多匹配警告。
 
 ## 错误处理
 
@@ -51,6 +51,8 @@
 - 开发：os.Logger 含错误码，禁止完整密钥（仅末四位 `key=***abcd`）
 - 异步错误切回主线程再更新 UI
 - 超时：默认 `Constants.Network.requestTimeout`（30s），大文件 `resourceTimeout`（60s），不允许无超时
+- 错误分层模式：服务级错误枚举（OCRError/TTSError）实现 LocalizedError，提供双属性：`errorDescription`（用户友好中文，无技术细节）+ `technicalDescription`（供 os.Logger，含错误码和内部信息）；Coordinator 层 ImageToSpeechProcessingError 包装服务错误，errorDescription 委托给内层
+- NSError 创建统一使用 `Constants.ErrorInfo.domain` / `Constants.ErrorInfo.defaultCode`，禁止硬编码 domain 字符串
 
 ## 日志
 

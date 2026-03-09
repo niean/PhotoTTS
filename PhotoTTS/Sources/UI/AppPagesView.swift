@@ -36,16 +36,18 @@ struct AppPageView: View {
     
     // MARK: - 图片保存和加载方法
     private func saveBackgroundImage(_ image: UIImage) {
-        guard let data = image.jpegData(compressionQuality: 0.8) else { return }
-        
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let imagePath = documentsPath.appendingPathComponent("custom_background.jpg")
-        
-        do {
-            try data.write(to: imagePath)
-            os.Logger.appPages.info("背景图片已保存到: \(imagePath.path)")
-        } catch {
-            os.Logger.appPages.error("保存背景图片失败: \(error)")
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let data = image.jpegData(compressionQuality: 0.8) else { return }
+            
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let imagePath = documentsPath.appendingPathComponent("custom_background.jpg")
+            
+            do {
+                try data.write(to: imagePath)
+                os.Logger.appPages.info("背景图片已保存到: \(imagePath.path)")
+            } catch {
+                os.Logger.appPages.error("保存背景图片失败: \(error)")
+            }
         }
     }
     

@@ -20,7 +20,7 @@
 
 ## 播放与记录
 
-- PlayView：PlayView.swift
+- PlayView（横屏播放器，含 PlayerImageView、PlayerProgressBar）：PlayView.swift
 - SessionRecordListView：SessionRecordListView.swift
 - SessionRecordUnifiedView（保存/编辑/查看）：SessionRecordDetailView.swift
 - SessionRecordManager：Core/Managers/Session/SessionRecordManager.swift

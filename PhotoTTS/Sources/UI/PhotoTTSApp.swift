@@ -25,16 +25,8 @@ extension os.Logger {
     static let makeHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeHistory")
 }
 
-// MARK: - AppDelegate：锁定竖屏，拦截横屏
-class AppDelegate: NSObject, UIApplicationDelegate {
-    func application(
-        _ application: UIApplication,
-        supportedInterfaceOrientationsFor window: UIWindow?
-    ) -> UIInterfaceOrientationMask {
-        // Info.plist 声明支持全部方向以满足审核要求，运行时仅允许竖屏，保持竖屏布局
-        return .portrait
-    }
-}
+// MARK: - AppDelegate
+class AppDelegate: NSObject, UIApplicationDelegate {}
 
 // MARK: - 应用状态管理
 class AppState: ObservableObject {
@@ -177,8 +169,8 @@ struct PhotoTTSApp: App {
                 // 先停用当前会话，避免冲突
                 try audioSession.setActive(false, options: [])
                 
-                // 使用最基本的配置
-                try audioSession.setCategory(.playback, mode: .default)
+                // 使用 .soloAmbient：禁用后台播放，锁屏/切APP后音频自动停止
+                try audioSession.setCategory(.soloAmbient, mode: .default)
                 
                 // 激活音频会话
                 try audioSession.setActive(true)
@@ -200,8 +192,8 @@ struct PhotoTTSApp: App {
     private func configureSimpleAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            // 使用最基本的配置，不设置mode和options
-            try audioSession.setCategory(.playback)
+            // 使用 .soloAmbient：禁用后台播放
+            try audioSession.setCategory(.soloAmbient)
             try audioSession.setActive(true)
             os.Logger.audioPlayer.info("简化音频会话配置成功")
         } catch {
@@ -214,7 +206,7 @@ struct PhotoTTSApp: App {
     private func configureMinimalAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback)
+            try audioSession.setCategory(.soloAmbient)
             os.Logger.audioPlayer.info("最小音频会话配置成功（仅设置category）")
         } catch {
             os.Logger.audioPlayer.error("最小音频会话配置也失败: \(error.localizedDescription)")

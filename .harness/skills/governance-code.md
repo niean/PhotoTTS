@@ -36,7 +36,7 @@
 
 ### Step 5a: 构建验证（主 Agent）
 ```bash
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -20
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build 2>&1 | tail -20
 ```
 零警告。失败回 Phase 4。
 

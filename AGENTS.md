@@ -52,6 +52,12 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 流程合规
 
+### 不可压缩章节保护规则（不可压缩）
+
+- 标记为 `不可压缩` 的章节，AI 发现其内容存在问题时，只能以消息方式提示用户
+- AI 禁止自动修改 `不可压缩` 章节的内容
+- AI 禁止索要用户确认然后代为修改 `不可压缩` 章节的内容（防止用户误授权）
+
 ### 消息输出格式（不可压缩）
 
 - 任务声明：任务开始时声明任务类型和架构（新 Task 或同一 Task 内的第 2+ 次反馈均需声明），标准格式：`任务类型：功能需求；调度架构：多Agent` 或 `任务类型：修改文档；调度架构：单Agent`；同一 Task 内第 2+ 次反馈追加标注：`任务类型：功能需求；调度架构：多Agent。同一 Task 内第 N 次反馈`；非迭代功能类任务标注实际类型即可
@@ -60,10 +66,17 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
   - 阶段和角色组合格式示例：`## Phase 1: 任务调度`（标题独占一行）换行后 `[Agent: Orchestrator]`（角色标注独占一行）换行后正文内容
 - 术语禁忌：约束类术语（"硬性门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
 
+### Phase 门禁（GATE）规则（不可压缩）
+
+- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
+- `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
+- `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
+- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4、迭代功能 Phase 7（总结 -> 完成）、迭代其它 Phase 6（总结 -> 完成）
+
 ### 任务分类与 Skill 路由（不可压缩）
 
-- 功能需求或修改代码 -> `Skill: 迭代功能`：必须按完整 Phase 1-7 流程执行，禁止自行跳过、简化、改编、拆分或合并；Phase 2 必须通过 Analyst subagent 执行，Phase 3 必须等待用户确认后才能进入 Phase 4，Phase 5 必须包含构建验证和代码扫描
-- 其它任务类型（如 Harness 维护、文档变更、配置调整等） -> `Skill: 迭代其它`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并
+- 功能需求或修改代码 -> `Skill: 迭代功能`：必须按完整 Phase 1-7 流程执行，禁止自行跳过、简化、改编、拆分或合并；Phase 2 必须通过 Analyst subagent 执行，Phase 3、 Phase 7 为 `[GATE]` 点（见上方 GATE 规则），Phase 5 必须包含构建验证和代码扫描
+- 其它任务类型（如 Harness 维护、文档变更、配置调整等） -> `Skill: 迭代其它`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并，Phase 3、 Phase 6 为 `[GATE]` 点（见上方 GATE 规则）
 - 按 `Skill: 迭代功能` 或 `Skill: 迭代其它` 流程执行的任务，必须执行任务总结 Phase、必须等待用户确认
 
 ### 引用外部步骤的执行约束（不可压缩）
@@ -147,10 +160,10 @@ PhotoTTSUITests/       -- UI 测试
 ## 构建与测试
 
 ```bash
-# 构建（模拟器）
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16' build
+# 构建（模拟器，arch=arm64 消除 destination 匹配歧义）
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build
 # 单元测试
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test
 # API 配置（首次）
 cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 ```
@@ -183,7 +196,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 
 ## 质量守护
 
-- 零警告：`xcodebuild build` 零警告（含 IDE 配置警告）
+- 零警告：`xcodebuild build` 零警告（含 IDE 配置警告、工具级警告），构建命令必须指定 `arch=arm64`
 - 测试：新增/修改 Manager/Coordinator/Service 时同步补充单元测试
 - 错误分层：用户提示用中文无技术细节；开发日志用 `os.Logger` 含错误码
 - 网络：必须设超时（`Constants.Network.requestTimeout`）
@@ -216,4 +229,6 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 | .harness/context/agents/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
 | .harness/context/users/02-prd-baseline.md | 确认功能需求与产品约束时 |
 | .harness/context/users/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
+| .harness/docs/00-harness-desc.md | 了解 Harness 体系描述时 |
+| .harness/docs/01-harness-ops.md | 了解 Harness 运维操作时 |
 | .harness/docs/02-harness-dev.md | 了解 Harness 开发流程时 |

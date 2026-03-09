@@ -260,7 +260,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         // 所有重试都失败了
         let totalDuration = Date().timeIntervalSince(totalStartTime)
         os.Logger.ocrService.error("\(providerTag) OCR API调用失败，已重试 \(self.configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
-        throw lastError ?? OCRError.networkError(NSError(domain: "OCR", code: -1, userInfo: [NSLocalizedDescriptionKey: "重试失败"]))
+        throw lastError ?? OCRError.networkError(NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "重试失败"]))
     }
     
     private func callOCRAPI(imageData: Data, prompt: String) async throws -> String {
@@ -383,26 +383,51 @@ public enum OCRError: LocalizedError {
     case imageConversionFailed
     case networkError(Error)
     
+    /// 用户可见描述：中文、无技术细节
     public var errorDescription: String? {
         switch self {
         case .invalidImageData:
-            return "无效的图片数据"
-        case .imageTooLarge(let actual, let max):
-            return "图片太大: \(actual) bytes，最大支持: \(max) bytes"
+            return "图片数据无法识别，请重新选择图片"
+        case .imageTooLarge:
+            return "图片太大，请压缩后重试"
         case .invalidRequestData:
-            return "无效的请求数据"
+            return "请求准备失败，请重试"
         case .invalidURL:
-            return "无效的API URL"
+            return "服务配置异常，请检查设置"
         case .invalidResponse:
-            return "无效的API响应"
+            return "服务响应异常，请重试"
         case .invalidResponseData:
-            return "无效的响应数据格式"
-        case .apiError(let code, let message):
-            return "API错误 (\(code)): \(message)"
+            return "识别结果解析失败，请重试"
+        case .apiError:
+            return "识别服务出错，请稍后重试"
         case .imageConversionFailed:
-            return "图片格式转换失败"
+            return "图片格式转换失败，请换一张图片"
+        case .networkError:
+            return "网络连接失败，请检查网络后重试"
+        }
+    }
+    
+    /// 技术描述：供 os.Logger 使用，包含错误码和内部信息
+    public var technicalDescription: String {
+        switch self {
+        case .invalidImageData:
+            return "OCR invalidImageData: 图片数据为空或无法解析"
+        case .imageTooLarge(let actual, let max):
+            return "OCR imageTooLarge: \(actual) bytes, max=\(max) bytes"
+        case .invalidRequestData:
+            return "OCR invalidRequestData: JSON序列化失败"
+        case .invalidURL:
+            return "OCR invalidURL: API URL无效"
+        case .invalidResponse:
+            return "OCR invalidResponse: 非HTTPURLResponse"
+        case .invalidResponseData:
+            return "OCR invalidResponseData: JSON解析失败或choices为空"
+        case .apiError(let code, let message):
+            return "OCR apiError: HTTP \(code), body=\(message)"
+        case .imageConversionFailed:
+            return "OCR imageConversionFailed: CIContext JPEG转换失败"
         case .networkError(let error):
-            return "网络错误: \(error.localizedDescription)"
+            return "OCR networkError: \(error.localizedDescription)"
         }
     }
     
@@ -413,13 +438,13 @@ public enum OCRError: LocalizedError {
         case .imageTooLarge:
             return "请压缩图片或使用较小的图片"
         case .invalidRequestData:
-            return "请检查请求参数"
+            return "请重试"
         case .invalidURL:
-            return "请检查API配置"
+            return "请检查OCR服务配置"
         case .invalidResponse:
-            return "请重试或联系技术支持"
+            return "请重试"
         case .invalidResponseData:
-            return "请重试或联系技术支持"
+            return "请重试"
         case .apiError:
             return "请检查API密钥和配置"
         case .imageConversionFailed:

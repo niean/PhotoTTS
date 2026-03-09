@@ -21,5 +21,6 @@
 ## 关键约束
 
 - 全屏类型：启动页/全屏大图/全屏相机（via fullScreenKind）；PlayView 通过 fullScreenCover（不经 fullScreenKind）
+- 播放器布局：设备始终竖屏，图片保持拍摄原始方向（aspectRatio .fit）。控制层（PlayerControlLayer）按横屏布局，通过 .rotationEffect(.degrees(90)) 旋转后覆盖在竖屏图片之上（适配手机左侧为底的横屏观看）。横屏 bottom-left 映射到用户横屏 bottom-left（播放+进度条），横屏 top-right 映射到用户横屏 top-right（退出+定时关闭）
 - 底导四 Tab：首页/制作/消息/我的
 - 数据边界：SessionRecord 为会话权威结构；UI 层不解析 API 原始格式

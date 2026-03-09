@@ -29,8 +29,8 @@
 完整定义见 `.harness/skills/iterate-feature.md`：
 - Phase 1 任务调度：Orchestrator
 - Phase 2 意图理解：Analyst（subagent）
-- Phase 3 意图确认：Orchestrator，等待用户确认
-- Phase 4 代码实现：Coder
+- Phase 3 意图确认：Orchestrator，`[GATE]` 必须使用 `ask_followup_question` 等待用户确认后结束回复，禁止同一回复内继续 Phase 4
+- Phase 4 代码实现：Coder，`[GATE-ENTRY]` 必须确认用户已在上一条消息中明确回复
 - Phase 5 结果验收：Reviewer -- 构建验证 + 5 维度代码扫描 + 验收标准逐项检查 + 测试验证
 - Phase 6 知识回填：Orchestrator，回填知识库 + 删除临时 spec
 - Phase 7 任务总结：Orchestrator，自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> attempt_completion

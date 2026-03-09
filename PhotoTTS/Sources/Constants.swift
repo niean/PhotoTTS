@@ -46,6 +46,12 @@ extension Constants {
     /// 播放/查看时全屏图按需加载的最大边长（pt），超过则等比缩小以控制内存
     struct ImageDisplay {
         static let playbackFullScreenMaxDimension: CGFloat = 1024
+        /// 图片模糊背景缩放比例
+        static let blurBackgroundScaleEffect: CGFloat = 1.15
+        /// 图片模糊背景模糊半径
+        static let blurBackgroundRadius: CGFloat = 10
+        /// 图片模糊背景透明度
+        static let blurBackgroundOpacity: Double = 0.5
         /// 记录头像最大边长
         static let recordAvatarMaxDimension: CGFloat = 96
         /// 记录单张图片最大边长
@@ -105,6 +111,17 @@ extension Constants {
         static let aliqwenTTSModel = "qwen3-tts-flash"
         static let aliqwenTTSVoice = "Cherry"
         static let aliqwenTTSLanguageType = "Chinese"
+        static let huoshanBitrate = 64
+        static let huoshanRate = 16000
+        static let huoshanSpeedRatio = 0.9
+        static let huoshanTimeout: TimeInterval = 60.0
+        static let aliqwenTimeout: TimeInterval = 120.0
+    }
+    
+    // MARK: - 错误信息
+    struct ErrorInfo {
+        static let domain = "PhotoTTS"
+        static let defaultCode = -1
     }
     
     // MARK: - API端点配置
@@ -158,8 +175,18 @@ extension Constants {
     
     // MARK: - 播放配置
     struct Playback {
+        /// 护眼模式背景色
+        static let eyeProtectionBackgroundColor = Color(red: 0.85, green: 0.95, blue: 0.88)
         /// 播放页操作栏无操作自动隐藏间隔（秒）
         static let overlayAutoHideInterval: TimeInterval = 5
+        /// 进度条轨道高度（pt）
+        static let progressBarHeight: CGFloat = 3
+        /// 进度条滑块直径（pt）
+        static let progressBarThumbSize: CGFloat = 14
+        /// 进度条分割点直径（pt）
+        static let segmentDotSize: CGFloat = 6
+        /// 进度条已播放填充色
+        static let progressBarFillColor = Color(red: 0.4, green: 0.85, blue: 0.55)
     }
     
     // MARK: - 钥匙串键值

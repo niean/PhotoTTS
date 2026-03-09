@@ -456,8 +456,8 @@ struct MakeView: View {
             }
         }
         .onChange(of: error?.localizedDescription) { _, description in
-                if let description = description {
-                    alertMessage = "处理失败: \(description)"
+                if description != nil {
+                    alertMessage = "处理失败，请重试"
             }
         }
     }
@@ -605,7 +605,7 @@ struct MakeView: View {
             os.Logger.makeView.info("已启动后台制作任务: sessionId=\(sessionId)")
         } else {
             isProcessing = false
-            error = NSError(domain: "PhotoTTS", code: -1, userInfo: [NSLocalizedDescriptionKey: "启动制作失败，请重试"])
+            error = NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "启动制作失败，请重试"])
         }
     }
 

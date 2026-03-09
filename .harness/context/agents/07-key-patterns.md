@@ -8,21 +8,27 @@ HomePageView 写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPick
 
 陷阱：不能只在 onAppear 消费，Tab 切换时 onAppear 不一定触发（视图可能已存在），必须同时监听 onChange。
 
-## 模式二：PlayView 两种打开路径
+## 模式二：PlayView 竖屏播放器 + 横屏控制层
+
+设备始终竖屏，不做横屏旋转。图片保持拍摄原始方向（aspectRatio .fit，竖拍照片居中显示、两侧留白）。控制层（PlayerControlLayer 独立组件）按横屏布局，通过 .rotationEffect(.degrees(90)) 旋转后覆盖在竖屏图片之上（适配手机左侧为底的横屏观看）。
+
+旋转映射（+90° CW）：横屏 bottom-left -> 竖屏 top-left -> 用户横屏 bottom-left，横屏 top-right -> 竖屏 bottom-right -> 用户横屏 top-right。HStack 内左→右顺序在用户横屏视角下保持不变。
 
 两种互斥入参，均通过 .fullScreenCover 打开：
-- recordId：已保存记录，后台加载，按需 loadImage，禁止 getImages() 全量加载
+- recordId：已保存记录，后台加载，按需 loadImage（PlayerImageView），禁止 getImages() 全量加载
 - preloadedRecord：未保存制作中记录，图片已在内存，使用 getImages()
 
-关闭：onDismiss 回调（onDisappear 中也调用，支持左滑关闭）；正常播放结束时 PlayHistoryManager 记录。
+图片切换：三种方式。(1) 播放中由音频进度自动驱动（updateCurrentImageIndex 基于 textSegmentRanges 映射）；(2) 暂停后拖动进度条手动跳转（seekToRatio -> snap 到最近分割点）；(3) 暂停后滑动手势切换（DragGesture on 底层 Color，方向受 animationStyle 管控，切换后 seekToRatio 同步音频位置）。
+
+控制层（PlayerControlLayer）：所有操作控件悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left（横屏 bottom-left）：播放/暂停按钮 + 进度条（PlayerProgressBar，含时间显示、分割点标记、可拖动滑块）。用户横屏 top-right（横屏 top-right）：退出按钮 + "播完本集"定时关闭开关（autoStopEnabled，默认开启 = 播完自动退出）。
+
+关闭：onDismiss 回调（onDisappear 中也调用）；正常播放结束时 PlayHistoryManager 记录，autoStopEnabled 时自动退出。
 
 播放互斥：AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点（HomePageView、MakeView.togglePlayback、loadPendingSiriSession）打开前检查，为 true 时拒绝并记录日志；触发时设 true，onDismiss 设 false。
 
-双击手势：FullScreenImageContent 支持 onDoubleTapBackground 回调，PlayView 传入 togglePlayback。通过 optionalDoubleTapGesture 扩展条件添加，handler 为 nil 时不引入单击延迟。
+手势：底层 Color 响应单击（overlay 显隐切换）、双击（播放/暂停切换）和滑动（暂停时切换图片），图片层 allowsHitTesting(false) 透传手势。滑动方向受 animationStyle 管控：rightToLeft 模式检测竖屏 height 轴（用户横屏左右滑），topToBottom 模式检测竖屏 width 轴（用户横屏上下滑）。DragGesture minimumDistance 使用 Constants.Gesture.swipeMinDistance。浮层 5s 无操作自动隐藏。
 
-滑动控制：isSwipeDisabled 参数，播放时禁止手动翻页（OnDemand 在 DragGesture.onEnded guard，TabView 叠加 highPriorityGesture 拦截），暂停时允许。自动翻页不受影响。
-
-翻页动画：OnDemand 路径 .transition(.opacity) + .animation(.easeInOut(duration: 0.3), value: currentIndex)，手动/自动翻页均 withAnimation 包裹。
+翻页动画：通过 AnimationStyle 枚举（private，PlayView.swift 内）控制方向，支持两种模式（@State 会话级状态，默认 rightToLeft）。@State isForwardTransition 记录翻页方向（正向=index增大/反向=index减小），在所有 currentImageIndex 赋值点先设方向再更新 index。.transition 根据 (animationStyle, isForwardTransition) 二维组合动态选择插入/移除边缘：rightToLeft+正向 insertion .bottom、removal .top，反向则反转；topToBottom+正向 insertion .trailing、removal .leading，反向则反转。播放设置面板提供「动画样式」按钮切换。外层 .animation(.easeInOut(duration: 0.3), value: currentImageIndex) 驱动过渡。
 
 ## 模式三：图片按需加载与缓存
 
@@ -65,3 +71,15 @@ MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectW
 重连：切回 Tab1 通过 appState.makeTaskIdToReconnect 或自动检测，调 reconnectToBackgroundTask()。列表中 isMaking 记录显示"制作中"标签，仅允许删除。
 
 约束：只允许 1 个后台制作任务（制作页只允许 1 个制作项），已有活跃任务时 startMaking 返回 nil。
+
+## 模式八：错误分层（Error Layering）
+
+三层错误架构，确保用户消息友好、开发日志含技术细节：
+
+服务层：OCRError/TTSError 实现 LocalizedError，提供 errorDescription（用户友好中文，无技术细节）+ technicalDescription（含错误码和内部信息，供 os.Logger）。新增服务级错误枚举必须遵循此双属性模式。
+
+协调层：ImageToSpeechProcessingError 包装服务错误（.ocrFailed(Error)/.ttsFailed(Error)），errorDescription 委托给内层服务错误的 errorDescription。
+
+NSError 创建：统一使用 Constants.ErrorInfo.domain / Constants.ErrorInfo.defaultCode，禁止硬编码 domain 字符串。
+
+涉及文件：OCRService.swift（OCRError）、TTSService.swift（TTSError）、ImageToSpeechCoordinator.swift（ImageToSpeechProcessingError）、Constants.swift（ErrorInfo）。

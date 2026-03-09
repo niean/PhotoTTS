@@ -585,12 +585,12 @@ class TTSServiceFactory {
         let cluster = modelConfig["cluster"] as? String ?? Constants.ServiceDefaults.ttsCluster
         let voiceType = modelConfig["voice_type"] as? String ?? Constants.ServiceDefaults.ttsVoiceType
         let encoding = modelConfig["encoding"] as? String ?? Constants.ServiceDefaults.ttsEncoding
-        let bitrate = modelConfig["bitrate"] as? Int ?? 64
-        let rate = modelConfig["rate"] as? Int ?? 16000
-        let speedRatio = modelConfig["speed_ratio"] as? Double ?? 0.9
+        let bitrate = modelConfig["bitrate"] as? Int ?? Constants.ServiceDefaults.huoshanBitrate
+        let rate = modelConfig["rate"] as? Int ?? Constants.ServiceDefaults.huoshanRate
+        let speedRatio = modelConfig["speed_ratio"] as? Double ?? Constants.ServiceDefaults.huoshanSpeedRatio
         let timeout = modelConfig["timeout"] as? TimeInterval
             ?? ttsConfig["timeout"] as? TimeInterval
-            ?? 60.0
+            ?? Constants.ServiceDefaults.huoshanTimeout
         let maxRetryCount = modelConfig["max_retry_count"] as? Int
             ?? ttsConfig["max_retry_count"] as? Int
             ?? 3
@@ -639,7 +639,7 @@ class TTSServiceFactory {
         let stream = modelConfig["stream"] as? Bool ?? false
         let timeout = modelConfig["timeout"] as? TimeInterval
             ?? ttsConfig["timeout"] as? TimeInterval
-            ?? 120.0
+            ?? Constants.ServiceDefaults.aliqwenTimeout
         let maxRetryCount = modelConfig["max_retry_count"] as? Int
             ?? ttsConfig["max_retry_count"] as? Int
             ?? 3
@@ -685,6 +685,26 @@ enum TTSError: LocalizedError {
     case noAudioData
     
     var errorDescription: String? {
+        switch self {
+        case .invalidInput:
+            return "输入内容无效，请检查后重试"
+        case .invalidURL:
+            return "服务配置异常，请检查设置"
+        case .networkError:
+            return "网络连接失败，请检查网络后重试"
+        case .invalidResponse:
+            return "语音合成服务响应异常，请稍后重试"
+        case .httpError:
+            return "语音合成服务暂时不可用，请稍后重试"
+        case .noData:
+            return "语音合成服务未返回数据，请稍后重试"
+        case .noAudioData:
+            return "语音合成未生成音频，请稍后重试"
+        }
+    }
+
+    /// 技术详情描述，供 os.Logger 记录
+    var technicalDescription: String {
         switch self {
         case .invalidInput(let message):
             return "输入无效: \(message)"

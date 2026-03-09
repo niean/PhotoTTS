@@ -4,14 +4,28 @@ import AVFoundation
 import MediaPlayer
 import os.log
 
-/// 播放视图
+// MARK: - 翻页动画样式
+
+/// 翻页动画方向（相对横屏控制层坐标系）
+private enum AnimationStyle {
+    /// 从右到左（默认）
+    case rightToLeft
+    /// 从上到下
+    case topToBottom
+}
+
+// MARK: - 播放视图（播放器）
+
+/// 竖屏播放器：图片保持拍摄原始方向，全屏展示。
+/// 操作控件（播控、进度条、控制栏）悬浮在图片之上。
+/// 图片切换由音频进度自动驱动（播放中），或由用户拖动进度条手动控制（暂停时）。
 struct PlayView: View {
     var recordId: String? = nil
     var preloadedRecord: SessionRecord? = nil
     let onDismiss: () -> Void
-    
+
     @State private var record: SessionRecord?
-    /// 仅当从制作页传入的 preloadedRecord 时为 true；从 recordId 加载的会话一律按需加载，不调用 getImages()
+    /// 仅当从制作页传入的 preloadedRecord 时为 true
     @State private var recordIsFromPreload = false
     @State private var isLoading = true
     @State private var loadError: String?
@@ -22,17 +36,37 @@ struct PlayView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioPlayerDelegate: AudioPlayerDelegate?
     @State private var textSegmentRanges: [(start: Int, end: Int)] = []
-    /// 制作页传入的预加载图片（仅 preloadedRecord 路径使用，避免 getImages 全量 base64 解码）
+    /// 制作页传入的预加载图片
     @State private var preloadedImages: [UIImage]? = nil
-    @State private var isOverlayVisible = false  // 点击全屏图切换操作栏显隐，起始不展示
-    @State private var overlayAutoHideTimer: Timer?  // 5 秒无操作自动隐藏操作栏
-    @State private var imageIndexChangedWhilePaused = false  // 暂停期间用户滑动了图片
-    
+    @State private var isOverlayVisible = false
+    @State private var overlayAutoHideTimer: Timer?
+    /// "播完本集"定时关闭，默认开启（播完自动退出，与原行为一致）
+    @State private var autoStopEnabled = true
+    /// 护眼模式：开启时使用护眼绿背景，关闭时使用黑色背景
+    @State private var eyeProtectionEnabled = true
+    /// 撑满全屏：开启时图片 .fit 拉伸填满可用空间（现有行为），关闭时以原尺寸展示（不放大，仅缩小以适屏）
+    @State private var fillScreenEnabled = true
+    /// 翻页动画样式：从右到左（默认）或从上到下（相对横屏控制层）
+    @State private var animationStyle: AnimationStyle = .rightToLeft
+    /// 翻页方向：true=正向(index增大)，false=反向(index减小)，用于动态控制 transition 方向
+    @State private var isForwardTransition: Bool = true
+
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
     private let overlayAutoHideInterval: TimeInterval = Constants.Playback.overlayAutoHideInterval
     private var playButtonSize: CGFloat { isPad ? 28 : 25 }
-    private var thumbSize: CGFloat { isPad ? 44 : 40 }
-    
+    private var controlButtonSize: CGFloat { isPad ? 44 : 40 }
+
+    /// 进度条分割点比例（0.0~1.0），每页音频段的起始位置
+    private var segmentRatios: [Double] {
+        guard let record = record, !textSegmentRanges.isEmpty else { return [] }
+        let total = record.ocrText.count
+        guard total > 0 else { return [] }
+        return textSegmentRanges.map { Double($0.start) / Double(total) }
+    }
+
+    private var currentAudioTime: TimeInterval { audioPlayer?.currentTime ?? 0 }
+    private var totalAudioDuration: TimeInterval { audioPlayer?.duration ?? 0 }
+
     var body: some View {
         Group {
             if isLoading {
@@ -41,55 +75,25 @@ struct PlayView: View {
                     ProgressView("加载中...")
                 }
             } else if let record = record, record.totalImageCount > 0 {
-                let useOnDemand = !recordIsFromPreload
-                FullScreenImageContent(
-                    sessionId: useOnDemand ? record.id : nil,
-                    totalImageCount: record.totalImageCount,
-                    preloadedImages: useOnDemand ? nil : preloadedImages,
-                    currentIndex: $currentImageIndex,
-                    isSwipeDisabled: isPlaying,
-                    onTapBackground: {
-                        isOverlayVisible.toggle()
-                        if isOverlayVisible { startOverlayAutoHideTimer() }
-                    },
-                    onDoubleTapBackground: {
-                        guard audioPlayer != nil else { return }
-                        togglePlayback()
-                        if isOverlayVisible { startOverlayAutoHideTimer() }
-                    },
-                    overlayContent: {
-                        if isOverlayVisible {
-                            playOverlay(recordName: record.name)
-                        }
-                    }
-                )
-                .statusBarHidden(true)
-                .onAppear {
-                    if isOverlayVisible { startOverlayAutoHideTimer() }
-                }
-                .onChange(of: isOverlayVisible) { _, visible in
-                    if !visible { overlayAutoHideTimer?.invalidate(); overlayAutoHideTimer = nil }
-                    else { startOverlayAutoHideTimer() }
-                }
+                playerView(record: record)
             } else if loadError != nil {
                 CustomZStack {
                     Color(UIColor.systemBackground).ignoresSafeArea()
                     VStack(spacing: 16) {
                         Text(loadError ?? "加载失败")
                             .foregroundColor(.secondary)
-                        Button("关闭", action: onDismiss)
+                        Button("关闭", action: { stopAndDismiss() })
                     }
                 }
             } else {
                 CustomZStack {
                     Color(UIColor.systemBackground).ignoresSafeArea()
-                    Button("关闭", action: onDismiss)
+                    Button("关闭", action: { stopAndDismiss() })
                 }
             }
         }
         .onAppear {
             if let pre = preloadedRecord {
-                // 刚制作完成：未保存记录，使用预加载图（仅此路径允许一次性在内存）
                 record = pre
                 recordIsFromPreload = true
                 preloadedImages = pre.getImages()
@@ -97,7 +101,6 @@ struct PlayView: View {
                 isLoading = false
                 if pre.getAudioData() != nil { startPlayback() }
             } else {
-                // 已保存记录（首页/历史等）：仅按需加载，不加载全部图片
                 recordIsFromPreload = false
                 loadRecord()
             }
@@ -106,13 +109,7 @@ struct PlayView: View {
             stopAudio()
             overlayAutoHideTimer?.invalidate()
             overlayAutoHideTimer = nil
-            onDismiss()  // 右进左出：左滑返回时同步清空导航状态
-        }
-        .onChange(of: currentImageIndex) { _, _ in
-            // 暂停期间用户滑动图片时标记，恢复播放时 seek 到对应位置
-            if !isPlaying && audioPlayer != nil {
-                imageIndexChangedWhilePaused = true
-            }
+            onDismiss()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.remotePlaybackCommand)) { notification in
             guard let action = notification.userInfo?["action"] as? String else { return }
@@ -123,54 +120,157 @@ struct PlayView: View {
             default: break
             }
         }
-    }
-    
-    @ViewBuilder
-    private func playOverlay(recordName: String) -> some View {
-        VStack(spacing: 0) {
-            Spacer()
-            // 播放控制
-            HStack(spacing: 24) {
-                Button(action: {
-                    startOverlayAutoHideTimer()
-                    togglePlayback()
-                }) {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: playButtonSize))
-                        .foregroundColor(isPlaying ? Color.yellow : Color.green)
-                        .frame(width: thumbSize, height: thumbSize)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white, lineWidth: 1)
-                                )
-                        )
-                }
-                .disabled(record?.getAudioData() == nil)
-                Button(action: {
-                    startOverlayAutoHideTimer()
-                    stopAndDismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: playButtonSize))
-                        .foregroundColor(Color.red)
-                        .frame(width: thumbSize, height: thumbSize)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white, lineWidth: 1)
-                                )
-                        )
-                }
-            }
-            .padding(.bottom, isPad ? 48 : 32)
+        // 禁用后台播放：锁屏/切APP时主动暂停
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            pauseIfPlaying()
         }
     }
-    
+
+    // MARK: - 播放器主视图
+
+    @ViewBuilder
+    private func playerView(record: SessionRecord) -> some View {
+        let useOnDemand = !recordIsFromPreload
+        GeometryReader { geometry in
+            ZStack {
+                // 底层：护眼底色 + 手势区域
+                (eyeProtectionEnabled ? Constants.Playback.eyeProtectionBackgroundColor : Color.black)
+                    .ignoresSafeArea(.all)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        guard audioPlayer != nil else { return }
+                        togglePlayback()
+                        if isOverlayVisible { startOverlayAutoHideTimer() }
+                    }
+                    .onTapGesture {
+                        isOverlayVisible.toggle()
+                        if isOverlayVisible { startOverlayAutoHideTimer() }
+                    }
+                    // 手势识别：暂停状态下支持滑动切换图片，方向受动画样式管控
+                    .gesture(
+                        DragGesture(minimumDistance: Constants.Gesture.swipeMinDistance)
+                            .onEnded { value in
+                                guard !isPlaying, audioPlayer != nil else { return }
+                                let newIndex: Int
+                                switch animationStyle {
+                                case .rightToLeft:
+                                    // 竖屏 height- = 用户横屏左滑 -> 下一张；height+ = 用户横屏右滑 -> 上一张
+                                    let t = value.translation.height
+                                    if t < -Constants.Gesture.swipeMinDistance {
+                                        newIndex = min(currentImageIndex + 1, record.totalImageCount - 1)
+                                    } else if t > Constants.Gesture.swipeMinDistance {
+                                        newIndex = max(0, currentImageIndex - 1)
+                                    } else {
+                                        return
+                                    }
+                                case .topToBottom:
+                                    // 竖屏 width+ = 用户横屏上滑 -> 上一张；width- = 用户横屏下滑 -> 下一张
+                                    let t = value.translation.width
+                                    if t > Constants.Gesture.swipeMinDistance {
+                                        newIndex = max(0, currentImageIndex - 1)
+                                    } else if t < -Constants.Gesture.swipeMinDistance {
+                                        newIndex = min(currentImageIndex + 1, record.totalImageCount - 1)
+                                    } else {
+                                        return
+                                    }
+                                }
+                                guard newIndex != currentImageIndex else { return }
+                                isForwardTransition = newIndex > currentImageIndex
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    currentImageIndex = newIndex
+                                }
+                                // 同步音频位置到新页对应文本段起始
+                                if newIndex < segmentRatios.count {
+                                    seekToRatio(segmentRatios[newIndex])
+                                }
+                            }
+                    )
+
+                // 图片层（不响应手势，传递给底层）
+                PlayerImageView(
+                    sessionId: useOnDemand ? record.id : nil,
+                    preloadedImages: useOnDemand ? nil : preloadedImages,
+                    index: currentImageIndex,
+                    size: geometry.size,
+                    fillScreen: fillScreenEnabled
+                )
+                .id(currentImageIndex)
+                .transition(.asymmetric(
+                    insertion: .move(edge: {
+                        switch (animationStyle, isForwardTransition) {
+                        case (.rightToLeft, true): return .bottom
+                        case (.rightToLeft, false): return .top
+                        case (.topToBottom, true): return .trailing
+                        case (.topToBottom, false): return .leading
+                        }
+                    }()),
+                    removal: .move(edge: {
+                        switch (animationStyle, isForwardTransition) {
+                        case (.rightToLeft, true): return .top
+                        case (.rightToLeft, false): return .bottom
+                        case (.topToBottom, true): return .leading
+                        case (.topToBottom, false): return .trailing
+                        }
+                    }())
+                ))
+                .allowsHitTesting(false)
+
+                // 控制层：横屏布局，旋转 +90° 覆盖在竖屏图片之上（适配手机左侧为底的横屏观看）
+                if isOverlayVisible {
+                    PlayerControlLayer(
+                        isPlaying: isPlaying,
+                        autoStopEnabled: autoStopEnabled,
+                        showProgressBar: audioPlayer != nil,
+                        isPlayEnabled: record.getAudioData() != nil,
+                        playbackProgress: playbackProgress,
+                        currentAudioTime: currentAudioTime,
+                        totalAudioDuration: totalAudioDuration,
+                        segmentRatios: segmentRatios,
+                        isDraggable: !isPlaying,
+                        isPad: isPad,
+                        eyeProtectionEnabled: eyeProtectionEnabled,
+                        fillScreenEnabled: fillScreenEnabled,
+                        animationStyle: animationStyle,
+                        onTogglePlay: { togglePlayback() },
+                        onToggleAutoStop: { autoStopEnabled.toggle() },
+                        onToggleEyeProtection: { eyeProtectionEnabled.toggle() },
+                        onToggleFillScreen: { fillScreenEnabled.toggle() },
+                        onToggleAnimationStyle: {
+                            animationStyle = animationStyle == .rightToLeft ? .topToBottom : .rightToLeft
+                        },
+                        onDismiss: { stopAndDismiss() },
+                        onHideOverlay: { isOverlayVisible = false },
+                        onSeek: { seekToRatio($0) },
+                        onInteraction: { startOverlayAutoHideTimer() }
+                    )
+                    .frame(width: geometry.size.height, height: geometry.size.width)
+                    .rotationEffect(.degrees(90))
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+            }
+        }
+        .ignoresSafeArea(.all)
+        .statusBarHidden(true)
+        .animation(.easeInOut(duration: 0.3), value: currentImageIndex)
+        .onAppear {
+            if isOverlayVisible { startOverlayAutoHideTimer() }
+            if !recordIsFromPreload {
+                preloadAdjacentImages(sessionId: record.id, current: currentImageIndex, total: record.totalImageCount)
+            }
+        }
+        .onChange(of: isOverlayVisible) { _, visible in
+            if !visible { overlayAutoHideTimer?.invalidate(); overlayAutoHideTimer = nil }
+            else { startOverlayAutoHideTimer() }
+        }
+        .onChange(of: currentImageIndex) { _, newIndex in
+            if !recordIsFromPreload {
+                preloadAdjacentImages(sessionId: record.id, current: newIndex, total: record.totalImageCount)
+            }
+        }
+    }
+
+    // MARK: - 数据加载
+
     private func loadRecord() {
         guard let id = recordId else { isLoading = false; return }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -191,7 +291,7 @@ struct PlayView: View {
             }
         }
     }
-    
+
     private func computeTextSegmentRanges(_ segments: [String]) -> [(start: Int, end: Int)] {
         var ranges: [(start: Int, end: Int)] = []
         var pos = 0
@@ -202,7 +302,9 @@ struct PlayView: View {
         }
         return ranges
     }
-    
+
+    // MARK: - 播放控制
+
     private func startPlayback() {
         guard let record = record, let audioData = record.getAudioData() else { return }
         configureAudioSession()
@@ -224,7 +326,7 @@ struct PlayView: View {
             os.Logger.audioPlayer.error("PlayView 创建播放器失败: \(error.localizedDescription)")
         }
     }
-    
+
     private func startPlaybackTimer() {
         playbackTimer?.invalidate()
         playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
@@ -234,7 +336,7 @@ struct PlayView: View {
             updateCurrentImageIndex(progress)
         }
     }
-    
+
     private func updateCurrentImageIndex(_ progress: Double) {
         guard let record = record, !textSegmentRanges.isEmpty else { return }
         let totalChars = record.ocrText.count
@@ -243,6 +345,7 @@ struct PlayView: View {
         for (index, range) in textSegmentRanges.enumerated() {
             if pos >= range.start && pos < range.end {
                 if index != currentImageIndex && index < record.totalImageCount {
+                    isForwardTransition = index > currentImageIndex
                     withAnimation(.easeInOut(duration: 0.3)) {
                         currentImageIndex = index
                     }
@@ -254,7 +357,7 @@ struct PlayView: View {
             currentImageIndex = min(textSegmentRanges.count - 1, record.totalImageCount - 1)
         }
     }
-    
+
     private func togglePlayback() {
         guard audioPlayer != nil else { return }
         if audioPlayer?.isPlaying == true {
@@ -263,33 +366,15 @@ struct PlayView: View {
             resumeIfPaused()
         }
     }
-    
+
     private func resumeIfPaused() {
         guard let player = audioPlayer, !player.isPlaying else { return }
-        // 暂停期间滑动了图片，seek 到当前图片对应的音频位置
-        if imageIndexChangedWhilePaused {
-            if let seekTime = audioTimeForImageIndex(currentImageIndex) {
-                player.currentTime = seekTime
-            }
-            imageIndexChangedWhilePaused = false
-        }
         player.play()
         isPlaying = true
         startPlaybackTimer()
         UIApplication.shared.isIdleTimerDisabled = true
     }
-    
-    /// 根据图片索引计算其对应文本段在音频中的起始时间
-    private func audioTimeForImageIndex(_ index: Int) -> TimeInterval? {
-        guard let player = audioPlayer, player.duration > 0,
-              let record = record, !textSegmentRanges.isEmpty else { return nil }
-        let totalChars = record.ocrText.count
-        guard totalChars > 0, index < textSegmentRanges.count else { return nil }
-        let startChar = textSegmentRanges[index].start
-        let ratio = Double(startChar) / Double(totalChars)
-        return ratio * player.duration
-    }
-    
+
     private func pauseIfPlaying() {
         guard let player = audioPlayer, player.isPlaying else { return }
         player.pause()
@@ -297,22 +382,27 @@ struct PlayView: View {
         playbackTimer?.invalidate()
         UIApplication.shared.isIdleTimerDisabled = false
     }
-    
+
     private func onPlaybackFinished() {
         isPlaying = false
         playbackProgress = 1.0
         playbackTimer?.invalidate()
         playbackTimer = nil
-        audioPlayer = nil
-        audioPlayerDelegate = nil
         UIApplication.shared.isIdleTimerDisabled = false
         clearRemoteTransportControls()
         if let r = record {
             PlayHistoryManager.shared.recordPlay(sessionId: r.id, name: r.name, playedAt: Date())
         }
-        onDismiss()
+        if autoStopEnabled {
+            // 播完本集：自动退出（默认行为）
+            stopAndDismiss()
+        } else {
+            // 不自动退出：停留在最后一帧
+            audioPlayer = nil
+            audioPlayerDelegate = nil
+        }
     }
-    
+
     private func stopAudio() {
         playbackTimer?.invalidate()
         playbackTimer = nil
@@ -322,23 +412,36 @@ struct PlayView: View {
         UIApplication.shared.isIdleTimerDisabled = false
         clearRemoteTransportControls()
     }
-    
+
     private func stopAndDismiss() {
         stopAudio()
         onDismiss()
     }
-    
+
+    // MARK: - 进度条跳转
+
+    /// 跳转到指定进度比例，更新音频位置和图片
+    private func seekToRatio(_ ratio: Double) {
+        guard let player = audioPlayer, player.duration > 0 else { return }
+        let clampedRatio = max(0, min(1, ratio))
+        player.currentTime = clampedRatio * player.duration
+        playbackProgress = clampedRatio
+        updateCurrentImageIndex(clampedRatio)
+    }
+
+    // MARK: - 音频会话
+
     private func configureAudioSession() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        // 使用 .soloAmbient：禁用后台播放，锁屏/切APP后音频自动停止
+        try? AVAudioSession.sharedInstance().setCategory(.soloAmbient)
         try? AVAudioSession.sharedInstance().setActive(true)
     }
-    
+
     // MARK: - Now Playing / 远程控制
-    
-    /// 注册 MPRemoteCommandCenter 远程命令，使 Siri 暂停/继续/音量控制生效
+
     private func setupRemoteTransportControls() {
         let commandCenter = MPRemoteCommandCenter.shared()
-        
+
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in
             DispatchQueue.main.async {
@@ -350,7 +453,7 @@ struct PlayView: View {
             }
             return .success
         }
-        
+
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { _ in
             DispatchQueue.main.async {
@@ -362,7 +465,7 @@ struct PlayView: View {
             }
             return .success
         }
-        
+
         commandCenter.togglePlayPauseCommand.isEnabled = true
         commandCenter.togglePlayPauseCommand.addTarget { _ in
             DispatchQueue.main.async {
@@ -375,16 +478,16 @@ struct PlayView: View {
             return .success
         }
     }
-    
-    /// 清除远程命令
+
     private func clearRemoteTransportControls() {
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.playCommand.removeTarget(nil)
         commandCenter.pauseCommand.removeTarget(nil)
         commandCenter.togglePlayPauseCommand.removeTarget(nil)
     }
-    
-    /// 5 秒内无点击、无操作按钮时自动隐藏操作栏
+
+    // MARK: - 浮层自动隐藏
+
     private func startOverlayAutoHideTimer() {
         overlayAutoHideTimer?.invalidate()
         overlayAutoHideTimer = Timer.scheduledTimer(withTimeInterval: overlayAutoHideInterval, repeats: false) { _ in
@@ -393,9 +496,388 @@ struct PlayView: View {
             }
         }
     }
+
+    // MARK: - 图片预加载
+
+    private func preloadAdjacentImages(sessionId: String, current: Int, total: Int) {
+        let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
+        if current + 1 < total {
+            SessionRecordManager.shared.preloadImage(sessionId: sessionId, index: current + 1, maxDimension: maxDim)
+        }
+        if current - 1 >= 0 {
+            SessionRecordManager.shared.preloadImage(sessionId: sessionId, index: current - 1, maxDimension: maxDim)
+        }
+    }
 }
 
-// MARK: - 全屏大图内容
+// MARK: - 播放器控制层（横屏布局，旋转 +90° 覆盖在竖屏图片之上）
+
+/// 横屏播放器控制层：内部按横屏布局（宽>高），由 PlayView 旋转 +90° 后叠加在竖屏图片之上。
+/// 旋转映射（+90° CW，适配手机左侧为底的横屏观看）：横屏 bottom-left -> 竖屏 top-left -> 用户横屏 bottom-left，
+/// 横屏 top-right -> 竖屏 bottom-right -> 用户横屏 top-right。HStack 内左→右顺序在用户横屏视角下保持不变。
+private struct PlayerControlLayer: View {
+    let isPlaying: Bool
+    let autoStopEnabled: Bool
+    let showProgressBar: Bool
+    let isPlayEnabled: Bool
+    let playbackProgress: Double
+    let currentAudioTime: TimeInterval
+    let totalAudioDuration: TimeInterval
+    let segmentRatios: [Double]
+    let isDraggable: Bool
+    let isPad: Bool
+    let eyeProtectionEnabled: Bool
+    let fillScreenEnabled: Bool
+    let animationStyle: AnimationStyle
+    let onTogglePlay: () -> Void
+    let onToggleAutoStop: () -> Void
+    let onToggleEyeProtection: () -> Void
+    let onToggleFillScreen: () -> Void
+    let onToggleAnimationStyle: () -> Void
+    let onDismiss: () -> Void
+    let onHideOverlay: () -> Void
+    let onSeek: (Double) -> Void
+    let onInteraction: () -> Void
+
+    private var playButtonSize: CGFloat { isPad ? 28 : 25 }
+    private var controlButtonSize: CGFloat { isPad ? 44 : 40 }
+
+    var body: some View {
+        ZStack {
+            // 横屏 bottom-left（旋转后 -> 用户横屏 bottom-left）：时间 + 进度条 + 操作按钮
+            VStack(alignment: .leading, spacing: 10) {
+                // 时间显示
+                if showProgressBar {
+                    HStack(spacing: 4) {
+                        Text(formatTime(currentAudioTime))
+                            .foregroundColor(Constants.Playback.progressBarFillColor)
+                        Text("/")
+                            .foregroundColor(.white.opacity(0.6))
+                        Text(formatTime(totalAudioDuration))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                }
+
+                // 进度条
+                if showProgressBar {
+                    PlayerProgressBar(
+                        progress: playbackProgress,
+                        segmentRatios: segmentRatios,
+                        isDraggable: isDraggable,
+                        onSeek: { ratio in
+                            onSeek(ratio)
+                            onInteraction()
+                        }
+                    )
+                }
+
+                // 操作按钮
+                HStack(spacing: 20) {
+                    Button(action: {
+                        onInteraction()
+                        onTogglePlay()
+                    }) {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: isPad ? 32 : 28, weight: .bold))
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+                    }
+                    .disabled(!isPlayEnabled)
+                }
+            }
+            .padding(.bottom, 30)
+            .padding(.leading, 60)
+            .padding(.trailing, 60)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+
+            // 播放设置面板
+            VStack(alignment: .leading, spacing: 0) {
+                // 标题行
+                HStack {
+                    Text("播放设置")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button(action: { onHideOverlay() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white.opacity(0.6))
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.white.opacity(0.15)))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+
+                // 分割线
+                Rectangle()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 14)
+
+                // 图标按钮区
+                HStack(spacing: 16) {
+                    settingsIconButton(
+                        icon: eyeProtectionEnabled ? "eye.fill" : "eye",
+                        label: "护眼模式",
+                        isActive: eyeProtectionEnabled
+                    ) { onToggleEyeProtection(); onInteraction() }
+
+                    settingsIconButton(
+                        icon: "arrow.up.left.and.arrow.down.right",
+                        label: "撑满全屏",
+                        isActive: fillScreenEnabled
+                    ) { onToggleFillScreen(); onInteraction() }
+
+                    settingsIconButton(
+                        icon: animationStyle == .rightToLeft ? "arrow.left" : "arrow.down",
+                        label: animationStyle == .rightToLeft ? "左右翻页" : "上下翻页",
+                        isActive: true
+                    ) { onToggleAnimationStyle(); onInteraction() }
+
+                    settingsIconButton(
+                        icon: "xmark.circle",
+                        label: "关闭",
+                        isActive: true,
+                        activeColor: .red
+                    ) { onDismiss() }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+
+                // 分割线
+                Rectangle()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 14)
+
+                // 播完本集 Toggle 行
+                HStack {
+                    Text("播完本集")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button(action: { onToggleAutoStop(); onInteraction() }) {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(autoStopEnabled ? Color.green : Color.gray.opacity(0.4))
+                            .frame(width: 40, height: 24)
+                            .overlay(
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 20, height: 20)
+                                    .offset(x: autoStopEnabled ? 8 : -8)
+                                    .animation(.easeInOut(duration: 0.15), value: autoStopEnabled)
+                            )
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.25))
+            )
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.trailing, 16)
+            .padding(.top, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        }
+    }
+
+    private func formatTime(_ time: TimeInterval) -> String {
+        let t = max(0, time)
+        let minutes = Int(t) / 60
+        let seconds = Int(t) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private var settingsIconSize: CGFloat { isPad ? 52 : 42 }
+    private var settingsIconFontSize: CGFloat { isPad ? 24 : 20 }
+    private var settingsLabelFontSize: CGFloat { isPad ? 13 : 11 }
+
+    @ViewBuilder
+    private func settingsIconButton(icon: String, label: String, isActive: Bool, activeColor: Color = .white, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: settingsIconFontSize))
+                    .foregroundColor(isActive ? activeColor : .white.opacity(0.4))
+                    .frame(width: settingsIconSize, height: settingsIconSize)
+                    .background(
+                        Circle()
+                            .fill(Color.white.opacity(isActive ? 0.15 : 0.08))
+                    )
+                Text(label)
+                    .font(.system(size: settingsLabelFontSize))
+                    .foregroundColor(isActive ? .white : .white.opacity(0.5))
+                    .multilineTextAlignment(.center)
+            }
+            .frame(width: settingsIconSize)
+        }
+    }
+}
+
+// MARK: - 播放器图片渲染（无手势，手势由外层统一处理）
+
+private struct PlayerImageView: View {
+    let sessionId: String?
+    let preloadedImages: [UIImage]?
+    let index: Int
+    let size: CGSize
+    var fillScreen: Bool = false
+
+    @State private var loadedImage: UIImage? = nil
+    private static let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
+
+    private var displayImage: UIImage? {
+        if let images = preloadedImages, index < images.count {
+            return images[index]
+        }
+        return loadedImage
+    }
+
+    var body: some View {
+        ZStack {
+            if let img = displayImage {
+                // 模糊背景
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(Constants.ImageDisplay.blurBackgroundScaleEffect)
+                    .frame(width: size.width, height: size.height)
+                    .blur(radius: Constants.ImageDisplay.blurBackgroundRadius)
+                    .opacity(Constants.ImageDisplay.blurBackgroundOpacity)
+                    .clipped()
+                // 主图：撑满全屏时 .fit 拉伸填满，否则以原尺寸展示（不放大，仅缩小以适屏）
+                if fillScreen {
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .cornerRadius(8)
+                } else {
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(
+                            maxWidth: min(size.width, img.size.width),
+                            maxHeight: min(size.height, img.size.height)
+                        )
+                        .cornerRadius(8)
+                }
+            } else {
+                Color.clear
+                    .overlay { ProgressView() }
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipped()
+        .onAppear { loadIfNeeded() }
+    }
+
+    private func loadIfNeeded() {
+        guard preloadedImages == nil, loadedImage == nil, let sid = sessionId else { return }
+        if let cached = SessionRecordManager.shared.loadImageIfCached(sessionId: sid, index: index, maxDimension: Self.maxDim) {
+            loadedImage = cached
+            return
+        }
+        let idx = index
+        DispatchQueue.global(qos: .userInitiated).async {
+            let loaded = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: Self.maxDim)
+            DispatchQueue.main.async {
+                guard index == idx else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    loadedImage = loaded
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 播放器进度条（纯轨道，时间标签由 PlayerControlLayer 外置）
+
+private struct PlayerProgressBar: View {
+    let progress: Double
+    let segmentRatios: [Double]
+    let isDraggable: Bool
+    let onSeek: (Double) -> Void
+
+    @State private var isDragging = false
+    @State private var dragProgress: Double = 0.0
+
+    private var displayProgress: Double {
+        isDragging ? dragProgress : progress
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let barWidth = geometry.size.width
+            let barH = Constants.Playback.progressBarHeight
+            let thumbSz = Constants.Playback.progressBarThumbSize
+
+            ZStack(alignment: .leading) {
+                // 轨道背景
+                Capsule()
+                    .fill(Color.white.opacity(0.3))
+                    .frame(height: barH)
+                    .frame(maxWidth: .infinity)
+
+                // 已播放填充
+                Capsule()
+                    .fill(Constants.Playback.progressBarFillColor)
+                    .frame(width: max(0, barWidth * displayProgress), height: barH)
+
+                // 分割点标记
+                ForEach(Array(segmentRatios.enumerated()), id: \.offset) { _, ratio in
+                    if ratio > 0.02 && ratio < 0.98 {
+                        Circle()
+                            .fill(Color.white.opacity(0.8))
+                            .frame(width: Constants.Playback.segmentDotSize, height: Constants.Playback.segmentDotSize)
+                            .position(x: barWidth * ratio, y: thumbSz / 2)
+                    }
+                }
+
+                // 当前位置滑块
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: thumbSz, height: thumbSz)
+                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                    .position(
+                        x: max(thumbSz / 2, min(barWidth - thumbSz / 2, barWidth * displayProgress)),
+                        y: thumbSz / 2
+                    )
+            }
+            .frame(height: thumbSz)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard isDraggable else { return }
+                        isDragging = true
+                        dragProgress = max(0, min(1, value.location.x / max(1, barWidth)))
+                    }
+                    .onEnded { value in
+                        guard isDraggable else { isDragging = false; return }
+                        isDragging = false
+                        let rawRatio = max(0, min(1, value.location.x / max(1, barWidth)))
+                        let snapped = snapToNearestSegment(rawRatio)
+                        onSeek(snapped)
+                    }
+            )
+            .allowsHitTesting(isDraggable)
+        }
+        .frame(height: Constants.Playback.progressBarThumbSize)
+    }
+
+    private func snapToNearestSegment(_ ratio: Double) -> Double {
+        guard !segmentRatios.isEmpty else { return ratio }
+        return segmentRatios.min(by: { abs($0 - ratio) < abs($1 - ratio) }) ?? ratio
+    }
+}
+
+// MARK: - 全屏大图内容（其他页面使用，PlayView 不再使用）
 struct FullScreenImageContent<Overlay: View>: View {
     /// 会话 ID，非空时按 index 从 SessionRecordManager 按需加载
     var sessionId: String? = nil
@@ -407,7 +889,7 @@ struct FullScreenImageContent<Overlay: View>: View {
     var onDoubleTapBackground: (() -> Void)? = nil
     var isSwipeDisabled: Bool = false
     @ViewBuilder let overlayContent: () -> Overlay
-    
+
     /// 兼容旧用法：直接传入图片数组（如 App 内全屏看图）
     init(images: [UIImage], currentIndex: Binding<Int>, isSwipeDisabled: Bool = false, onTapBackground: (() -> Void)? = nil, onDoubleTapBackground: (() -> Void)? = nil, @ViewBuilder overlayContent: @escaping () -> Overlay) {
         self.sessionId = nil
@@ -419,7 +901,7 @@ struct FullScreenImageContent<Overlay: View>: View {
         self.onDoubleTapBackground = onDoubleTapBackground
         self.overlayContent = overlayContent
     }
-    
+
     init(sessionId: String? = nil, totalImageCount: Int = 0, preloadedImages: [UIImage]? = nil, currentIndex: Binding<Int>, isSwipeDisabled: Bool = false, onTapBackground: (() -> Void)? = nil, onDoubleTapBackground: (() -> Void)? = nil, @ViewBuilder overlayContent: @escaping () -> Overlay) {
         self.sessionId = sessionId
         self.totalImageCount = totalImageCount
@@ -430,24 +912,23 @@ struct FullScreenImageContent<Overlay: View>: View {
         self.onDoubleTapBackground = onDoubleTapBackground
         self.overlayContent = overlayContent
     }
-    
+
     private var useOnDemand: Bool { sessionId != nil && totalImageCount > 0 }
     private var imageCount: Int {
         if useOnDemand { return totalImageCount }
         return preloadedImages?.count ?? 0
     }
-    
+
     var body: some View {
         Group {
             if imageCount > 0 {
                 CustomZStack(backgroundColor: Color.clear) {
-                    Color(red: 0.85, green: 0.95, blue: 0.88)
+                    Constants.Playback.eyeProtectionBackgroundColor
                         .ignoresSafeArea(.all)
                         .optionalDoubleTapGesture(onDoubleTapBackground)
                         .onTapGesture { onTapBackground?() }
-                    
+
                     if useOnDemand, let sid = sessionId {
-                        // 按需路径：只渲染当前页 + 手势切换，提前预加载相邻图避免闪动
                         GeometryReader { geometry in
                             OnDemandImagePage(sessionId: sid, index: currentIndex, size: geometry.size, onTap: onTapBackground, onDoubleTap: onDoubleTapBackground)
                                 .id(currentIndex)
@@ -491,7 +972,6 @@ struct FullScreenImageContent<Overlay: View>: View {
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
-                        // 播放时拦截滑动手势，暂停时允许
                         .overlay {
                             if isSwipeDisabled {
                                 Color.clear
@@ -508,8 +988,7 @@ struct FullScreenImageContent<Overlay: View>: View {
         .optionalDoubleTapGesture(onDoubleTapBackground)
         .onTapGesture { onTapBackground?() }
     }
-    
-    /// 预加载当前页的上一张、下一张，切换时从缓存直接显示、避免闪动
+
     private func preloadAdjacentImages(sessionId: String, current: Int, total: Int) {
         let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
         if current + 1 < total {
@@ -519,17 +998,17 @@ struct FullScreenImageContent<Overlay: View>: View {
             SessionRecordManager.shared.preloadImage(sessionId: sessionId, index: current - 1, maxDimension: maxDim)
         }
     }
-    
+
     @ViewBuilder
     private func singleImagePage(_ image: UIImage, size: CGSize) -> some View {
         CustomZStack(backgroundColor: Color.clear) {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .scaleEffect(1.15)
+                .scaleEffect(Constants.ImageDisplay.blurBackgroundScaleEffect)
                 .frame(width: size.width, height: size.height)
-                .blur(radius: 10)
-                .opacity(0.5)
+                .blur(radius: Constants.ImageDisplay.blurBackgroundRadius)
+                .opacity(Constants.ImageDisplay.blurBackgroundOpacity)
                 .clipped()
             Image(uiImage: image)
                 .resizable()
@@ -543,7 +1022,7 @@ struct FullScreenImageContent<Overlay: View>: View {
     }
 }
 
-/// 加载单页图
+/// 加载单页图（FullScreenImageContent 使用）
 private struct OnDemandImagePage: View {
     let sessionId: String
     let index: Int
@@ -551,19 +1030,19 @@ private struct OnDemandImagePage: View {
     var onTap: (() -> Void)? = nil
     var onDoubleTap: (() -> Void)? = nil
     @State private var image: UIImage? = nil
-    
+
     private static let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
-    
+
     var body: some View {
         CustomZStack(backgroundColor: Color.clear) {
             if let img = image {
                 Image(uiImage: img)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .scaleEffect(1.15)
+                    .scaleEffect(Constants.ImageDisplay.blurBackgroundScaleEffect)
                     .frame(width: size.width, height: size.height)
-                    .blur(radius: 10)
-                    .opacity(0.5)
+                    .blur(radius: Constants.ImageDisplay.blurBackgroundRadius)
+                    .opacity(Constants.ImageDisplay.blurBackgroundOpacity)
                     .clipped()
                 Image(uiImage: img)
                     .resizable()

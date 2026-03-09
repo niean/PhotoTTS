@@ -204,14 +204,20 @@ struct ChangeLogsView: View {
     }
     
     private func loadChangelog() {
-        if let url = Bundle.main.url(forResource: "changelogs", withExtension: "md"),
-           let data = try? Data(contentsOf: url),
-           let text = String(data: data, encoding: .utf8), !text.isEmpty {
-            content = text
-        } else {
-            content = "暂无更新记录。"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result: String
+            if let url = Bundle.main.url(forResource: "changelogs", withExtension: "md"),
+               let data = try? Data(contentsOf: url),
+               let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                result = text
+            } else {
+                result = "暂无更新记录。"
+            }
+            DispatchQueue.main.async {
+                content = result
+                isLoading = false
+            }
         }
-        isLoading = false
     }
 }
 
