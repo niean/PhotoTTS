@@ -169,8 +169,8 @@ struct PhotoTTSApp: App {
                 // 先停用当前会话，避免冲突
                 try audioSession.setActive(false, options: [])
                 
-                // 使用 .soloAmbient：禁用后台播放，锁屏/切APP后音频自动停止
-                try audioSession.setCategory(.soloAmbient, mode: .default)
+                // 使用 .playback：忽略静音开关，扬声器始终可出声；后台暂停由 willResignActiveNotification 控制
+                try audioSession.setCategory(.playback, mode: .default)
                 
                 // 激活音频会话
                 try audioSession.setActive(true)
@@ -192,8 +192,8 @@ struct PhotoTTSApp: App {
     private func configureSimpleAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            // 使用 .soloAmbient：禁用后台播放
-            try audioSession.setCategory(.soloAmbient)
+            // 使用 .playback：忽略静音开关；后台暂停由 willResignActiveNotification 控制
+            try audioSession.setCategory(.playback)
             try audioSession.setActive(true)
             os.Logger.audioPlayer.info("简化音频会话配置成功")
         } catch {
@@ -206,7 +206,7 @@ struct PhotoTTSApp: App {
     private func configureMinimalAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.soloAmbient)
+            try audioSession.setCategory(.playback)
             os.Logger.audioPlayer.info("最小音频会话配置成功（仅设置category）")
         } catch {
             os.Logger.audioPlayer.error("最小音频会话配置也失败: \(error.localizedDescription)")

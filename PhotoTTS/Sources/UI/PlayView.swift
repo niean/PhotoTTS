@@ -432,8 +432,8 @@ struct PlayView: View {
     // MARK: - 音频会话
 
     private func configureAudioSession() {
-        // 使用 .soloAmbient：禁用后台播放，锁屏/切APP后音频自动停止
-        try? AVAudioSession.sharedInstance().setCategory(.soloAmbient)
+        // 使用 .playback：忽略静音开关，扬声器始终可出声；后台暂停由 willResignActiveNotification 控制
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
     }
 

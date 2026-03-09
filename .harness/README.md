@@ -32,6 +32,7 @@ Layer 1  .harness/agents/（Agent 角色定义 -- "谁来做"）
 Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |
             |-- iterate-feature.md    引用 agents/analyst.md、coder.md、reviewer.md
+            |-- iterate-other.md
             |-- governance-code.md    引用 agents/coder.md、reviewer.md，调度 subskills/
             |-- governance-capability.md  读取 AGENTS.md 注册表 + agents/、skills/、subskills/
             |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
