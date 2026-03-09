@@ -203,6 +203,11 @@ class BackgroundMakeManager: ObservableObject {
                             )
                             if updated {
                                 self.logger.info("后台制作结果已持久化: sessionId=\(sessionId)")
+                                // 记录制作历史事件（直接调用 addMakeEvent，绕过 recordSave 的名称过滤；
+                                // loadEntries 聚合时按当前名称过滤，未命名会话不会展示）
+                                let identity = SettingsManager.shared.identityName
+                                SessionRecordManager.shared.addMakeEvent(sessionId: sessionId, timestamp: Date(), identity: identity)
+                                self.logger.info("制作历史事件已记录: sessionId=\(sessionId), 身份: \(identity)")
                             } else {
                                 self.logger.error("后台制作结果持久化失败: sessionId=\(sessionId)")
                             }

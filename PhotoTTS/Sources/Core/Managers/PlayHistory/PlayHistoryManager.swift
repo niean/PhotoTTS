@@ -33,19 +33,6 @@ class PlayHistoryManager {
 
     private let logger = os.Logger.playHistory
 
-    private let exportEncoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.dateEncodingStrategy = .iso8601
-        e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return e
-    }()
-
-    private let importDecoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }()
-
     private init() {}
 
     /// 记录一次播放（写入对应会话的 history.json）
@@ -78,74 +65,5 @@ class PlayHistoryManager {
             .sorted { $0.lastPlayedAt > $1.lastPlayedAt }
             .prefix(Constants.maxPlayHistoryRecords)
             .map { $0 }
-    }
-
-    /// 导出为 JSON 文件，返回可分享的 URL
-    func exportToTemporaryFile() -> URL? {
-        let list = loadEntries()
-        let dateStr = dateStringForExportFileName()
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("PhotoTTS_Plays_\(dateStr).json", isDirectory: false)
-        do {
-            let data = try exportEncoder.encode(list)
-            try data.write(to: tempURL)
-            return tempURL
-        } catch {
-            logger.error("导出播放历史失败: \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    /// 从 URL 导入并合并（按会话名称匹配写入对应 history.json）
-    func importFromURL(_ url: URL) -> (success: Bool, message: String) {
-        guard url.startAccessingSecurityScopedResource() else {
-            return (false, "无法访问该文件")
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-
-        do {
-            let data = try Data(contentsOf: url)
-            let imported = try importDecoder.decode([PlayHistoryEntry].self, from: data)
-
-            // 构建名称->会话ID的映射
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "播放历史-导入")
-            var nameToId: [String: String] = [:]
-            for m in allMetadata.sorted(by: { $0.createdAt < $1.createdAt }) {
-                nameToId[m.name] = m.id
-            }
-
-            var matchedCount = 0
-            var skippedCount = 0
-            for entry in imported {
-                let trimmed = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, !trimmed.contains("未命名"), !trimmed.contains("测试") else { continue }
-                guard let sessionId = nameToId[entry.name] else {
-                    skippedCount += 1
-                    continue
-                }
-                let identity = entry.identity ?? ""
-                // 按 playCount 补入对应数量的事件
-                let count = max(1, entry.playCount)
-                for _ in 0..<count {
-                    SessionRecordManager.shared.addPlayEvent(sessionId: sessionId, timestamp: entry.lastPlayedAt, identity: identity)
-                }
-                matchedCount += count
-            }
-
-            let msg: String
-            if skippedCount > 0 {
-                msg = "导入 \(matchedCount) 条记录（\(skippedCount) 个名称未匹配到会话，已跳过）"
-            } else {
-                msg = "成功导入 \(matchedCount) 条记录"
-            }
-            return (true, msg)
-        } catch {
-            return (false, "导入失败: \(error.localizedDescription)")
-        }
-    }
-
-    private func dateStringForExportFileName() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyyMMdd"
-        return f.string(from: Date())
     }
 }

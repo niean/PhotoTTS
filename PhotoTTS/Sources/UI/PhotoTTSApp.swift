@@ -88,6 +88,11 @@ struct PhotoTTSApp: App {
         // 初始化调试日志管理器，开始捕获日志
         _ = DebugLogManager.shared
         
+        // 一次性回溯任务：补齐缺失的制作历史事件
+        DispatchQueue.global(qos: .utility).async {
+            MakeHistoryManager.shared.backfillMakeEventsIfNeeded()
+        }
+        
         // Siri App Shortcuts 注册由 scenePhase == .active 统一处理，
         // 首次启动和每次回到前台都会触发，无需在 init() 中重复注册
     }

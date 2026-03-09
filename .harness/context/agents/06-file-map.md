@@ -58,6 +58,6 @@
 
 ## 测试
 
-- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests
+- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests
 - 功能测试（FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）
 - UI 测试（PhotoTTSUITests/）：启动验证/性能/截图

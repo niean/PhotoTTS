@@ -24,6 +24,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | Skill | 触发 | 文件 |
 |-------|------|------|
 | 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
+| 迭代其它 | 人工下发非代码类任务 | .harness/skills/iterate-other.md |
 | 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
 | 回填产品文档 | 人工指令 | .harness/skills/backfill-prd.md |
 | 治理代码 | 人工指令 | .harness/skills/governance-code.md |
@@ -33,7 +34,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 治理全部 | 人工指令 | .harness/skills/governance-all.md |
 | 总结任务 | AI自动触发（任务完成后） | .harness/skills/summarize-task.md |
 
-自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（仅适用于按迭代功能完整流程执行的任务）。
+自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（仅适用于按迭代功能或迭代其它完整流程执行的任务）。
 
 ## Subskills（并行扫描任务）
 
@@ -48,38 +49,27 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 扫描日志规范 | .harness/subskills/scan-logging.md | Reviewer Step 2, 治理代码 Phase 2 |
 | 扫描废弃代码 | .harness/subskills/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 2（可选） |
 
+
 ## 流程合规
+
+### 消息输出格式（不可压缩）
+
+- 任务声明：任务开始时声明任务类型和架构（新 Task 或同一 Task 内的第 2+ 次反馈均需声明），标准格式：`任务类型：功能需求；调度架构：多Agent` 或 `任务类型：修改文档；调度架构：单Agent`；同一 Task 内第 2+ 次反馈追加标注：`任务类型：功能需求；调度架构：多Agent。同一 Task 内第 N 次反馈`；非迭代功能类任务标注实际类型即可
+- 阶段描述：Skill 流程中的每个 Phase，输出时使用 `## Phase N: 名称` 作为段落标题，名称严格对齐 Skill 定义（如 `## Phase 1: 任务调度`、`## Phase 5: 结果验收`）；Phase 标题必须独占一行，禁止在同一行附加角色标注或其它内容
+- 角色标注：每个 Phase/Step 输出标注执行 Agent：`[Agent: 角色名]` 或 `[Agent: 角色名 (subagent)]`，角色名使用英文；角色标注紧跟 Phase 标题下一行，不与标题混合
+  - 阶段和角色组合格式示例：`## Phase 1: 任务调度`（标题独占一行）换行后 `[Agent: Orchestrator]`（角色标注独占一行）换行后正文内容
+- 术语禁忌：约束类术语（"硬性门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
+
+### 任务分类与 Skill 路由（不可压缩）
+
+- 功能需求或修改代码 -> `Skill: 迭代功能`：必须按完整 Phase 1-7 流程执行，禁止自行跳过、简化、改编、拆分或合并；Phase 2 必须通过 Analyst subagent 执行，Phase 3 必须等待用户确认后才能进入 Phase 4，Phase 5 必须包含构建验证和代码扫描
+- 其它任务类型（如 Harness 维护、文档变更、配置调整等） -> `Skill: 迭代其它`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并
+- 按 `Skill: 迭代功能` 或 `Skill: 迭代其它` 流程执行的任务，必须执行任务总结 Phase、必须等待用户确认
 
 ### 引用外部步骤的执行约束（不可压缩）
 
 - 当文档引用其它能力的 Step 而未展开描述时，在引用处必须附加约束：`每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报`
-- 本规则永久存在，不允许被压缩、精简或在文档治理中删除
 
-### 功能需求或修改代码必须触发 Skill: 迭代功能
-
-- 用户下发功能需求或修改代码时，必须按完整 Phase 1-7 流程执行，禁止自行跳过、简化、改编、拆分或合并
-- Phase 2 必须通过 Analyst subagent 执行，Phase 5 必须包含构建验证和代码扫描
-- 本规则永久存在，不允许被压缩、精简或在文档治理中删除
-
-### 用户确认是硬性门禁
-
-- Phase 3：Analyst 输出的意图理解摘要必须呈现给用户，等待明确确认后才能进入 Phase 4
-- 未经用户确认不得开始编码实现
-
-### Agent 架构声明与角色标注
-
-- 任务开始时声明任务类型和架构（新 Task 或同一 Task 内的第 2+ 次反馈均需声明），格式如 `本次任务类型：功能需求，采用多 Agent 架构` 或 `本次任务类型：修改代码，采用多 Agent 架构`；非迭代功能类任务标注实际类型即可
-- 每个 Phase/Step 输出标注执行 Agent：`[Agent: 角色名]` 或 `[Agent: 角色名 (subagent)]`
-- 角色名使用英文，非功能迭代任务同样适用
-
-### 消息输出面向用户
-
-- 约束类术语（"硬性门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
-
-### Skill: 总结任务
-
-- 仅迭代功能完整流程的任务需执行，简单任务无需执行
-- 执行顺序：输出总结报告（独立消息）-> 用户确认收到 -> attempt_completion
 
 ## 文件与文档
 
@@ -89,6 +79,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - users/ 与 agents/ 知识库冲突时，提示用户确认
 - 文档禁用 emoji/加粗/斜体，使用普通文字
 - 临时 spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`，仅供单次迭代，任务结束必须删除
+
 
 ### 文档引用方向
 
@@ -166,7 +157,7 @@ cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
 
 ## 知识回填规则
 
-Skill: 迭代功能 Phase 6 的回填目标：
+知识回填 Phase（迭代功能 Phase 6 / 迭代其它 Phase 5）的回填目标：
 - 架构变化 -> 02-architecture.md
 - 新术语 -> 04-glossary.md
 - 数据结构/存储变化 -> 05-data-boundaries.md

@@ -14,6 +14,8 @@ enum SessionRecordListMode {
 
 // MARK: - 会话记录列表视图
 struct SessionRecordListView: View {
+    // 后台制作进度观察
+    @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
     // 分页数据状态
     @State private var pagedMetadataList: [SessionRecordMetadata] = []
     @State private var totalCount: Int = 0
@@ -195,9 +197,17 @@ struct SessionRecordListView: View {
                                 .listRowSeparator(.hidden)
                             } else {
                                 ForEach(pagedMetadataList) { metadata in
+                                    let makeProgress: Float? = {
+                                        guard metadata.isMaking,
+                                              let task = bgMakeManager.currentTask,
+                                              task.id == metadata.id,
+                                              !task.isCompleted else { return nil }
+                                        return task.progress
+                                    }()
                                     SessionRecordRow(
                                         metadata: metadata,
                                         isPad: isPad,
+                                        makeProgress: makeProgress,
                                         onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
                                         onLoadToMake: (mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
                                         onView: !metadata.isMaking ? {
@@ -617,6 +627,8 @@ struct SessionRecordListView: View {
 struct SessionRecordRow: View {
     let metadata: SessionRecordMetadata
     let isPad: Bool
+    /// 后台制作实时进度（0.0~1.0），nil 表示无活跃任务或非制作中状态
+    var makeProgress: Float? = nil
     let onLoad: (() -> Void)?
     let onLoadToMake: (() -> Void)?
     let onView: (() -> Void)?
@@ -661,9 +673,16 @@ struct SessionRecordRow: View {
                 
                 HStack(spacing: isPad ? 12 : 8) {
                     if metadata.isMaking {
-                        Text("制作中")
-                            .font(isPad ? .subheadline : .caption)
-                            .foregroundColor(.orange)
+                        if let progress = makeProgress {
+                            Text("制作中 \(Int(progress * 100))%")
+                                .font(isPad ? .subheadline : .caption)
+                                .foregroundColor(.orange)
+                                .monospacedDigit()
+                        } else {
+                            Text("制作中")
+                                .font(isPad ? .subheadline : .caption)
+                                .foregroundColor(.orange)
+                        }
                     } else {
                         Label("\(metadata.validImageCount)/\(metadata.totalImageCount)张", systemImage: "photo")
                             .labelStyle(.titleOnly)
@@ -690,7 +709,7 @@ struct SessionRecordRow: View {
                 // 加载按钮
                 if let onLoad = onLoad {
                     Button(action: onLoad) {
-                        Image(systemName: "arrow.down.circle")
+                        Image(systemName: "play.circle")
                             .font(.system(size: isPad ? 24 : 20))
                             .foregroundColor(.green)
                     }

@@ -508,8 +508,14 @@ struct MakeView: View {
     }
 
     /// 图片列表发生变化时调用，清空 OCR/音频等衍生状态（增删改顺序都会触发）
+    /// 当有新图片且无活跃后台任务时，自动触发后台制作
     private func onImagesChanged() {
         clearDataAndState()
+        // 自动触发后台制作：有图片且无活跃后台任务时启动
+        if !selectedImages.isEmpty && !bgMakeManager.hasActiveTask {
+            processingOverlayDismissed = false
+            processImages()
+        }
     }
 
     /// 播放：用 PlayView 全屏播放当前制作数据

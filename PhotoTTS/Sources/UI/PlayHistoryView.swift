@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import UIKit
 
 // MARK: - 播放历史页（卡片式时间线）
@@ -110,15 +109,10 @@ struct PlayHistoryView: View {
     }
 }
 
-// MARK: - 顶导 + 导入/导出（带导航栏的播放历史页）
+// MARK: - 顶导（带导航栏的播放历史页）
 struct PlayHistoryViewWithBar: View {
     @Environment(\.dismiss) private var dismiss
     @State private var entries: [PlayHistoryEntry] = []
-    @State private var showImportPicker = false
-    @State private var exportItem: ExportableURL?
-    @State private var message = ""
-    @State private var showMessage = false
-    @State private var isImporting = false
     
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
     
@@ -135,60 +129,10 @@ struct PlayHistoryViewWithBar: View {
                         .foregroundStyle(.primary)
                 }
             }, trailing: {
-                HStack(spacing: 16) {
-                    Button(action: { showImportPicker = true }) {
-                        Text("导入")
-                            .font(.system(size: isPad ? 17 : 16, weight: .medium))
-                            .foregroundStyle(.primary)
-                    }
-                    Button(action: {
-                        if let url = PlayHistoryManager.shared.exportToTemporaryFile() {
-                            exportItem = ExportableURL(url: url)
-                        }
-                    }) {
-                        Text("导出")
-                            .font(.system(size: isPad ? 17 : 16, weight: .medium))
-                            .foregroundStyle(.primary)
-                    }
-                }
+                EmptyView()
             })
         }
         .onAppear { loadEntries() }
-        .overlay {
-            if isImporting {
-                CustomZStack {
-                    Color.black.opacity(0.3).ignoresSafeArea()
-                    VStack(spacing: 12) {
-                        ProgressView().tint(.white)
-                        Text("正在导入...").font(.headline).foregroundColor(.white)
-                    }
-                }
-            }
-        }
-        .alert("提示", isPresented: $showMessage) {
-            Button("确定", role: .cancel) {}
-        } message: {
-            Text(message)
-        }
-        .fileImporter(isPresented: $showImportPicker, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                isImporting = true
-                let (success, msg) = PlayHistoryManager.shared.importFromURL(url)
-                isImporting = false
-                message = msg
-                showMessage = true
-                if success { loadEntries() }
-            case .failure:
-                message = "选择文件失败"
-                showMessage = true
-            }
-        }
-        .sheet(item: $exportItem) { item in
-            ShareSheetView(activityItems: [item.url])
-                .onDisappear { try? FileManager.default.removeItem(at: item.url) }
-        }
     }
     
     private func loadEntries() {
@@ -210,10 +154,4 @@ struct ShareSheetView: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-/// 用于 .sheet(item:) 的导出文件包装
-private struct ExportableURL: Identifiable {
-    let id = UUID()
-    let url: URL
 }

@@ -29,19 +29,6 @@ class MakeHistoryManager {
 
     private let logger = os.Logger.makeHistory
 
-    private let exportEncoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.dateEncodingStrategy = .iso8601
-        e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return e
-    }()
-
-    private let importDecoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }()
-
     private init() {}
 
     /// 记录一次保存（写入对应会话的 history.json）
@@ -74,66 +61,31 @@ class MakeHistoryManager {
             .map { $0 }
     }
 
-    /// 导出为 JSON 文件，文件名形如 PhotoTTS_Makes_20260212.json
-    func exportToTemporaryFile() -> URL? {
-        let list = loadEntries()
-        let dateStr = dateStringForExportFileName()
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("PhotoTTS_Makes_\(dateStr).json", isDirectory: false)
-        do {
-            let data = try exportEncoder.encode(list)
-            try data.write(to: tempURL)
-            return tempURL
-        } catch {
-            logger.error("导出制作历史失败: \(error.localizedDescription)")
-            return nil
+    // MARK: - 一次性回溯任务
+
+    /// 回溯补齐制作历史：为已完成但缺少 makeEvent 的会话补写制作事件（只执行一次）
+    func backfillMakeEventsIfNeeded() {
+        let key = "backfill_make_history_v1_done"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "制作历史-回溯补齐")
+        let identity = SettingsManager.shared.identityName
+        var count = 0
+
+        for meta in allMetadata {
+            // 跳过未命名/测试会话
+            guard !meta.name.contains("未命名"), !meta.name.contains("测试") else { continue }
+            // 跳过制作中的会话
+            if meta.makeStatus == .making { continue }
+            // 跳过已有 makeEvent 的会话
+            let history = SessionRecordManager.shared.loadSessionHistory(sessionId: meta.id)
+            guard history.makeEvents.isEmpty else { continue }
+
+            SessionRecordManager.shared.addMakeEvent(sessionId: meta.id, timestamp: meta.updatedAt, identity: identity)
+            count += 1
         }
-    }
 
-    /// 从 URL 导入并合并（按会话名称匹配写入对应 history.json）
-    func importFromURL(_ url: URL) -> (success: Bool, message: String) {
-        guard url.startAccessingSecurityScopedResource() else {
-            return (false, "无法访问该文件")
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-
-        do {
-            let data = try Data(contentsOf: url)
-            let imported = try importDecoder.decode([MakeHistoryEntry].self, from: data)
-
-            // 构建名称->会话ID的映射
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "制作历史-导入")
-            var nameToId: [String: String] = [:]
-            for m in allMetadata.sorted(by: { $0.createdAt < $1.createdAt }) {
-                nameToId[m.name] = m.id
-            }
-
-            var matchedCount = 0
-            var skippedCount = 0
-            for entry in imported where !entry.name.contains("未命名") && !entry.name.contains("测试") {
-                guard let sessionId = nameToId[entry.name] else {
-                    skippedCount += 1
-                    continue
-                }
-                let identity = entry.identity ?? ""
-                SessionRecordManager.shared.addMakeEvent(sessionId: sessionId, timestamp: entry.savedAt, identity: identity)
-                matchedCount += 1
-            }
-
-            let msg: String
-            if skippedCount > 0 {
-                msg = "导入 \(matchedCount) 条记录（\(skippedCount) 条未匹配到会话，已跳过）"
-            } else {
-                msg = "成功导入 \(matchedCount) 条记录"
-            }
-            return (true, msg)
-        } catch {
-            return (false, "导入失败: \(error.localizedDescription)")
-        }
-    }
-
-    private func dateStringForExportFileName() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyyMMdd"
-        return f.string(from: Date())
+        UserDefaults.standard.set(true, forKey: key)
+        logger.info("回溯补齐制作历史完成: 补齐 \(count) 条记录")
     }
 }

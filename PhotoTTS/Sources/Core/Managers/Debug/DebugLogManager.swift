@@ -152,66 +152,87 @@ class DebugLogManager {
     /// 仅从文件尾部读取数据，避免大文件整份加载进内存
     private static let tailReadMaxBytes: Int = 256 * 1024 // 最多读取 256KB 尾部
     
+    /// 从文件读取最新日志（不含队列同步，调用方需确保线程安全）
+    private func readLatestLogsFromFile(lineCount: Int) -> String {
+        guard self.fileManager.fileExists(atPath: self.logFileURL.path),
+              let fileHandle = FileHandle(forReadingAtPath: self.logFileURL.path) else {
+            return ""
+        }
+        defer { try? fileHandle.close() }
+        
+        let fullSize = (try? self.fileManager.attributesOfItem(atPath: self.logFileURL.path))?[.size] as? Int64 ?? 0
+        let bytesToRead = min(Int(fullSize), Self.tailReadMaxBytes)
+        guard bytesToRead > 0 else { return "" }
+        
+        fileHandle.seek(toFileOffset: UInt64(fullSize - Int64(bytesToRead)))
+        let data = fileHandle.readData(ofLength: bytesToRead)
+        guard !data.isEmpty, let content = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        
+        var lines = content.components(separatedBy: .newlines)
+        // 若从中间截断，首段可能是某行的后半部分，丢弃不完整的第一行
+        if fullSize > bytesToRead, !lines.isEmpty {
+            lines.removeFirst()
+        }
+        let startIndex = max(0, lines.count - lineCount)
+        // 时间倒序：最新日志在最前面
+        // 读取时也剥除 OSLOG 前缀，确保已存储的旧日志也被清理
+        let latestLines = Array(lines[startIndex..<lines.count].reversed()).map { self.stripOSLogPrefix($0) }
+        var header = ""
+        if Int(fullSize) > bytesToRead || lines.count > lineCount {
+            let totalLinesHint = lines.count > lineCount ? "（当前段共 \(lines.count) 行）" : "（仅读取文件尾部 \(bytesToRead/1024)KB）"
+            header = "[仅显示最新 \(lineCount) 行 \(totalLinesHint)]\n"
+        }
+        return header + latestLines.joined(separator: "\n")
+    }
+    
+    /// 读取日志文件大小（不含队列同步，调用方需确保线程安全）
+    private func readLogFileSize() -> Int64 {
+        if let attributes = try? self.fileManager.attributesOfItem(atPath: self.logFileURL.path),
+           let fileSize = attributes[.size] as? Int64 {
+            return fileSize
+        }
+        return 0
+    }
+    
     /// 获取最新的N行日志（只读取文件尾部，最多加载 tailReadMaxBytes，降低内存占用）
     /// - Parameter lineCount: 要获取的行数，默认 50 行
     /// - Returns: 最新的日志内容字符串
     func getLatestLogs(lineCount: Int = 50) -> String {
         var logs = ""
-        
         logQueue.sync { [weak self] in
             guard let self = self else { return }
-            
-            guard self.fileManager.fileExists(atPath: self.logFileURL.path),
-                  let fileHandle = FileHandle(forReadingAtPath: self.logFileURL.path) else {
-                return
-            }
-            defer { try? fileHandle.close() }
-            
-            let fullSize = (try? self.fileManager.attributesOfItem(atPath: self.logFileURL.path))?[.size] as? Int64 ?? 0
-            let bytesToRead = min(Int(fullSize), Self.tailReadMaxBytes)
-            guard bytesToRead > 0 else { return }
-            
-            fileHandle.seek(toFileOffset: UInt64(fullSize - Int64(bytesToRead)))
-            let data = fileHandle.readData(ofLength: bytesToRead)
-            guard !data.isEmpty, let content = String(data: data, encoding: .utf8) else {
-                return
-            }
-            
-            var lines = content.components(separatedBy: .newlines)
-            // 若从中间截断，首段可能是某行的后半部分，丢弃不完整的第一行
-            if fullSize > bytesToRead, !lines.isEmpty {
-                lines.removeFirst()
-            }
-            let startIndex = max(0, lines.count - lineCount)
-            // 时间倒序：最新日志在最前面
-            // 读取时也剥除 OSLOG 前缀，确保已存储的旧日志也被清理
-            let latestLines = Array(lines[startIndex..<lines.count].reversed()).map { self.stripOSLogPrefix($0) }
-            var header = ""
-            if Int(fullSize) > bytesToRead || lines.count > lineCount {
-                let totalLinesHint = lines.count > lineCount ? "（当前段共 \(lines.count) 行）" : "（仅读取文件尾部 \(bytesToRead/1024)KB）"
-                header = "[仅显示最新 \(lineCount) 行 \(totalLinesHint)]\n"
-            }
-            logs = header + latestLines.joined(separator: "\n")
+            logs = self.readLatestLogsFromFile(lineCount: lineCount)
         }
-        
         return logs
+    }
+    
+    /// 刷新并获取最新日志（确保所有待写入日志已落盘后再读取）
+    /// 使用 barrier 异步任务等待所有先前提交的 log() 写入完成后再读取文件
+    /// - Parameters:
+    ///   - lineCount: 要获取的行数，默认 50 行
+    ///   - completion: 完成回调，返回 (日志内容, 文件大小)，在 logQueue 上调用
+    func flushAndGetLatestLogs(lineCount: Int = 50, completion: @escaping (String, Int64) -> Void) {
+        logQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else {
+                completion("", 0)
+                return
+            }
+            let logs = self.readLatestLogsFromFile(lineCount: lineCount)
+            let size = self.readLogFileSize()
+            completion(logs, size)
+        }
     }
     
     /// 获取日志文件大小
     /// - Returns: 文件大小（字节）
     func getLogFileSize() -> Int64 {
         var size: Int64 = 0
-        
-        // 使用同步方式读取，但使用 .default QoS 避免优先级反转
         logQueue.sync { [weak self] in
             guard let self = self else { return }
-            
-            if let attributes = try? self.fileManager.attributesOfItem(atPath: self.logFileURL.path),
-               let fileSize = attributes[.size] as? Int64 {
-                size = fileSize
-            }
+            size = self.readLogFileSize()
         }
-        
         return size
     }
     

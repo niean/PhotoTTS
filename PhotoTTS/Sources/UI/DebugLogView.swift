@@ -124,11 +124,8 @@ struct DebugLogView: View {
     
     private func loadLogs() {
         isLoading = true
-        DispatchQueue.global(qos: .userInitiated).async {
-            // 只加载最新 50 行到内存，降低内存占用
-            let logs = DebugLogManager.shared.getLatestLogs(lineCount: 50)
-            let size = DebugLogManager.shared.getLogFileSize()
-            
+        // 使用 flushAndGetLatestLogs 确保所有待写入日志已落盘后再读取
+        DebugLogManager.shared.flushAndGetLatestLogs(lineCount: 50) { logs, size in
             DispatchQueue.main.async {
                 self.logContent = logs
                 self.logFileSize = size
