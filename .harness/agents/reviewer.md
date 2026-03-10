@@ -14,7 +14,7 @@
 ### Step 1: 构建验证（主 Agent）
 
 ```bash
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -20
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build 2>&1 | tail -20
 ```
 要求零警告。失败则验收不通过。
 
@@ -26,11 +26,11 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 
 | # | 模板 | 维度 |
 |---|------|------|
-| 1 | .harness/subskills/scan-architecture.md | 架构边界 |
-| 2 | .harness/subskills/scan-conventions.md | 编码约定 |
-| 3 | .harness/subskills/scan-security.md | 安全规范 |
-| 4 | .harness/subskills/scan-image-handling.md | 图片处理 |
-| 5 | .harness/subskills/scan-logging.md | 日志规范 |
+| 1 | .harness/skills/subskills/scan-architecture.md | 架构边界 |
+| 2 | .harness/skills/subskills/scan-conventions.md | 编码约定 |
+| 3 | .harness/skills/subskills/scan-security.md | 安全规范 |
+| 4 | .harness/skills/subskills/scan-image-handling.md | 图片处理 |
+| 5 | .harness/skills/subskills/scan-logging.md | 日志规范 |
 
 可选：scan-dead-code.md（涉及文件删除时）。超 5 个分批执行。
 
@@ -41,12 +41,12 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 ### Step 4: 测试验证（如有相关测试）
 
 ```bash
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16' test 2>&1 | tail -30
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test 2>&1 | tail -30
 ```
 
 ## 输出
 
-通过：`[Phase 5 结果验收] 构建: 通过, 扫描: N维度/0违规, 验收标准: M项通过, 测试: 通过/跳过`
+通过：`[Step 4.2 结果验收] 构建: 通过, 扫描: N维度/0违规, 验收标准: M项通过, 测试: 通过/跳过`
 
 不通过时输出 JSON（build/scan_issues/criteria_check），交回 Coder 修复后重新验收。
 

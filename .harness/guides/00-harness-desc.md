@@ -32,11 +32,11 @@ AGENTS.md                  -- 入口文件（项目根目录）
 .harness/
   agents/                  -- Agent 角色模板
   skills/                  -- Skill 流程定义
-  subskills/               -- Subskill 任务模板
+    subskills/             -- Subskill 任务模板
   context/
     agents/                -- AI 知识库（AI 可读写）
     users/                 -- 产品文档（AI 只读）
-  docs/                    -- 方法论与参考文档（人工维护）
+  guides/                  -- 方法论与参考文档（人工维护）
 ```
 
 每类知识有且只有一个归属文档，不重复维护。
@@ -51,7 +51,7 @@ AGENTS.md                  -- 入口文件（项目根目录）
 |------|------|------|------|---------|
 | Layer 1 | Agent | 角色定义 -- "谁来做" | .harness/agents/ | 角色人格、行为规则、决策逻辑、上下文管理 |
 | Layer 2 | Skill | 流程编排 -- "怎么做" | .harness/skills/ | 多 Phase 工作流、Agent 分工、门禁决策、检查点交接 |
-| Layer 3 | Subskill | 原子任务 -- "做什么" | .harness/subskills/ | 单 Phase 线性流程、输入-规则-输出、无决策 |
+| Layer 3 | Subskill | 原子任务 -- "做什么" | .harness/skills/subskills/ | 单 Phase 线性流程、输入-规则-输出、无决策 |
 
 Subskill 本质是 Task（原子任务），因 "Task" 在用户对话、IDE 会话等多处已有含义，为避免歧义使用 Subskill 隔离命名空间。
 
@@ -108,7 +108,7 @@ AGENTS.md 中的规范分两层：
 
 | 角色 | 职责 | 权限 |
 |------|------|------|
-| 人工 | 定义需求、确认方案、审批删除 | 读写 context/users/ 和 docs/，审批 AI 变更 |
+| 人工 | 定义需求、确认方案、审批删除 | 读写 context/users/ 和 guides/，审批 AI 变更 |
 | AI | 按规则执行、维护知识库、输出摘要 | 读写 context/agents/，只读 context/users/ |
 
 - AI 遇模糊需求必须询问，不自行决定产品方向

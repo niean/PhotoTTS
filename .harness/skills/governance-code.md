@@ -12,7 +12,7 @@
 
 ## Phase 2: 扫描
 - Agent: Reviewer（subagent 并行）
-- 通过 `use_subagents` 启动扫描，读取 `.harness/subskills/` 对应模板作为 prompt。无 subagent 能力时主 Agent 顺序执行
+- 通过 `use_subagents` 启动扫描，读取 `.harness/skills/subskills/` 对应模板作为 prompt。无 subagent 能力时主 Agent 顺序执行
 - 第一批 5 个维度：架构边界（scan-architecture.md）、编码约定（scan-conventions.md）、安全规范（scan-security.md）、图片处理（scan-image-handling.md）、日志规范（scan-logging.md）
 - 第二批：废弃代码（scan-dead-code.md）
 - 每个维度必须有独立扫描结论，禁止跳过或虚报

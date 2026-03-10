@@ -23,7 +23,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 | Skill | 触发 | 文件 |
 |-------|------|------|
-| Global Workflow | 迭代类 Skill 自动遵循 | .harness/global/WORKFLOW.md |
+| Global Workflow | 迭代类 Skill 自动遵循 | .harness/skills/global-workflow.md |
 | 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
 | 迭代其它 | 人工下发非代码类任务 | .harness/skills/iterate-other.md |
 | 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
@@ -39,23 +39,20 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## Subskills（并行扫描任务）
 
-通过 `use_subagents` 启动，各自独立上下文窗口，由 Reviewer 或 Skill 按需调用。详细定义见 `.harness/subskills/` 目录。
+通过 `use_subagents` 启动，各自独立上下文窗口，由 Reviewer 或 Skill 按需调用。详细定义见 `.harness/skills/subskills/` 目录。
 
 | Subskill | 文件 | 调用方 |
 |----------|------|--------|
-| 扫描架构边界 | .harness/subskills/scan-architecture.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描编码约定 | .harness/subskills/scan-conventions.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描安全规范 | .harness/subskills/scan-security.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描图片处理 | .harness/subskills/scan-image-handling.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描日志规范 | .harness/subskills/scan-logging.md | Reviewer Step 2, 治理代码 Phase 2 |
-| 扫描废弃代码 | .harness/subskills/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 2（可选） |
+| 扫描架构边界 | .harness/skills/subskills/scan-architecture.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描编码约定 | .harness/skills/subskills/scan-conventions.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描安全规范 | .harness/skills/subskills/scan-security.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描图片处理 | .harness/skills/subskills/scan-image-handling.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描日志规范 | .harness/skills/subskills/scan-logging.md | Reviewer Step 2, 治理代码 Phase 2 |
+| 扫描废弃代码 | .harness/skills/subskills/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 2（可选） |
 
+## Global Workflow（全局工作流）
 
-## 流程合规
-
-### Global Workflow（全局工作流）
-
-迭代类 Skill（迭代功能、迭代其它）必须遵循 Global Workflow 的 6 阶段标准流程。权威定义见 `.harness/global/WORKFLOW.md`。
+如未明确规定，全局工作流必须采用 6 阶段标准流程，权威定义见 `.harness/skills/global-workflow.md`。
 
 | 阶段 | 名称 | GATE | 语义 |
 |------|------|------|------|
@@ -66,6 +63,36 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 5 | 知识回填 | - | 回填 context/agents/ + 删除临时 spec |
 | 6 | 任务总结 | [GATE] | 触发总结任务 -> 用户确认 -> 完成 |
 
+
+## 流程合规
+
+### 任务执行入口（不可压缩）
+
+任务开始时首先进行 任务分类和Skill路由（新 Task 或同一 Task 内的第 2+ 次反馈均需分类），必须立即执行以下步骤，禁止跳过：
+
+1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-4。否则分为 3 大类：功能需求、修改代码、其它任务
+2. Skill路由：功能需求或修改代码 -> `Skill: 迭代功能`，其它任务 -> `Skill: 迭代其它`
+3. 读取 Skill 定义：根据任务类型，立即读取对应的 Skill 文件（`.harness/skills/iterate-feature.md` 或 `.harness/skills/iterate-other.md`）
+4. 遵循 Skill 流程：按 Skill 文件定义的 Phase 顺序执行；特别强调，`Phase 3：意图确认`必须在消息框展示意图、等待人工确认，否则禁止执行 `Phase 4`
+
+禁止行为：
+- 禁止在读取 Skill 定义前直接开始代码实现
+- 禁止跳过任何 Phase，禁止简化、改编、拆分或合并 Phase
+- 禁止跳过`Phase 门禁[GATE]`（见下方 GATE 规则）
+- 禁止跳过、简化、改动 Phase的消息输出格式
+
+
+### Phase 门禁（GATE）规则（不可压缩）
+
+- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
+- `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
+- `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
+- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4、迭代功能 Phase 6（总结 -> 完成）、迭代其它 Phase 6（总结 -> 完成）
+
+### 引用外部步骤的执行约束（不可压缩）
+
+- 当文档引用其它能力的 Step 而未展开描述时，在引用处必须附加约束：`每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报`
+
 ### 不可压缩章节保护规则（不可压缩）
 
 - 标记为 `不可压缩` 的章节，AI 发现其内容存在问题时，只能以消息方式提示用户
@@ -75,34 +102,16 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 ### 消息输出格式（不可压缩）
 
 - 任务声明：任务开始时声明任务类型和架构（新 Task 或同一 Task 内的第 2+ 次反馈均需声明），标准格式：`任务类型：功能需求；调度架构：多Agent` 或 `任务类型：修改文档；调度架构：单Agent`；同一 Task 内第 2+ 次反馈追加标注：`任务类型：功能需求；调度架构：多Agent。同一 Task 内第 N 次反馈`；非迭代功能类任务标注实际类型即可
-- 阶段描述：Skill 流程中的每个 Phase，输出时使用 `## Phase N: 名称` 作为段落标题，名称严格对齐 Skill 定义（如 `## Phase 1: 任务调度`、`## Phase 5: 结果验收`）；Phase 标题必须独占一行，禁止在同一行附加角色标注或其它内容
+- 阶段描述：Skill 流程中的每个 Phase，输出时使用 `## Phase N: 名称` 作为段落标题，名称严格对齐 Skill 定义（如 `## Phase 1: 任务调度`）；Phase 标题必须独占一行，禁止在同一行附加角色标注或其它内容
 - 角色标注：每个 Phase/Step 输出标注执行 Agent：`[Agent: 角色名]` 或 `[Agent: 角色名 (subagent)]`，角色名使用英文；角色标注紧跟 Phase 标题下一行，不与标题混合
   - 阶段和角色组合格式示例：`## Phase 1: 任务调度`（标题独占一行）换行后 `[Agent: Orchestrator]`（角色标注独占一行）换行后正文内容
 - 术语禁忌：约束类术语（"硬性门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
-
-### Phase 门禁（GATE）规则（不可压缩）
-
-- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
-- `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
-- `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
-- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4、迭代功能 Phase 6（总结 -> 完成）、迭代其它 Phase 6（总结 -> 完成）
-
-### 任务分类与 Skill 路由（不可压缩）
-
-- 功能需求或修改代码 -> `Skill: 迭代功能`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并；Phase 2 必须通过 Analyst subagent 执行，Phase 3、 Phase 6 为 `[GATE]` 点（见上方 GATE 规则）
-- 其它任务类型（如 Harness 维护、文档变更、配置调整等） -> `Skill: 迭代其它`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并，Phase 3、 Phase 6 为 `[GATE]` 点（见上方 GATE 规则）
-- 按 `Skill: 迭代功能` 或 `Skill: 迭代其它` 流程执行的任务，必须执行任务总结 Phase、必须等待用户确认
-
-### 引用外部步骤的执行约束（不可压缩）
-
-- 当文档引用其它能力的 Step 而未展开描述时，在引用处必须附加约束：`每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报`
-
 
 ## 文件与文档
 
 - 禁止主动创建 README；不删除项目文件（临时 spec `agent-specs-*.md` 除外，任务结束 `rm -f` 删除）
 - 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
-- AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/context/users/、.harness/docs/
+- AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/context/users/、.harness/guides/
 - users/ 与 agents/ 知识库冲突时，提示用户确认
 - 文档禁用 emoji/加粗/斜体，使用普通文字
 - 临时 spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`，仅供单次迭代，任务结束必须删除
@@ -117,8 +126,8 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | Layer 0 | AGENTS.md | 顶层入口，注册并索引所有 .harness/ 文件 |
 | Layer 1 | .harness/agents/ | Agent 角色定义 -- "谁来做" |
 | Layer 2 | .harness/skills/ | Skill 流程定义 -- "怎么做" |
-| Layer 3 | .harness/subskills/ | Subskill 任务模板 -- "做什么" |
-| 数据层 | .harness/context/ + .harness/docs/ | 知识库、产品文档、方法论，被上层按需读取 |
+| Layer 3 | .harness/skills/subskills/ | Subskill 任务模板 -- "做什么" |
+| 数据层 | .harness/context/ + .harness/guides/ | 知识库、产品文档、方法论，被上层按需读取 |
 
 引用方向规则：
 - 向下引用：上层引用下层的具体定义（如 Skills 引用 Agents，Agents 调度 Subskills）
@@ -134,7 +143,8 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 上下文管理
 
-- 每类知识有且只有一个归属文档，不重复维护；按需查阅 .harness/context/，不全部加载
+- 首次加载（Task 首条消息），必须读取 `.harness/context/` 全部文件（除 03-prd-specs.md），了解项目全貌
+- 后续迭代（同一 Task 内），按需查阅 `.harness/context/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
 - 多步任务：每步完成压缩为检查点摘要（不超过 5 行），后续只携带摘要；每步只加载必需文件
 - 所有步骤均为必选项，禁止因上下文压力跳过；上下文紧张时先压缩已有内容再继续
 - 委派产出（subagent、跨 Phase 交接）：产出结构化结论（表格、要点），不搬运原文；需要完整内容时直接读取源文件
@@ -154,11 +164,10 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 ```
 AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
-  global/              -- 全局工作流定义（Global Workflow）
   agents/              -- Agent 角色模板（Orchestrator、Analyst、Coder、Reviewer）
-  skills/              -- Skill 定义（迭代功能、构建验证等）
-  subskills/           -- Subskill 扫描模板
-  docs/                -- 方法论与参考文档（人工维护）
+  skills/              -- Skill 定义（迭代功能、构建验证、全局工作流等）
+    subskills/         -- Subskill 扫描模板
+  guides/              -- 方法论与参考文档（人工维护）
   context/
     agents/            -- AI 知识库（01-overview ~ 07-key-patterns）
     users/             -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
@@ -245,6 +254,6 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 | .harness/context/agents/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
 | .harness/context/users/02-prd-baseline.md | 确认功能需求与产品约束时 |
 | .harness/context/users/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
-| .harness/docs/00-harness-desc.md | 了解 Harness 体系描述时 |
-| .harness/docs/01-harness-ops.md | 了解 Harness 运维操作时 |
-| .harness/docs/02-harness-dev.md | 了解 Harness 开发流程时 |
+| .harness/guides/00-harness-desc.md | 了解 Harness 体系描述时 |
+| .harness/guides/01-harness-ops.md | 了解 Harness 运维操作时 |
+| .harness/guides/02-harness-dev.md | 了解 Harness 开发流程时 |

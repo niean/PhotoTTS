@@ -4,7 +4,7 @@
 
 本 Skill 采用多 Agent 编排（Orchestrator 调度），每个 Step 委托对应子 Skill 执行，子 Skill 架构以其自身定义为准。
 
-输出规范：遵守 AGENTS.md "流程合规 > Agent 架构声明与角色标注"中定义的全部规则。
+输出规范：遵守 AGENTS.md "流程合规 > 消息输出格式"中定义的全部规则。
 
 ## 上下文管理
 
@@ -20,7 +20,7 @@
 ### Step 2 -- 治理技能
 - Agent: Orchestrator 调度，委托 Skill: 治理技能（多 Agent 编排）
 - 执行 `.harness/skills/governance-capability.md`
-- 摘要：`[Step 2 治理技能] 修复N项，合并M项，新增K个能力`
+- 摘要：`[Step 2 治理技能] 修复N项，新增K个能力`
 
 ### Step 3 -- 回填知识库
 - Agent: Orchestrator 调度，委托 Skill: 回填知识库（单 Agent）

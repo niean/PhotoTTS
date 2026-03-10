@@ -7,7 +7,7 @@
 ## 步骤
 
 ### Step 1 -- 读取现状
-读取 AGENTS.md + .harness/context/agents/ 全部 + context/users/ 目录结构 + skills/ 目录 + subskills/ 目录，按需扫描源码目录。
+读取 AGENTS.md + .harness/context/agents/ 全部 + context/users/ 目录结构 + skills/ 目录（含 subskills/），按需扫描源码目录。
 
 ### Step 2 -- 更新 agents/ 知识库
 对比实际代码与文档，修正过时描述，简化压缩内容。

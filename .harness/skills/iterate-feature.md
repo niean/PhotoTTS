@@ -2,7 +2,7 @@
 
 触发：人工下发功能需求或修改代码（新 Task 或同一 Task 内的第 2+ 次反馈）。
 
-遵循 Global Workflow 6 阶段标准流程（`.harness/global/WORKFLOW.md`）。
+遵循 Global Workflow 6 阶段标准流程（`.harness/skills/global-workflow.md`）。
 
 本 Skill 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（不超过 10 行）交接上下文。
 
@@ -12,7 +12,8 @@
 
 ## Phase 1: 任务调度
 - Agent: Orchestrator
-- 读取 AGENTS.md，确认约束与产品方向，启动 Phase 2
+- 按 AGENTS.md "上下文管理"要求，首次加载必须读取 `.harness/context/` 全部文件（除 03-prd-specs.md）
+- 确认约束与产品方向，启动 Phase 2
 
 ## Phase 2: 意图理解
 - Agent: Analyst（subagent）

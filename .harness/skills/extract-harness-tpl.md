@@ -13,9 +13,10 @@
 ## 步骤
 
 ### Step 1 -- 确认输出目录
+默认目录：./locals/harness_tpl/
 
 ### Step 2 -- 分批蒸馏写入
-分 7 组：AGENTS.md+README / agents/ / docs/ / skills/ / subskills/ / context/agents/ / context/users/
+分 6 组：AGENTS.md+README / agents/ / guides/ / skills/（含 subskills/） / context/agents/ / context/users/
 
 蒸馏规则：
 1. 剥离项目专属信息，替换为 `{{占位符}}`

@@ -42,15 +42,21 @@ MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionReco
 {
   "sys": { "ocr_concurrent_count": 8, "tts_text_max_length": 10240 },
   "ocr": {
-    "model": "doubao",
-    "doubao": { "base_url": "", "api_key": "", "model_name": "", "prompt_user": "", "timeout": 120, "max_retry_count": 3, "retry_delay": 1.0 },
-    "openai": { "base_url": "", "api_key": "", "model_name": "", "prompt_user": "", "timeout": 120, "max_retry_count": 3, "retry_delay": 1.0 }
+    "provider": "doubao",
+    "doubao": { "base_url": "", "model_name": "", "api_key": "" },
+    "openai": { "base_url": "", "model_name": "", "api_key": "" }
   },
-  "tts": { "base_url": "", "appid": "", "access_key": "", "cluster": "", "uid": "", "voice_type": "", "encoding": "mp3", "speed_ratio": 1.0 }
+  "tts": {
+    "provider": "huoshan",
+    "huoshan": { "base_url": "", "appid": "", "access_key": "" },
+    "aliqwen": { "base_url": "", "secret_key": "", "model": "", "voice": "", "language_type": "", "instructions": "", "stream": false }
+  }
 }
 ```
 
-ocr.model 选择活跃提供商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveOCRModel() 读取活跃模型，loadActiveOCRModelConfig() 返回对应子配置。API Key 按模型存储不同 Keychain key（doubao_api_key/openai_ocr_api_key），通过 getOCRAPIKeyForModel(_:) 获取。
+ocr.provider 选择活跃提供商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveOCRProvider() 读取活跃供应商，loadActiveOCRProviderConfig() 返回对应子配置。API Key 按供应商存储不同 Keychain key（doubao_api_key/openai_ocr_api_key），通过 getOCRAPIKeyForModel(_:) 获取。
+
+tts.provider 选择活跃提供商（"huoshan"/"aliqwen"），对应子配置独立维护。火山 TTS 音频格式 mp3，阿里千问 TTS 音频格式 wav，SessionRecord.audioFormat 记录实际格式。
 
 SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle。
 

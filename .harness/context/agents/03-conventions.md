@@ -57,7 +57,7 @@
 ## 日志
 
 - 禁止 print()，统一 os.Logger
-- 分类定义在 PhotoTTSApp.swift `extension os.Logger`（app/siri/audioPlayer/camera/makeView/appPages/ttsService/networkService/settingsManager），subsystem "com.photoTTS.PhotoTTS"
+- 分类定义在 PhotoTTSApp.swift `extension os.Logger`（app/siri/audioPlayer/camera/makeView/appPages/ttsService/networkService/settingsManager/ocrService/coordinator/debugLog/sessionRecord/playHistory/backgroundMake/makeHistory），subsystem "com.photoTTS.PhotoTTS"
 - 级别：debug/info/warning/error
 - 文本禁用 emoji/加粗/斜体，禁止输出敏感字段
 

@@ -609,14 +609,14 @@ struct MakeView: View {
         }
     }
 
-    /// 取消当前观察的后台任务
+    /// 取消当前观察的后台任务，并清空除图片外的其它状态
     private func cancelBackgroundTask() {
         guard let taskId = observingTaskId else { return }
         bgMakeManager.cancelTask(sessionId: taskId)
         observingTaskId = nil
-        isProcessing = false
-        processingProgress = 0.0
-        currentOperation = ""
+        // 清空除图片外的其它状态（OCR文字、TTS音频等）
+        clearDataAndState()
+        os.Logger.makeView.info("已停止制作任务: sessionId=\(taskId)")
     }
 
     /// 同步后台任务状态到本地 @State（由 onReceive 触发）
@@ -1107,7 +1107,8 @@ struct PhotoProcessingView: View {
                 if isProcessing {
                     ProcessingStatusView(
                         processingProgress: processingProgress,
-                        currentOperation: currentOperation
+                        currentOperation: currentOperation,
+                        bottomPadding: layout.thumbBarHeight
                     )
                 } else if let err = error {
                     ErrorView(error: err)
@@ -1125,25 +1126,33 @@ struct PhotoProcessingView: View {
                 }
             }
 
-            // 取消+关闭：if (isProcessing && onCancelProcessing != nil) || (error != nil && onDismissErrorOverlay != nil) {
-            if error != nil {
+            // 停止按钮（处理中）或 关闭按钮（出错时）
+            if isProcessing || error != nil {
                 VStack {
                     HStack {
                         Spacer()
                         Button {
                             if isProcessing {
-                                // 取消
+                                // 停止制作
                                 onCancelProcessing?()
                             } else {
                                 // 关闭：出错了，关闭弹层
                                 onDismissErrorOverlay?()
                             }
                         } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(.secondary)
-                                .contentShape(Rectangle())
+                            // 停止按钮：使用 xmark.circle.fill，白底色，大小为缩略图删除按钮的1.5倍
+                            if isProcessing {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 26))
+                                    .foregroundColor(.white)
+                            } else {
+                                // 关闭按钮：保持原样式
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .contentShape(Rectangle())
                         .padding(12)
                     }
                     Spacer()
@@ -1153,7 +1162,7 @@ struct PhotoProcessingView: View {
         .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaTotalHeight)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.red.opacity(0.1))
+                .fill(Color.white.opacity(0.5))
         )
         .allowsHitTesting(true)
         .clipped()
@@ -1165,6 +1174,7 @@ struct PhotoProcessingView: View {
 struct ProcessingStatusView: View {
     let processingProgress: Float
     let currentOperation: String
+    let bottomPadding: CGFloat  // 底部偏移，避免遮盖缩略图
     
     var body: some View {
         GeometryReader { geometry in
@@ -1174,18 +1184,14 @@ struct ProcessingStatusView: View {
                     .progressViewStyle(LinearProgressViewStyle())
                     .frame(maxWidth: contentWidth - 68)
                 
-                Text(currentOperation)
-                    .font(.headline)
+                Text("整体\(Int(processingProgress * 100))%，\(currentOperation)")
+                    .font(.body)
                     .foregroundColor(.blue)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                
-                Text("\(Int(processingProgress * 100))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .padding()
+            .padding(.bottom, bottomPadding)
         }
     }
 }
