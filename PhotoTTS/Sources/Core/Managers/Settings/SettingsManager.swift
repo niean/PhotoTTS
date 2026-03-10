@@ -313,8 +313,8 @@ class SettingsManager {
         }
         
         // 回退到Bundle中的默认配置
-        guard let bundleConfigPath = Bundle.main.path(forResource: "config_local", ofType: "json") else {
-            os.Logger.settingsManager.error("找不到默认配置文件")
+        guard let bundleConfigPath = Bundle.main.path(forResource: "config_example", ofType: "json") else {
+            os.Logger.settingsManager.error("找不到Bundle中的config_example.json")
             return nil
         }
         
@@ -347,8 +347,8 @@ class SettingsManager {
         }
         
         // 回退到Bundle中的默认配置
-        guard let bundleConfigPath = Bundle.main.path(forResource: "config_local", ofType: "json") else {
-            os.Logger.settingsManager.error("找不到默认配置文件")
+        guard let bundleConfigPath = Bundle.main.path(forResource: "config_example", ofType: "json") else {
+            os.Logger.settingsManager.error("找不到Bundle中的config_example.json")
             return nil
         }
         
@@ -366,8 +366,8 @@ class SettingsManager {
     /// 加载默认配置（从Bundle中的配置文件）
     /// - Returns: 默认配置的JSON字符串，如果读取失败返回"{}"
     func loadDefaultConfig() -> String {
-        guard let configPath = Bundle.main.path(forResource: "config_local", ofType: "json") else {
-            os.Logger.settingsManager.error("找不到Bundle中的config_local.json配置文件")
+        guard let configPath = Bundle.main.path(forResource: "config_example", ofType: "json") else {
+            os.Logger.settingsManager.error("找不到Bundle中的config_example.json配置文件")
             return "{}"
         }
         
@@ -705,6 +705,25 @@ class SettingsManager {
     
     // MARK: - 私有方法
     
+    /// 确保 Documents 目录中存在 config_local.json
+    /// 如不存在，从 Bundle 中的 config_example.json 复制生成
+    private func ensureUserConfigExists() {
+        let configURL = getConfigFileURL()
+        guard !FileManager.default.fileExists(atPath: configURL.path) else { return }
+        
+        guard let examplePath = Bundle.main.path(forResource: "config_example", ofType: "json") else {
+            os.Logger.settingsManager.error("Bundle中找不到config_example.json，无法初始化配置")
+            return
+        }
+        
+        do {
+            try FileManager.default.copyItem(atPath: examplePath, toPath: configURL.path)
+            os.Logger.settingsManager.info("已从config_example.json初始化用户配置: \(configURL.path)")
+        } catch {
+            os.Logger.settingsManager.error("初始化用户配置失败: \(error.localizedDescription)")
+        }
+    }
+    
     /// 获取用户配置文件URL（Documents目录）
     /// - Returns: 用户配置文件URL
     private func getConfigFileURL() -> URL {
@@ -715,6 +734,9 @@ class SettingsManager {
     }
     
     func setupDefaultSettings() {
+        // 确保 Documents 目录中存在 config_local.json
+        ensureUserConfigExists()
+        
         if isFirstLaunch {
             // 设置默认值
             voiceSettings = VoiceSettings.default

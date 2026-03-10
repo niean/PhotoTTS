@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>适龄信息 - 拍照阅读（PhotoTTS）</title>
+  <link rel="icon" type="image/png" href="icon_180x180.png" />
+  <link rel="apple-touch-icon" href="icon_180x180.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                   "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.8;
+      color: #1d1d1f;
+      background: #f5f5f7;
+    }
+
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    header {
+      margin-bottom: 40px;
+      border-bottom: 1px solid #d2d2d7;
+      padding-bottom: 24px;
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+
+    header p {
+      margin: 0;
+      font-size: 14px;
+      color: #6e6e73;
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1d1d1f;
+      margin: 36px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e5ea;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: #3d3d3f;
+    }
+
+    ul {
+      padding-left: 22px;
+      margin: 0 0 14px;
+      color: #3d3d3f;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 24px;
+      font-size: 15px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid #d2d2d7;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f0f0f5;
+      font-weight: 600;
+      color: #1d1d1f;
+      white-space: nowrap;
+    }
+
+    td {
+      color: #3d3d3f;
+    }
+
+    .highlight {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 14px 18px;
+      margin: 14px 0 24px;
+      border-radius: 0 6px 6px 0;
+      font-size: 15px;
+      color: #3d3d3f;
+    }
+
+    footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid #d2d2d7;
+      font-size: 13px;
+      color: #6e6e73;
+    }
+
+    a {
+      color: #0071e3;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 24px 16px 60px; }
+      header h1 { font-size: 22px; }
+      h2 { font-size: 18px; }
+      table { font-size: 14px; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <div style="margin-bottom: 16px;">
+        <img src="icon_180x180.png" alt="PhotoTTS 图标"
+             style="width: 60px; height: 60px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" />
+      </div>
+      <h1>适龄信息</h1>
+      <p>适用产品：拍照阅读（PhotoTTS）&nbsp;&nbsp;|&nbsp;&nbsp;最后更新：2026年3月10日</p>
+    </header>
+
+    <!-- 1. 产品概述 -->
+    <h2>一、产品概述</h2>
+
+    <p>
+      拍照阅读（PhotoTTS）是一款面向 3 至 10 岁儿童及其家长的教育类工具应用。
+      核心功能是将绘本图片通过 OCR 识别文字，再由 TTS 合成语音播放，帮助儿童听读绘本故事。
+    </p>
+
+    <div class="highlight">
+      本应用建议年龄分级为 4+，适合所有年龄段用户使用，不包含任何不适宜儿童的内容。
+    </div>
+
+    <!-- 2. 年龄分级 -->
+    <h2>二、年龄分级</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>项目</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>建议年龄分级</td>
+          <td>4+（适合所有年龄段）</td>
+        </tr>
+        <tr>
+          <td>目标用户</td>
+          <td>3 至 10 岁儿童及其家长/监护人</td>
+        </tr>
+        <tr>
+          <td>应用类别</td>
+          <td>教育</td>
+        </tr>
+        <tr>
+          <td>使用场景</td>
+          <td>家庭亲子阅读、儿童自主听读</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 3. 内容分级 -->
+    <h2>三、内容分级声明</h2>
+
+    <p>本应用不包含以下任何类型的内容：</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>内容类别</th>
+          <th>是否包含</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>暴力/卡通暴力</td>
+          <td>否</td>
+          <td>应用不生成、不展示任何暴力内容</td>
+        </tr>
+        <tr>
+          <td>色情/裸露</td>
+          <td>否</td>
+          <td>应用不包含任何成人或性暗示内容</td>
+        </tr>
+        <tr>
+          <td>赌博</td>
+          <td>否</td>
+          <td>应用不包含任何赌博或模拟赌博内容</td>
+        </tr>
+        <tr>
+          <td>恐怖/惊悚</td>
+          <td>否</td>
+          <td>应用不包含任何恐怖或惊悚元素</td>
+        </tr>
+        <tr>
+          <td>粗俗用语</td>
+          <td>否</td>
+          <td>应用不包含任何粗俗或不雅用语</td>
+        </tr>
+        <tr>
+          <td>烟酒/毒品</td>
+          <td>否</td>
+          <td>应用不涉及任何烟酒或毒品相关内容</td>
+        </tr>
+        <tr>
+          <td>歧视性内容</td>
+          <td>否</td>
+          <td>应用不包含任何歧视性或偏见性内容</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 4. 功能安全 -->
+    <h2>四、功能安全性</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>功能安全项</th>
+          <th>状态</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>用户生成内容分享</td>
+          <td>不支持</td>
+          <td>应用不提供社交分享或用户间内容传播功能</td>
+        </tr>
+        <tr>
+          <td>不受限制的网页访问</td>
+          <td>不支持</td>
+          <td>应用不内嵌浏览器，不提供网页浏览功能</td>
+        </tr>
+        <tr>
+          <td>社交/聊天功能</td>
+          <td>不支持</td>
+          <td>应用不包含任何社交互动或聊天功能</td>
+        </tr>
+        <tr>
+          <td>应用内购买</td>
+          <td>不支持</td>
+          <td>应用完全免费，无内购项目</td>
+        </tr>
+        <tr>
+          <td>广告展示</td>
+          <td>不支持</td>
+          <td>应用不接入任何广告 SDK，不展示广告</td>
+        </tr>
+        <tr>
+          <td>位置信息收集</td>
+          <td>不收集</td>
+          <td>应用不请求或使用位置权限</td>
+        </tr>
+        <tr>
+          <td>用户追踪</td>
+          <td>不追踪</td>
+          <td>应用不接入任何第三方追踪或分析 SDK</td>
+        </tr>
+        <tr>
+          <td>账号注册</td>
+          <td>不要求</td>
+          <td>应用无需注册或登录，无用户账号体系</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 5. 数据隐私 -->
+    <h2>五、儿童数据保护</h2>
+
+    <p>本应用高度重视儿童隐私保护，具体措施如下：</p>
+
+    <ul>
+      <li>不收集任何可识别儿童身份的个人信息（无注册、无账号、无用户画像）</li>
+      <li>所有用户数据（图片、音频、会话记录）仅存储在设备本地，不上传至任何服务器</li>
+      <li>API 密钥存储于 iOS 系统 Keychain，通过 HTTPS 加密传输</li>
+      <li>图片在发送至第三方 OCR 服务前，自动降采样至最大 2048 像素</li>
+      <li>卸载应用即可清除设备上的所有应用数据</li>
+    </ul>
+
+    <p>
+      完整隐私政策请参阅：<a href="https://phototts.niean.name/privacy-policy.html">隐私政策</a>
+    </p>
+
+    <!-- 6. 家长指引 -->
+    <h2>六、家长指引</h2>
+
+    <ul>
+      <li>本应用需要使用相机或相册权限拍摄/选择绘本图片，建议家长协助儿童完成拍照操作</li>
+      <li>OCR 文字识别和 TTS 语音合成依赖第三方云服务，需要网络连接</li>
+      <li>第三方服务的 API 密钥需由家长配置，儿童无需接触密钥信息</li>
+      <li>应用支持 Siri 语音控制播放，方便儿童独立操作</li>
+      <li>建议家长根据儿童年龄，合理控制每次使用时长</li>
+    </ul>
+
+    <!-- 7. 联系方式 -->
+    <h2>七、联系我们</h2>
+
+    <p>如您对本应用的适龄信息有任何疑问，请通过以下方式联系我们：</p>
+    <ul>
+      <li>GitHub Issues：<a href="https://github.com/niean/PhotoTTS/issues" target="_blank" rel="noopener">https://github.com/niean/PhotoTTS/issues</a></li>
+    </ul>
+
+    <footer>
+      <p>拍照阅读（PhotoTTS）&nbsp;&nbsp;|&nbsp;&nbsp;本页面最后更新于2026年3月10日</p>
+      <p>
+        <a href="https://phototts.niean.name/">应用主页</a>
+        &nbsp;|&nbsp;
+        <a href="https://phototts.niean.name/privacy-policy.html">隐私政策</a>
+      </p>
+    </footer>
+
+  </div>
+</body>
+</html>

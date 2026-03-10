@@ -23,6 +23,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 | Skill | 触发 | 文件 |
 |-------|------|------|
+| Global Workflow | 迭代类 Skill 自动遵循 | .harness/global/WORKFLOW.md |
 | 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
 | 迭代其它 | 人工下发非代码类任务 | .harness/skills/iterate-other.md |
 | 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
@@ -52,6 +53,19 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 流程合规
 
+### Global Workflow（全局工作流）
+
+迭代类 Skill（迭代功能、迭代其它）必须遵循 Global Workflow 的 6 阶段标准流程。权威定义见 `.harness/global/WORKFLOW.md`。
+
+| 阶段 | 名称 | GATE | 语义 |
+|------|------|------|------|
+| 1 | 任务分解 | - | 读取约束、确认方向、识别任务类型、路由到具体 Skill |
+| 2 | 意图识别 | - | 分析需求、产出结构化 spec |
+| 3 | 意图确认 | [GATE] | spec 落盘、用户确认、修正循环 |
+| 4 | 任务实现(含验收) | [GATE-ENTRY] | 按 spec 执行实现 + 对照验收标准检查 |
+| 5 | 知识回填 | - | 回填 context/agents/ + 删除临时 spec |
+| 6 | 任务总结 | [GATE] | 触发总结任务 -> 用户确认 -> 完成 |
+
 ### 不可压缩章节保护规则（不可压缩）
 
 - 标记为 `不可压缩` 的章节，AI 发现其内容存在问题时，只能以消息方式提示用户
@@ -71,11 +85,11 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
 - `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
-- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4、迭代功能 Phase 7（总结 -> 完成）、迭代其它 Phase 6（总结 -> 完成）
+- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4、迭代功能 Phase 6（总结 -> 完成）、迭代其它 Phase 6（总结 -> 完成）
 
 ### 任务分类与 Skill 路由（不可压缩）
 
-- 功能需求或修改代码 -> `Skill: 迭代功能`：必须按完整 Phase 1-7 流程执行，禁止自行跳过、简化、改编、拆分或合并；Phase 2 必须通过 Analyst subagent 执行，Phase 3、 Phase 7 为 `[GATE]` 点（见上方 GATE 规则），Phase 5 必须包含构建验证和代码扫描
+- 功能需求或修改代码 -> `Skill: 迭代功能`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并；Phase 2 必须通过 Analyst subagent 执行，Phase 3、 Phase 6 为 `[GATE]` 点（见上方 GATE 规则）
 - 其它任务类型（如 Harness 维护、文档变更、配置调整等） -> `Skill: 迭代其它`：必须按完整 Phase 1-6 流程执行，禁止自行跳过、简化、改编、拆分或合并，Phase 3、 Phase 6 为 `[GATE]` 点（见上方 GATE 规则）
 - 按 `Skill: 迭代功能` 或 `Skill: 迭代其它` 流程执行的任务，必须执行任务总结 Phase、必须等待用户确认
 
@@ -86,7 +100,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 文件与文档
 
-- 不主动创建 README；不删除项目文件（临时 spec `agent-specs-*.md` 除外，任务结束 `rm -f` 删除）
+- 禁止主动创建 README；不删除项目文件（临时 spec `agent-specs-*.md` 除外，任务结束 `rm -f` 删除）
 - 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
 - AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/context/users/、.harness/docs/
 - users/ 与 agents/ 知识库冲突时，提示用户确认
@@ -140,6 +154,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 ```
 AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
+  global/              -- 全局工作流定义（Global Workflow）
   agents/              -- Agent 角色模板（Orchestrator、Analyst、Coder、Reviewer）
   skills/              -- Skill 定义（迭代功能、构建验证等）
   subskills/           -- Subskill 扫描模板
@@ -152,7 +167,8 @@ PhotoTTS/
     UI/                -- SwiftUI 视图
     Core/              -- Coordinators、Handlers、Intents、Managers
     Models/            -- 数据模型
-  Resources/           -- 配置、素材
+  Resources/           -- 配置、素材（打包到 App Bundle）
+locals/                -- 本地敏感配置（不打包到 App Bundle）
 PhotoTTSTests/         -- 单元测试
 PhotoTTSUITests/       -- UI 测试
 ```
@@ -165,12 +181,12 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 # 单元测试
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test
 # API 配置（首次）
-cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json
+cp PhotoTTS/Resources/config_example.json locals/config_local.json
 ```
 
 ## 知识回填规则
 
-知识回填 Phase（迭代功能 Phase 6 / 迭代其它 Phase 5）的回填目标：
+知识回填 Phase（迭代功能 Phase 5 / 迭代其它 Phase 5）的回填目标：
 - 架构变化 -> 02-architecture.md
 - 新术语 -> 04-glossary.md
 - 数据结构/存储变化 -> 05-data-boundaries.md

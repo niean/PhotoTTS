@@ -88,7 +88,16 @@
 
 ---
 
-# 四、安全约定
+# 四、文件管理约定
+
+- 禁止主动创建 README（包括为新建目录添加 README.md 说明文件）
+- 不删除项目文件（临时 spec `agent-specs-*.md` 除外，任务结束 `rm -f` 删除）
+- 文件名：小写英文 kebab-case，动词-名词语序
+- 临时 spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`
+
+---
+
+# 五、安全约定
 
 - 密钥：只存 Keychain（SettingsManager），键名 Constants.KeychainKeys；config_local.json 仅首次导入用；UserDefaults 只存非敏感配置
 - 网络：全 HTTPS，不降级，不开 ATS 例外；响应校验状态码+Content-Type，JSON 解码失败按错误处理；OCR 图片经降采样不发原图

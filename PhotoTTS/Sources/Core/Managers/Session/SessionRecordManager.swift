@@ -301,6 +301,12 @@ class SessionRecordManager {
             logger.error("读取会话记录列表失败: \(error.localizedDescription)")
         }
         
+        // 用户无记录时，展示内置默认会话
+        if metadataList.isEmpty, let bundledMetadata = loadBundledDefaultSessionMetadata() {
+            metadataList.append(bundledMetadata)
+            logger.info("用户无记录，展示内置默认会话")
+        }
+        
         // 写入短时效缓存
         metadataCache = metadataList
         metadataCacheTime = Date()
@@ -340,6 +346,11 @@ class SessionRecordManager {
             return ([], 0)
         }
         
+        // 用户无记录时，展示内置默认会话
+        if metadataList.isEmpty, let bundledMetadata = loadBundledDefaultSessionMetadata() {
+            metadataList.append(bundledMetadata)
+        }
+        
         // 按搜索关键词过滤
         let trimmed = searchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
@@ -377,6 +388,11 @@ class SessionRecordManager {
     /// - Parameter id: 会话记录ID
     /// - Returns: 会话记录，如果不存在则返回nil
     func loadSession(id: String) -> SessionRecord? {
+        // 内置默认会话从 Bundle 加载
+        if isBundledDefaultSession(id) {
+            return loadBundledDefaultSession()
+        }
+        
         let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
         let recordURL = sessionDir.appendingPathComponent("record.json")
         
@@ -455,10 +471,18 @@ class SessionRecordManager {
         if let cached = Self.imageLoadCache.object(forKey: cacheKey as NSString) {
             return cached
         }
-        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
-        let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
-        let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
-        guard fileManager.fileExists(atPath: imageURL.path) else { return nil }
+        // 确定图片文件 URL（内置默认会话从 Bundle 加载）
+        let imageURL: URL?
+        if isBundledDefaultSession(sessionId) {
+            let prefix = Constants.DefaultSession.bundleFilePrefix
+            imageURL = Bundle.main.url(forResource: "\(prefix)image_\(index)", withExtension: "jpg")
+        } else {
+            let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+            let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+            let candidate = imagesDir.appendingPathComponent("image_\(index).jpg")
+            imageURL = fileManager.fileExists(atPath: candidate.path) ? candidate : nil
+        }
+        guard let imageURL else { return nil }
         let result: UIImage?
         if let maxD = maxDimension, maxD > 0 {
             result = Self.downsampleImageFromFile(url: imageURL, maxDimension: maxD)
@@ -535,6 +559,13 @@ class SessionRecordManager {
     
     /// 从会话目录加载预生成的头像图
     func loadAvatar(sessionId: String) -> UIImage? {
+        // 内置默认会话从 Bundle 加载头像
+        if isBundledDefaultSession(sessionId) {
+            let prefix = Constants.DefaultSession.bundleFilePrefix
+            guard let avatarURL = Bundle.main.url(forResource: "\(prefix)avatar", withExtension: "jpg") else { return nil }
+            return Self.downsampleImageFromFile(url: avatarURL, maxDimension: Constants.ImageDisplay.recordAvatarMaxDimension)
+        }
+        
         let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
         let avatarURL = sessionDir.appendingPathComponent(Self.avatarFileName)
         guard fileManager.fileExists(atPath: avatarURL.path) else { return nil }
@@ -722,6 +753,11 @@ class SessionRecordManager {
     ///   - avatarImageIndex: 头像图片索引（nil 表示不修改）
     /// - Returns: 更新是否成功
     func updateSession(id: String, name: String? = nil, avatarImageIndex: Int? = nil) -> Bool {
+        // 内置默认会话不可更新
+        if isBundledDefaultSession(id) {
+            logger.warning("内置默认会话不可更新")
+            return false
+        }
         guard let record = loadSession(id: id) else {
             return false
         }
@@ -768,6 +804,12 @@ class SessionRecordManager {
     /// - Parameter id: 会话记录ID
     /// - Returns: 删除是否成功
     func deleteSession(id: String) -> Bool {
+        // 内置默认会话不可删除
+        if isBundledDefaultSession(id) {
+            logger.warning("内置默认会话不可删除")
+            return false
+        }
+        
         let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
         
         // 读取记录名称用于日志
@@ -913,6 +955,11 @@ class SessionRecordManager {
     ///   - destinationURL: 目标父目录URL（方法会在其中创建以记录名称命名的子目录）
     /// - Returns: 导出结果
     func exportSession(id: String, to destinationURL: URL) -> (success: Bool, size: Int64?, errorMessage: String?) {
+        // 内置默认会话不可导出
+        if isBundledDefaultSession(id) {
+            logger.warning("内置默认会话不可导出")
+            return (false, nil, "内置默认会话不可导出")
+        }
         let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
         guard fileManager.fileExists(atPath: sessionDir.path) else {
             return (false, nil, "会话目录不存在: \(id)")
@@ -1298,6 +1345,17 @@ class SessionRecordManager {
 
     /// 加载指定会话的历史记录
     func loadSessionHistory(sessionId: String) -> SessionHistory {
+        // 内置默认会话从 Bundle 加载历史
+        if isBundledDefaultSession(sessionId) {
+            let prefix = Constants.DefaultSession.bundleFilePrefix
+            guard let historyURL = Bundle.main.url(forResource: "\(prefix)history", withExtension: "json"),
+                  let data = try? Data(contentsOf: historyURL),
+                  let history = try? historyDecoder.decode(SessionHistory.self, from: data) else {
+                return SessionHistory()
+            }
+            return history
+        }
+        
         let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
         let historyURL = sessionDir.appendingPathComponent(Self.historyFileName)
         guard fileManager.fileExists(atPath: historyURL.path),
@@ -1326,6 +1384,8 @@ class SessionRecordManager {
 
     /// 向指定会话追加一条制作事件
     func addMakeEvent(sessionId: String, timestamp: Date = Date(), identity: String) {
+        // 内置默认会话不记录事件
+        if isBundledDefaultSession(sessionId) { return }
         var history = loadSessionHistory(sessionId: sessionId)
         history.makeEvents.append(SessionHistoryEvent(timestamp: timestamp, identity: identity))
         history.makeEvents.sort { $0.timestamp > $1.timestamp }
@@ -1334,6 +1394,8 @@ class SessionRecordManager {
 
     /// 向指定会话追加一条播放事件
     func addPlayEvent(sessionId: String, timestamp: Date = Date(), identity: String) {
+        // 内置默认会话不记录事件
+        if isBundledDefaultSession(sessionId) { return }
         var history = loadSessionHistory(sessionId: sessionId)
         history.playEvents.append(SessionHistoryEvent(timestamp: timestamp, identity: identity))
         history.playEvents.sort { $0.timestamp > $1.timestamp }
@@ -1345,16 +1407,81 @@ class SessionRecordManager {
     }
 
     /// 加载所有会话的历史记录（聚合），返回 (sessionId, name, history) 三元组列表
+    /// 内置默认会话不参与历史聚合
     func loadAllSessionHistories() -> [(id: String, name: String, history: SessionHistory)] {
         let allMetadata = getAllSessionMetadata(caller: "历史聚合")
         var result: [(id: String, name: String, history: SessionHistory)] = []
         for metadata in allMetadata {
+            // 内置默认会话不出现在播放/制作历史中
+            if isBundledDefaultSession(metadata.id) { continue }
             let history = loadSessionHistory(sessionId: metadata.id)
             if !history.makeEvents.isEmpty || !history.playEvents.isEmpty {
                 result.append((id: metadata.id, name: metadata.name, history: history))
             }
         }
         return result
+    }
+
+    // MARK: - 内置默认会话（Bundle 资源，用户无记录时展示）
+
+    /// 判断是否为内置默认会话
+    func isBundledDefaultSession(_ id: String) -> Bool {
+        return id == Constants.DefaultSession.id
+    }
+
+    /// 从 Bundle 加载内置默认会话的元数据
+    private func loadBundledDefaultSessionMetadata() -> SessionRecordMetadata? {
+        let prefix = Constants.DefaultSession.bundleFilePrefix
+        guard let url = Bundle.main.url(forResource: "\(prefix)metadata", withExtension: "json") else {
+            return nil
+        }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(SessionRecordMetadata.self, from: data)
+    }
+
+    /// 从 Bundle 加载内置默认会话的完整记录
+    private func loadBundledDefaultSession() -> SessionRecord? {
+        let prefix = Constants.DefaultSession.bundleFilePrefix
+        guard let recordURL = Bundle.main.url(forResource: "\(prefix)record", withExtension: "json") else {
+            logger.warning("内置默认会话 record.json 不存在")
+            return nil
+        }
+        do {
+            let data = try Data(contentsOf: recordURL)
+            let record = try JSONDecoder().decode(SessionRecord.self, from: data)
+
+            // 加载音频
+            let audioURL = Bundle.main.url(forResource: "\(prefix)audio", withExtension: record.audioFormat)
+            let audioData: Data = audioURL.flatMap { try? Data(contentsOf: $0) } ?? Data()
+
+            let resultRecord = SessionRecord(
+                id: record.id,
+                name: record.name,
+                createdAt: record.createdAt,
+                updatedAt: record.updatedAt,
+                imageDataList: record.imageDataList,
+                ocrText: record.ocrText,
+                ocrTextSegments: record.ocrTextSegments,
+                audioDataBase64: audioData.base64EncodedString(),
+                audioFormat: record.audioFormat,
+                audioDuration: record.audioDuration,
+                ocrDuration: record.ocrDuration,
+                ttsDuration: record.ttsDuration,
+                validImageCount: record.validImageCount,
+                totalImageCount: record.totalImageCount,
+                textLength: record.textLength,
+                audioSize: audioData.count,
+                voiceSettings: record.voiceSettings,
+                avatarImageIndex: record.avatarImageIndex,
+                storageSize: record.storageSize
+            )
+
+            logger.info("加载内置默认会话成功: \(record.name)")
+            return resultRecord
+        } catch {
+            logger.error("加载内置默认会话失败: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// 更新会话记录目录中的ID（当导入时ID冲突需要生成新ID时使用）

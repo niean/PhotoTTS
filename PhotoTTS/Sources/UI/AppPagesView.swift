@@ -170,13 +170,16 @@ struct AppPageView: View {
                     
                     // 底部版权信息
                     VStack(spacing: 8) {
-                        Text("Author: NieAn")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
+                        if pageType == .intro {
+                            Link("隐私条款", destination: URL(string: Constants.Links.privacyPolicy)!)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
                         Text("Powered by AGI")
                             .font(.caption2)
                             .foregroundColor(.secondary)
+
                     }
                     .padding(.bottom, 30)
                 }

@@ -1,4 +1,8 @@
 {
+  "sys":{
+    "ocr_concurrent_count": 8,
+    "tts_text_max_length": 10240
+  },
   "ocr": {
     "provider": "doubao",
     "doubao": {

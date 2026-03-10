@@ -209,13 +209,13 @@ struct SessionRecordListView: View {
                                         isPad: isPad,
                                         makeProgress: makeProgress,
                                         onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
-                                        onLoadToMake: (mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
-                                        onView: !metadata.isMaking ? {
+                                        onLoadToMake: (!metadata.isDefault && mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
+                                        onView: (!metadata.isDefault && !metadata.isMaking) ? {
                                             viewSessionDetail(metadata.id)
                                         } : nil,
-                                        onEdit: (allowEditDelete && !metadata.isMaking) ? { editSessionDetail(metadata.id) } : nil,
-                                        onExport: (allowEditDelete && !metadata.isMaking) ? { exportOneSession(id: metadata.id) } : nil,
-                                        onDelete: allowEditDelete ? {
+                                        onEdit: (!metadata.isDefault && allowEditDelete && !metadata.isMaking) ? { editSessionDetail(metadata.id) } : nil,
+                                        onExport: (!metadata.isDefault && allowEditDelete && !metadata.isMaking) ? { exportOneSession(id: metadata.id) } : nil,
+                                        onDelete: (!metadata.isDefault && allowEditDelete) ? {
                                             sessionToDelete = metadata
                                             showDeleteConfirmation = true
                                         } : nil
@@ -716,38 +716,40 @@ struct SessionRecordRow: View {
                     .buttonStyle(.plain)
                 }
                 
-                // 更多按钮
-                Menu {
-                    if let onView = onView {
-                        Button(action: onView) {
-                            Label("查看", systemImage: "eye.circle")
+                // 更多按钮（embedded 模式不展示）
+                if onEdit != nil || onExport != nil || onDelete != nil {
+                    Menu {
+                        if let onView = onView {
+                            Button(action: onView) {
+                                Label("查看", systemImage: "eye.circle")
+                            }
                         }
-                    }
-                    if let onEdit = onEdit {
-                        Button(action: onEdit) {
-                            Label("编辑", systemImage: "pencil")
+                        if let onEdit = onEdit {
+                            Button(action: onEdit) {
+                                Label("编辑", systemImage: "pencil")
+                            }
                         }
-                    }
-                    if let onExport = onExport {
-                        Button(action: onExport) {
-                            Label("导出", systemImage: "square.and.arrow.up")
+                        if let onExport = onExport {
+                            Button(action: onExport) {
+                                Label("导出", systemImage: "square.and.arrow.up")
+                            }
                         }
-                    }
-                    if let onLoadToMake = onLoadToMake {
-                        Button(action: onLoadToMake) {
-                            Label("制作", systemImage: "arrow.down.to.line.circle")
+                        if let onLoadToMake = onLoadToMake {
+                            Button(action: onLoadToMake) {
+                                Label("制作", systemImage: "arrow.down.to.line.circle")
+                            }
                         }
-                    }
-                    if let onDelete = onDelete {
-                        Button(role: .destructive, action: onDelete) {
-                            Label("删除", systemImage: "trash")
+                        if let onDelete = onDelete {
+                            Button(role: .destructive, action: onDelete) {
+                                Label("删除", systemImage: "trash")
+                            }
                         }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: isPad ? 18 : 16))
+                            .foregroundColor(.gray)
+                            .frame(width: isPad ? 28 : 24, height: isPad ? 28 : 24)
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: isPad ? 18 : 16))
-                        .foregroundColor(.gray)
-                        .frame(width: isPad ? 28 : 24, height: isPad ? 28 : 24)
                 }
             }
         }

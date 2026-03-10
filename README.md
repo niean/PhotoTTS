@@ -1,7 +1,7 @@
 # PhotoTTS - 拍照阅读
 
 <div align="center">
-  <img src="PhotoTTS/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png" alt="PhotoTTS Logo" width="120" height="120">
+  <img src="docs/icon_180x180.png" alt="PhotoTTS Logo" width="120" height="120">
   
   <h3>拍照阅读，让绘本更精彩</h3>
   
@@ -25,6 +25,8 @@ PhotoTTS 是一款面向 3-10 岁儿童的绘本听读 iOS 应用。拍照或选
 ## 主要功能
 
 - 拍照阅读：拍照/选图 → OCR识别 → TTS合成 → 绘本播放
+
+> 提示：播放器采用横屏模式，推荐横屏拍照或选择横屏图片，以获得最佳播放效果。
 
 ## 快速开始
 

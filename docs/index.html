@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>拍照阅读（PhotoTTS）</title>
+  <link rel="icon" type="image/png" href="icon_180x180.png" />
+  <link rel="apple-touch-icon" href="icon_180x180.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                   "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.8;
+      color: #1d1d1f;
+      background: #f5f5f7;
+    }
+
+    /* ── Hero ─────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(160deg, #e8f5e9 0%, #f0f4ff 100%);
+      padding: 64px 24px 56px;
+      text-align: center;
+      border-bottom: 1px solid #d2d2d7;
+    }
+
+    .hero img {
+      width: 100px;
+      height: 100px;
+      border-radius: 22px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      font-weight: 700;
+      color: #1d1d1f;
+    }
+
+    .hero p.tagline {
+      margin: 0 0 24px;
+      font-size: 18px;
+      color: #3d3d3f;
+    }
+
+    .badges {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .badge-blue  { background: #dbeafe; color: #1d4ed8; }
+    .badge-orange{ background: #ffedd5; color: #c2410c; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+
+    /* ── Container ────────────────────────────────── */
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Section headings ─────────────────────────── */
+    h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #1d1d1f;
+      margin: 44px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e5e5ea;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: #3d3d3f;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+      margin: 0 0 14px;
+      color: #3d3d3f;
+    }
+
+    li { margin-bottom: 6px; }
+
+    a {
+      color: #0071e3;
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+
+    /* ── Feature cards ────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 16px 0 32px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e5e5ea;
+      border-radius: 12px;
+      padding: 20px 18px;
+    }
+
+    .card-icon {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+
+    .card p {
+      margin: 0;
+      font-size: 14px;
+      color: #6e6e73;
+      line-height: 1.6;
+    }
+
+    /* ── Code block ───────────────────────────────── */
+    pre {
+      background: #f0f0f5;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #1d1d1f;
+      margin: 0 0 16px;
+    }
+
+    code {
+      font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
+    }
+
+    /* ── Tech specs table ─────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 24px;
+      font-size: 15px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid #d2d2d7;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f0f0f5;
+      font-weight: 600;
+      color: #1d1d1f;
+      white-space: nowrap;
+    }
+
+    td { color: #3d3d3f; }
+
+    /* ── Footer ───────────────────────────────────── */
+    footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid #d2d2d7;
+      font-size: 13px;
+      color: #6e6e73;
+      text-align: center;
+    }
+
+    footer a { color: #0071e3; }
+
+    /* ── Responsive ───────────────────────────────── */
+    @media (max-width: 600px) {
+      .hero { padding: 48px 16px 40px; }
+      .hero h1 { font-size: 26px; }
+      .hero p.tagline { font-size: 16px; }
+      .container { padding: 32px 16px 60px; }
+      h2 { font-size: 19px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <div class="hero">
+    <img src="icon_180x180.png"
+         alt="PhotoTTS 图标" />
+    <h1>拍照阅读（PhotoTTS）</h1>
+    <p class="tagline">拍照阅读，让绘本更精彩</p>
+    <div class="badges">
+      <span class="badge badge-blue">iOS 18.6+</span>
+      <span class="badge badge-orange">Swift 5.0+</span>
+      <span class="badge badge-green">MIT License</span>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- 简介 -->
+    <h2>项目简介</h2>
+    <p>
+      PhotoTTS 是一款面向 3–10 岁儿童的绘本听读 iOS 应用。
+      拍照或选择相册图片，自动识别文字并合成语音，让孩子随时重复收听喜欢的绘本故事。
+    </p>
+
+    <!-- 核心特性 -->
+    <h2>核心特性</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">📷</div>
+        <h3>拍照识别</h3>
+        <p>支持拍照和相册选图（多张），支持对已有记录重新制作。播放器采用横屏模式，推荐横屏拍照或选择横屏图片以获得最佳效果</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📖</div>
+        <h3>文字识别</h3>
+        <p>支持豆包大模型、OpenAI 等多种 OCR 服务</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔊</div>
+        <h3>语音合成</h3>
+        <p>支持火山引擎、阿里通义千问等多种 TTS 服务</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">▶️</div>
+        <h3>绘本播放</h3>
+        <p>音频播放联动图片与文字，支持全屏播放器</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💾</div>
+        <h3>会话记录</h3>
+        <p>保存记录以便重复收听，支持导出导入备份</p>
+      </div>
+    </div>
+
+    <!-- 快速开始 -->
+    <h2>快速开始</h2>
+
+    <p>环境要求：iOS 18.6+、macOS 12.0+、Xcode 15.0+</p>
+
+    <ol>
+      <li>
+        克隆项目
+        <pre><code>git clone https://github.com/niean/PhotoTTS.git
+cd PhotoTTS</code></pre>
+      </li>
+      <li>
+        打开项目
+        <pre><code>open PhotoTTS.xcodeproj</code></pre>
+      </li>
+      <li>
+        配置 API 密钥
+        <pre><code>cp PhotoTTS/Resources/config_example.json PhotoTTS/Resources/config_local.json</code></pre>
+        编辑 <code>config_local.json</code>，填入您的 API 密钥（支持多种 OCR / TTS 服务商）
+      </li>
+      <li>选择目标设备或模拟器，按 Cmd + R 构建并运行</li>
+    </ol>
+
+    <!-- 技术规格 -->
+    <h2>技术规格</h2>
+    <table>
+      <thead>
+        <tr><th>项目</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>开发语言</td><td>Swift 5.0+</td></tr>
+        <tr><td>最低支持版本</td><td>iOS 18.6+</td></tr>
+        <tr><td>架构模式</td><td>MVVM + Coordinator</td></tr>
+        <tr><td>UI 框架</td><td>SwiftUI</td></tr>
+        <tr><td>网络框架</td><td>URLSession + async/await</td></tr>
+        <tr><td>音频框架</td><td>AVFoundation</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 致谢 -->
+    <h2>致谢</h2>
+    <ul>
+      <li><a href="https://www.doubao.com/" target="_blank" rel="noopener">豆包模型</a> — OCR 文字识别服务</li>
+      <li><a href="https://www.volcengine.com/" target="_blank" rel="noopener">火山引擎</a> — TTS 语音合成服务</li>
+      <li><a href="https://tongyi.aliyun.com/" target="_blank" rel="noopener">阿里通义</a> — TTS 语音合成服务</li>
+    </ul>
+
+    <!-- Footer -->
+    <footer>
+      <p>
+        <a href="https://github.com/niean/PhotoTTS" target="_blank" rel="noopener">GitHub 仓库</a>
+        &nbsp;|&nbsp;
+        <a href="https://phototts.niean.name/privacy-policy.html">隐私政策</a>
+        &nbsp;|&nbsp;
+        <a href="https://phototts.niean.name/age-rating.html">适龄信息</a>
+      </p>
+      <p>拍照阅读（PhotoTTS）&nbsp;&nbsp;©&nbsp;2026</p>
+    </footer>
+
+  </div>
+
+</body>
+</html>

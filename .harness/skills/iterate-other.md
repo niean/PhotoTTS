@@ -2,11 +2,13 @@
 
 触发：人工下发非代码类任务（如 Harness 维护、文档变更、配置调整等）。
 
+遵循 Global Workflow 6 阶段标准流程（`.harness/global/WORKFLOW.md`）。
+
 本 Skill 采用单 Agent 架构，由主 Agent（Orchestrator）直接执行所有 Phase。Phase 间通过"检查点摘要"（不超过 10 行）交接上下文。
 
 输出规范：遵守 AGENTS.md "流程合规 > 消息输出格式"中定义的全部规则。
 
-与 Skill: 迭代功能 的差异：Phase 4 合并了代码实现与结果验收，适用于不以代码变更为主的任务。
+与 Skill: 迭代功能 的差异：全部 Phase 由 Orchestrator 执行，Phase 4 合并了实现与验收，适用于不以代码变更为主的任务。
 
 ---
 

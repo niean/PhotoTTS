@@ -54,7 +54,9 @@
 
 ## 配置与资源
 
-- config_example.json / ChangeLogsView+changelogs.md
+- config_example.json（Bundle 内默认配置模板）/ ChangeLogsView+changelogs.md
+- Resources/DefaultSession/：内置默认绘本（使用介绍），含 metadata.json/record.json/history.json/audio.mp3/avatar.jpg/images/；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
+- locals/（项目根目录，不在 Xcode PBXFileSystemSynchronizedRootGroup 内，不打包到 App Bundle）：存放 config_local.json 等本地敏感配置；App 首次启动时 SettingsManager.ensureUserConfigExists() 从 Bundle 的 config_example.json 复制到 Documents/config_local.json
 
 ## 测试
 

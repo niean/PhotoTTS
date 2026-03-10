@@ -79,6 +79,7 @@ secrets.json
 buildServer.json
 .idea/
 .cursor/
+.clinerules/
 
 # OS generated files
 .DS_Store
@@ -90,4 +91,4 @@ ehthumbs.db
 Thumbs.db
 
 # PhotoTTS
-PhotoTTS/Resources/config_local.json
+locals/

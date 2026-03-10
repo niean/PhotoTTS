@@ -326,6 +326,9 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
     /// 是否正在制作中
     var isMaking: Bool { makeStatus == .making }
     
+    /// 是否为内置默认会话
+    var isDefault: Bool { id == Constants.DefaultSession.id }
+    
     init(from record: SessionRecord) {
         self.id = record.id
         self.name = record.name

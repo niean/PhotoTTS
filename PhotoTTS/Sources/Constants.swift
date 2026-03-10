@@ -228,6 +228,11 @@ extension Constants {
         static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")
     }
     
+    // MARK: - 外部链接
+    struct Links {
+        static let privacyPolicy = "https://phototts.niean.name/privacy-policy.html"
+    }
+
     // MARK: - TTS限制
     static let defaultTTSMaxLength = 10240
     
@@ -249,4 +254,12 @@ extension Constants {
     // MARK: - 后台制作
     /// 草稿会话默认名称后缀（前缀为 "YY.MM.DD "）
     static let draftSessionNameSuffix = "未命名"
+    
+    // MARK: - 内置默认会话
+    struct DefaultSession {
+        /// 内置默认会话的 ID
+        static let id = "A206CF0C-5461-4BDC-90A1-045C4ACC809A"
+        /// Bundle 中资源文件的名称前缀
+        static let bundleFilePrefix = "default_session_"
+    }
 }

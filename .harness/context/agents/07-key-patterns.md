@@ -72,6 +72,16 @@ MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectW
 
 约束：只允许 1 个后台制作任务（制作页只允许 1 个制作项），已有活跃任务时 startMaking 返回 nil。
 
+## 模式九：默认会话只读保护
+
+内置默认会话（Constants.DefaultSession.id）除播放外禁止所有操作，三层协防：
+
+1. Model 层：SessionRecordMetadata.isDefault 计算属性（id == Constants.DefaultSession.id），UI 层统一判断入口
+2. UI 层：SessionRecordListView 构建 SessionRecordRow 时，isDefault 为 true 则除 onLoad（播放）外所有闭包传 nil（onView/onEdit/onExport/onDelete/onLoadToMake），更多菜单自动隐藏
+3. Manager 层：SessionRecordManager.updateSession/exportSession 开头拦截默认会话（isBundledDefaultSession），返回失败 + 警告日志；loadAllSessionHistories 跳过默认会话，使其不出现在播放历史和制作历史中
+
+新增默认会话限制应在这三层同步添加防护。
+
 ## 模式八：错误分层（Error Layering）
 
 三层错误架构，确保用户消息友好、开发日志含技术细节：
