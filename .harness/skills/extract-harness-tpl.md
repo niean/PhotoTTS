@@ -23,7 +23,7 @@
 2. 保留通用框架/结构/流程
 3. 通用规范原文保留；项目规范保留骨架，专属条目替换占位符
 4. Subskills 合并为 scan-example.md
-5. Context 文件保留结构，正文替换占位符
+5. Context 文件保留结构，正文替换占位符；特例：users/03-prd-specs.md也需要蒸馏为模板
 6. 禁用 emoji/加粗/斜体
 
 ### Step 3 -- 清理多余文件
