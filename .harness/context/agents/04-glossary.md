@@ -9,7 +9,7 @@
 - SessionRecordManager：会话记录本地读写与列表管理，单例
 - ImageToSpeechCoordinator：协调批量图片 OCR+TTS，输出进度与 AudioResponse/错误
 - ProcessingProgress/ProcessingStage：进度（stage: ocr/tts/completed/failed，percentage 由 currentStep/totalSteps 算）
-- PlayView：全屏播放页，入参 recordId（已保存按需加载）或 preloadedRecord（未保存内存图片），播放结束自动 onDismiss + PlayHistoryManager 记录
+- PlayView：播放器，入参 recordId（已保存按需加载）或 preloadedRecord（未保存内存图片），播放结束自动 onDismiss + PlayHistoryManager 记录
 - CustomZStack：主界面画布，承载底导与全屏容器层级
 - FullScreenImageContent：全屏大图组件，支持按需加载（sessionId+totalImageCount）和预加载（preloadedImages）两种模式
 - OnDemandImagePage：FullScreenImageContent 内部子组件，单帧按需加载，先查缓存再后台加载

@@ -357,11 +357,11 @@ struct FullScreenCameraOverlay: View {
             selectedImages: selectedImagesBinding,
             onImagesSelected: { images in
                 if !images.isEmpty {
-                    NotificationCenter.default.post(name: Constants.NotificationNames.updatePhotoCount, object: nil, userInfo: ["count": appState.cameraOverlayImages.count])
+                    NotificationCenter.default.post(name: Constants.NotificationNames.updateImageCount, object: nil, userInfo: ["count": appState.cameraOverlayImages.count])
                 }
             },
             onPhotoCountUpdate: { count in
-                NotificationCenter.default.post(name: Constants.NotificationNames.updatePhotoCount, object: nil, userInfo: ["count": count])
+                NotificationCenter.default.post(name: Constants.NotificationNames.updateImageCount, object: nil, userInfo: ["count": count])
             },
             onDismiss: {
                 appState.fullScreenKind = nil

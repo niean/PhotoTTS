@@ -462,37 +462,37 @@ public class OCRServiceFactory {
     /// 支持doubao和openai两种供应商，均使用OpenAI Compatible请求格式
     public static func createOCRService() -> OCRService? {
         let settingsManager = SettingsManager.shared
-        let activeModel = settingsManager.getActiveOCRProvider()
-        let modelConfig = settingsManager.loadActiveOCRProviderConfig()
+        let activeProvider = settingsManager.getActiveOCRProvider()
+        let providerConfig = settingsManager.loadActiveOCRProviderConfig()
         
-        guard !modelConfig.isEmpty else {
-            os.Logger.ocrService.error("无法读取OCR供应商[\(activeModel)]配置")
+        guard !providerConfig.isEmpty else {
+            os.Logger.ocrService.error("无法读取OCR供应商[\(activeProvider)]配置")
             return nil
         }
         
-        os.Logger.ocrService.info("成功读取OCR配置，活跃供应商: \(activeModel)")
+        os.Logger.ocrService.info("成功读取OCR配置，活跃供应商: \(activeProvider)")
         
-        let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
-        // 按模型名从对应Keychain key获取密钥，回退到config文件
-        let apiKey = settingsManager.getOCRAPIKeyForModel(activeModel)
-        let modelName = modelConfig["model_name"] as? String ?? Constants.ServiceDefaults.ocrModelName
-        // prompt_user优先从模型子配置读取，回退到ocr根节点，再回退到默认值
+        let baseURL = providerConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
+        // 按供应商名从对应Keychain key获取密钥，回退到config文件
+        let apiKey = settingsManager.getOCRAPIKeyForProvider(activeProvider)
+        let modelName = providerConfig["model_name"] as? String ?? Constants.ServiceDefaults.ocrModelName
+        // prompt_user优先从供应商子配置读取，回退到ocr根节点，再回退到默认值
         let ocrConfig = settingsManager.loadOCRConfig()
-        let promptUser = modelConfig["prompt_user"] as? String
+        let promptUser = providerConfig["prompt_user"] as? String
             ?? ocrConfig["prompt_user"] as? String
             ?? "你是一个专业的OCR识别助手。请识别绘本图片中的汉字，并整理断句、使表意顺畅。操作步骤如下：S1.调整图片的角度，使内容正对读者。S2.识别和分割多页，如果输入的绘本图片有多页，请按照从左到右、从上到下的顺序，将图片内容分成多页。S3.识别一页中的汉字，按照自上而下的顺序识别，保留标点符号，忽略拼音、忽略纯数字的段落。S4.整理一页中的汉字，合理断句、补全标点，同一句话去掉内部换行，产出表意顺畅的句子。S5.如果有多页内容，多页内容之间用一个换行、拼接在一起返回。其它要求：1.没识别到内容时，请返回`空字符串`这四个汉字；2.请不要添加任何内容，特别是第一页、第二页这样的多页时的分页语句"
-        let timeout = modelConfig["timeout"] as? TimeInterval
+        let timeout = providerConfig["timeout"] as? TimeInterval
             ?? ocrConfig["timeout"] as? TimeInterval
             ?? 120.0
-        let maxRetryCount = modelConfig["max_retry_count"] as? Int
+        let maxRetryCount = providerConfig["max_retry_count"] as? Int
             ?? ocrConfig["max_retry_count"] as? Int
             ?? 3
-        let retryDelay = modelConfig["retry_delay"] as? TimeInterval
+        let retryDelay = providerConfig["retry_delay"] as? TimeInterval
             ?? ocrConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
         os.Logger.ocrService.info("配置信息:")
-        os.Logger.ocrService.info("   - Active Model: \(activeModel)")
+        os.Logger.ocrService.info("   - Active Provider: \(activeProvider)")
         os.Logger.ocrService.info("   - Base URL: \(baseURL)")
         os.Logger.ocrService.info("   - API Key: \(apiKey.isEmpty ? "空" : "***" + apiKey.suffix(4))")
         os.Logger.ocrService.info("   - Model Name: \(modelName)")
@@ -502,12 +502,12 @@ public class OCRServiceFactory {
         os.Logger.ocrService.info("   - Retry Delay: \(retryDelay)秒")
         
         guard !apiKey.isEmpty else {
-            os.Logger.ocrService.error("未配置OCR[\(activeModel)] API Key")
+            os.Logger.ocrService.error("未配置OCR[\(activeProvider)] API Key")
             return nil
         }
         
         let configuration = OCRConfiguration(
-            provider: activeModel,
+            provider: activeProvider,
             apiKey: apiKey,
             modelName: modelName,
             baseURL: baseURL,
@@ -517,7 +517,7 @@ public class OCRServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ocrService.info("OCR服务初始化成功，模型: \(activeModel)")
+        os.Logger.ocrService.info("OCR服务初始化成功，供应商: \(activeProvider)")
         return OCRService(configuration: configuration)
     }
 }

@@ -361,7 +361,7 @@ struct MakeView: View {
     
     // MARK: - 照片处理视图
     private var photoProcessingView: some View {
-        // 制作与播放视图：照片处理区域
+        // 制作与弹层：照片处理区域
         PhotoProcessingView(
             image: capturedImage,
             selectedImages: selectedImages,
@@ -812,7 +812,7 @@ struct PhotoProcessingView: View {
         let thumbMargin: CGFloat
         let thumbBarHeight: CGFloat
         let imageAreaTotalHeight: CGFloat
-        let buttomTabHeight: CGFloat
+        let bottomTabHeight: CGFloat
         init(geometry: GeometryProxy, isPad: Bool) {
             screenWidth = geometry.size.width
             deltaScreenContentWidth = 16
@@ -820,9 +820,9 @@ struct PhotoProcessingView: View {
             thumbSize = isPad ? 60 : 55
             thumbMargin = 5
             thumbBarHeight = thumbSize + thumbMargin * 2
-            buttomTabHeight = isPad ? 0 : 0
+            bottomTabHeight = isPad ? 0 : 0
             let spacingTotal: CGFloat = 40
-            imageAreaHeight = max(200, geometry.size.height - buttomTabHeight - thumbBarHeight - spacingTotal)
+            imageAreaHeight = max(200, geometry.size.height - bottomTabHeight - thumbBarHeight - spacingTotal)
             imageAreaTotalHeight = imageAreaHeight + thumbBarHeight + spacingTotal
         }
     }

@@ -557,57 +557,57 @@ class TTSServiceFactory {
     /// 支持huoshan和aliqwen两种供应商
     static func createFromConfig() -> TTSServiceProtocol? {
         let settingsManager = SettingsManager.shared
-        let activeModel = settingsManager.getActiveTTSProvider()
-        let modelConfig = settingsManager.loadActiveTTSProviderConfig()
+        let activeProvider = settingsManager.getActiveTTSProvider()
+        let providerConfig = settingsManager.loadActiveTTSProviderConfig()
         
-        guard !modelConfig.isEmpty else {
-            os.Logger.ttsService.error("无法读取TTS供应商[\(activeModel)]配置")
+        guard !providerConfig.isEmpty else {
+            os.Logger.ttsService.error("无法读取TTS供应商[\(activeProvider)]配置")
             return nil
         }
         
-        os.Logger.ttsService.info("成功读取TTS配置，活跃供应商: \(activeModel)")
+        os.Logger.ttsService.info("成功读取TTS配置，活跃供应商: \(activeProvider)")
         
-        switch activeModel {
+        switch activeProvider {
         case "aliqwen":
-            return createAliqwenService(modelConfig: modelConfig, settingsManager: settingsManager, activeModel: activeModel)
+            return createAliqwenService(providerConfig: providerConfig, settingsManager: settingsManager, activeProvider: activeProvider)
         default:
-            return createHuoshanService(modelConfig: modelConfig, settingsManager: settingsManager, activeModel: activeModel)
+            return createHuoshanService(providerConfig: providerConfig, settingsManager: settingsManager, activeProvider: activeProvider)
         }
     }
     
     // MARK: - 火山TTS创建
-    private static func createHuoshanService(modelConfig: [String: Any], settingsManager: SettingsManager, activeModel: String) -> TTSServiceProtocol? {
+    private static func createHuoshanService(providerConfig: [String: Any], settingsManager: SettingsManager, activeProvider: String) -> TTSServiceProtocol? {
         let ttsConfig = settingsManager.loadTTSConfig()
         
-        let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.ttsBaseURL
-        let appId = modelConfig["appid"] as? String ?? ""
-        let accessKey = settingsManager.getTTSSecretKeyForModel(activeModel)
-        let cluster = modelConfig["cluster"] as? String ?? Constants.ServiceDefaults.ttsCluster
-        let voiceType = modelConfig["voice_type"] as? String ?? Constants.ServiceDefaults.ttsVoiceType
-        let encoding = modelConfig["encoding"] as? String ?? Constants.ServiceDefaults.ttsEncoding
-        let bitrate = modelConfig["bitrate"] as? Int ?? Constants.ServiceDefaults.huoshanBitrate
-        let rate = modelConfig["rate"] as? Int ?? Constants.ServiceDefaults.huoshanRate
-        let speedRatio = modelConfig["speed_ratio"] as? Double ?? Constants.ServiceDefaults.huoshanSpeedRatio
-        let timeout = modelConfig["timeout"] as? TimeInterval
+        let baseURL = providerConfig["base_url"] as? String ?? Constants.ServiceDefaults.ttsBaseURL
+        let appId = providerConfig["appid"] as? String ?? ""
+        let accessKey = settingsManager.getTTSSecretKeyForProvider(activeProvider)
+        let cluster = providerConfig["cluster"] as? String ?? Constants.ServiceDefaults.ttsCluster
+        let voiceType = providerConfig["voice_type"] as? String ?? Constants.ServiceDefaults.ttsVoiceType
+        let encoding = providerConfig["encoding"] as? String ?? Constants.ServiceDefaults.ttsEncoding
+        let bitrate = providerConfig["bitrate"] as? Int ?? Constants.ServiceDefaults.huoshanBitrate
+        let rate = providerConfig["rate"] as? Int ?? Constants.ServiceDefaults.huoshanRate
+        let speedRatio = providerConfig["speed_ratio"] as? Double ?? Constants.ServiceDefaults.huoshanSpeedRatio
+        let timeout = providerConfig["timeout"] as? TimeInterval
             ?? ttsConfig["timeout"] as? TimeInterval
             ?? Constants.ServiceDefaults.huoshanTimeout
-        let maxRetryCount = modelConfig["max_retry_count"] as? Int
+        let maxRetryCount = providerConfig["max_retry_count"] as? Int
             ?? ttsConfig["max_retry_count"] as? Int
             ?? 3
-        let retryDelay = modelConfig["retry_delay"] as? TimeInterval
+        let retryDelay = providerConfig["retry_delay"] as? TimeInterval
             ?? ttsConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ttsService.info("[\(activeModel)] 配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
-        os.Logger.ttsService.info("[\(activeModel)] 凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))")
+        os.Logger.ttsService.info("[\(activeProvider)] 配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
+        os.Logger.ttsService.info("[\(activeProvider)] 凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))")
         
         guard !baseURL.isEmpty && !appId.isEmpty && !accessKey.isEmpty else {
-            os.Logger.ttsService.error("[\(activeModel)] TTS配置不完整")
+            os.Logger.ttsService.error("[\(activeProvider)] TTS配置不完整")
             return nil
         }
         
         let configuration = HuoshanTTSConfiguration(
-            provider: activeModel,
+            provider: activeProvider,
             baseURL: baseURL,
             appId: appId,
             accessKey: accessKey,
@@ -622,41 +622,41 @@ class TTSServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ttsService.info("[\(activeModel)] TTS服务初始化成功")
+        os.Logger.ttsService.info("[\(activeProvider)] TTS服务初始化成功")
         return TTSService(configuration: configuration)
     }
     
     // MARK: - 阿里千问TTS创建
-    private static func createAliqwenService(modelConfig: [String: Any], settingsManager: SettingsManager, activeModel: String) -> TTSServiceProtocol? {
+    private static func createAliqwenService(providerConfig: [String: Any], settingsManager: SettingsManager, activeProvider: String) -> TTSServiceProtocol? {
         let ttsConfig = settingsManager.loadTTSConfig()
         
-        let baseURL = modelConfig["base_url"] as? String ?? Constants.ServiceDefaults.aliqwenTTSBaseURL
-        let secretKey = settingsManager.getTTSSecretKeyForModel(activeModel)
-        let model = modelConfig["model"] as? String ?? Constants.ServiceDefaults.aliqwenTTSModel
-        let voice = modelConfig["voice"] as? String ?? Constants.ServiceDefaults.aliqwenTTSVoice
-        let languageType = modelConfig["language_type"] as? String ?? Constants.ServiceDefaults.aliqwenTTSLanguageType
-        let instructions = modelConfig["instructions"] as? String ?? ""
-        let stream = modelConfig["stream"] as? Bool ?? false
-        let timeout = modelConfig["timeout"] as? TimeInterval
+        let baseURL = providerConfig["base_url"] as? String ?? Constants.ServiceDefaults.aliqwenTTSBaseURL
+        let secretKey = settingsManager.getTTSSecretKeyForProvider(activeProvider)
+        let model = providerConfig["model"] as? String ?? Constants.ServiceDefaults.aliqwenTTSModel
+        let voice = providerConfig["voice"] as? String ?? Constants.ServiceDefaults.aliqwenTTSVoice
+        let languageType = providerConfig["language_type"] as? String ?? Constants.ServiceDefaults.aliqwenTTSLanguageType
+        let instructions = providerConfig["instructions"] as? String ?? ""
+        let stream = providerConfig["stream"] as? Bool ?? false
+        let timeout = providerConfig["timeout"] as? TimeInterval
             ?? ttsConfig["timeout"] as? TimeInterval
             ?? Constants.ServiceDefaults.aliqwenTimeout
-        let maxRetryCount = modelConfig["max_retry_count"] as? Int
+        let maxRetryCount = providerConfig["max_retry_count"] as? Int
             ?? ttsConfig["max_retry_count"] as? Int
             ?? 3
-        let retryDelay = modelConfig["retry_delay"] as? TimeInterval
+        let retryDelay = providerConfig["retry_delay"] as? TimeInterval
             ?? ttsConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ttsService.info("[\(activeModel)] 配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
-        os.Logger.ttsService.info("[\(activeModel)] 凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))")
+        os.Logger.ttsService.info("[\(activeProvider)] 配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
+        os.Logger.ttsService.info("[\(activeProvider)] 凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))")
         
         guard !secretKey.isEmpty else {
-            os.Logger.ttsService.error("[\(activeModel)] 未配置TTS Secret Key")
+            os.Logger.ttsService.error("[\(activeProvider)] 未配置TTS Secret Key")
             return nil
         }
         
         let configuration = AliqwenTTSConfiguration(
-            provider: activeModel,
+            provider: activeProvider,
             baseURL: baseURL,
             secretKey: secretKey,
             model: model,
@@ -669,7 +669,7 @@ class TTSServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ttsService.info("[\(activeModel)] TTS服务初始化成功")
+        os.Logger.ttsService.info("[\(activeProvider)] TTS服务初始化成功")
         return AliqwenTTSService(configuration: configuration)
     }
 }

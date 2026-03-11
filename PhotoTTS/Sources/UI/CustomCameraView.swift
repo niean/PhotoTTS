@@ -8,7 +8,7 @@ import PhotosUI
 protocol CustomCameraViewControllerDelegate: AnyObject {
     func didCaptureImage(_ image: UIImage)
     func didCancel()
-    func updatePhotoCount(_ count: Int)
+    func updateImageCount(_ count: Int)
     func setPhotoCount(_ count: Int)
 }
 
@@ -63,7 +63,7 @@ struct CustomCameraView: UIViewControllerRepresentable {
             parent.presentationMode.wrappedValue.dismiss()
         }
         
-        func updatePhotoCount(_ count: Int) {
+        func updateImageCount(_ count: Int) {
             // 这个方法在CustomCameraViewController中实现
             // 这里不需要实现，因为delegate会直接调用CustomCameraViewController的方法
         }
@@ -106,7 +106,7 @@ class CustomCameraViewController: UIViewController {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handlePhotoCountUpdate(_:)),
-            name: Constants.NotificationNames.updatePhotoCount,
+            name: Constants.NotificationNames.updateImageCount,
             object: nil
         )
     }
@@ -272,7 +272,7 @@ class CustomCameraViewController: UIViewController {
         }
     }
     
-    func updatePhotoCount(_ count: Int) {
+    func updateImageCount(_ count: Int) {
         DispatchQueue.main.async { [weak self] in
             self?.updateStatusLabel()
         }

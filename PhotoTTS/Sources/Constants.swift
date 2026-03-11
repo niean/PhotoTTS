@@ -177,7 +177,7 @@ extension Constants {
     struct Playback {
         /// 护眼模式背景色
         static let eyeProtectionBackgroundColor = Color(red: 0.85, green: 0.95, blue: 0.88)
-        /// 播放页操作栏无操作自动隐藏间隔（秒）
+        /// 播放器控制层无操作自动隐藏间隔（秒）
         static let overlayAutoHideInterval: TimeInterval = 5
         /// 进度条轨道高度（pt）
         static let progressBarHeight: CGFloat = 3
@@ -222,7 +222,7 @@ extension Constants {
     
     // MARK: - 通知名
     struct NotificationNames {
-        static let updatePhotoCount = NSNotification.Name("UpdatePhotoCount")
+        static let updateImageCount = NSNotification.Name("UpdateImageCount")
         static let configUpdated = NSNotification.Name("ConfigUpdated")
         /// 远程播放控制命令（MPRemoteCommandCenter -> PlayView），userInfo["action"]: "play"/"pause"/"toggle"
         static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")

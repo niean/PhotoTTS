@@ -430,10 +430,10 @@ class SettingsManager {
     }
     
     /// 获取指定OCR供应商的Keychain key
-    /// - Parameter model: 模型名称
+    /// - Parameter provider: 供应商名称
     /// - Returns: 对应的Keychain key
-    private func keychainKeyForOCRModel(_ model: String) -> String {
-        switch model {
+    private func keychainKeyForOCRProvider(_ provider: String) -> String {
+        switch provider {
         case "openai":
             return AppConstants.KeychainKeys.openaiOCRAPIKey
         default:
@@ -442,24 +442,24 @@ class SettingsManager {
     }
     
     /// 读取指定OCR供应商的API密钥（优先Keychain，回退config，首次回退写入Keychain）
-    /// - Parameter model: 供应商名称
+    /// - Parameter provider: 供应商名称
     /// - Returns: API密钥，如果读取失败返回空字符串
-    func getOCRAPIKeyForModel(_ model: String) -> String {
-        let keychainKey = keychainKeyForOCRModel(model)
+    func getOCRAPIKeyForProvider(_ provider: String) -> String {
+        let keychainKey = keychainKeyForOCRProvider(provider)
         // 优先从 Keychain 读取
         if let stored = keychainString(forKey: keychainKey), !stored.isEmpty {
             return stored
         }
-        // 回退到 config 文件中对应模型的子配置
+        // 回退到 config 文件中对应供应商的子配置
         let ocrConfig = loadOCRConfig()
-        guard let modelConfig = ocrConfig[model] as? [String: Any] else {
+        guard let providerConfig = ocrConfig[provider] as? [String: Any] else {
             return ""
         }
-        let configKey = modelConfig["api_key"] as? String ?? ""
+        let configKey = providerConfig["api_key"] as? String ?? ""
         // 首次从 config 读取后写入 Keychain
         if !configKey.isEmpty {
             _ = keychainSet(configKey, forKey: keychainKey)
-            os.Logger.settingsManager.info("OCR[\(model)] API密钥已从配置文件迁移到Keychain")
+            os.Logger.settingsManager.info("OCR[\(provider)] API密钥已从配置文件迁移到Keychain")
         }
         return configKey
     }
@@ -501,10 +501,10 @@ class SettingsManager {
     }
     
     /// 获取指定TTS供应商的Keychain key
-    /// - Parameter model: 供应商名称
+    /// - Parameter provider: 供应商名称
     /// - Returns: 对应的Keychain key
-    private func keychainKeyForTTSModel(_ model: String) -> String {
-        switch model {
+    private func keychainKeyForTTSProvider(_ provider: String) -> String {
+        switch provider {
         case "aliqwen":
             return AppConstants.KeychainKeys.aliqwenTTSSecretKey
         default:
@@ -513,10 +513,10 @@ class SettingsManager {
     }
     
     /// 获取指定TTS供应商的密钥字段名（config中的key名）
-    /// - Parameter model: 供应商名称
+    /// - Parameter provider: 供应商名称
     /// - Returns: config中对应的密钥字段名
-    private func configKeyForTTSModel(_ model: String) -> String {
-        switch model {
+    private func configKeyForTTSProvider(_ provider: String) -> String {
+        switch provider {
         case "aliqwen":
             return "secret_key"
         default:
@@ -525,25 +525,25 @@ class SettingsManager {
     }
     
     /// 读取指定TTS供应商的密钥（优先Keychain，回退config，首次回退写入Keychain）
-    /// - Parameter model: 供应商名称
+    /// - Parameter provider: 供应商名称
     /// - Returns: 密钥，如果读取失败返回空字符串
-    func getTTSSecretKeyForModel(_ model: String) -> String {
-        let keychainKey = keychainKeyForTTSModel(model)
+    func getTTSSecretKeyForProvider(_ provider: String) -> String {
+        let keychainKey = keychainKeyForTTSProvider(provider)
         // 优先从 Keychain 读取
         if let stored = keychainString(forKey: keychainKey), !stored.isEmpty {
             return stored
         }
-        // 回退到 config 文件中对应模型的子配置
+        // 回退到 config 文件中对应供应商的子配置
         let ttsConfig = loadTTSConfig()
-        guard let modelConfig = ttsConfig[model] as? [String: Any] else {
+        guard let providerConfig = ttsConfig[provider] as? [String: Any] else {
             return ""
         }
-        let configFieldName = configKeyForTTSModel(model)
-        let configKey = modelConfig[configFieldName] as? String ?? ""
+        let configFieldName = configKeyForTTSProvider(provider)
+        let configKey = providerConfig[configFieldName] as? String ?? ""
         // 首次从 config 读取后写入 Keychain
         if !configKey.isEmpty {
             _ = keychainSet(configKey, forKey: keychainKey)
-            os.Logger.settingsManager.info("TTS[\(model)] 密钥已从配置文件迁移到Keychain")
+            os.Logger.settingsManager.info("TTS[\(provider)] 密钥已从配置文件迁移到Keychain")
         }
         return configKey
     }

@@ -54,9 +54,9 @@ MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionReco
 }
 ```
 
-ocr.provider 选择活跃提供商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveOCRProvider() 读取活跃供应商，loadActiveOCRProviderConfig() 返回对应子配置。API Key 按供应商存储不同 Keychain key（doubao_api_key/openai_ocr_api_key），通过 getOCRAPIKeyForModel(_:) 获取。
+ocr.provider 选择活跃供应商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveOCRProvider() 读取活跃供应商，loadActiveOCRProviderConfig() 返回对应子配置。API Key 按供应商存储不同 Keychain key（doubao_api_key/openai_ocr_api_key），通过 getOCRAPIKeyForProvider(_:) 获取。
 
-tts.provider 选择活跃提供商（"huoshan"/"aliqwen"），对应子配置独立维护。火山 TTS 音频格式 mp3，阿里千问 TTS 音频格式 wav，SessionRecord.audioFormat 记录实际格式。
+tts.provider 选择活跃供应商（"huoshan"/"aliqwen"），对应子配置独立维护。火山 TTS 音频格式 mp3，阿里千问 TTS 音频格式 wav，SessionRecord.audioFormat 记录实际格式。
 
 SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle。
 

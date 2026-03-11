@@ -14,7 +14,7 @@ private enum AnimationStyle {
     case topToBottom
 }
 
-// MARK: - 播放视图（播放器）
+// MARK: - 播放器
 
 /// 竖屏播放器：图片保持拍摄原始方向，全屏展示。
 /// 操作控件（播控、进度条、控制栏）悬浮在图片之上。
@@ -231,7 +231,7 @@ struct PlayView: View {
                         eyeProtectionEnabled: eyeProtectionEnabled,
                         fillScreenEnabled: fillScreenEnabled,
                         animationStyle: animationStyle,
-                        onTogglePlay: { togglePlayback() },
+                        onTogglePlayback: { togglePlayback() },
                         onToggleAutoStop: { autoStopEnabled.toggle() },
                         onToggleEyeProtection: { eyeProtectionEnabled.toggle() },
                         onToggleFillScreen: { fillScreenEnabled.toggle() },
@@ -486,7 +486,7 @@ struct PlayView: View {
         commandCenter.togglePlayPauseCommand.removeTarget(nil)
     }
 
-    // MARK: - 浮层自动隐藏
+    // MARK: - 控制层自动隐藏
 
     private func startOverlayAutoHideTimer() {
         overlayAutoHideTimer?.invalidate()
@@ -529,7 +529,7 @@ private struct PlayerControlLayer: View {
     let eyeProtectionEnabled: Bool
     let fillScreenEnabled: Bool
     let animationStyle: AnimationStyle
-    let onTogglePlay: () -> Void
+    let onTogglePlayback: () -> Void
     let onToggleAutoStop: () -> Void
     let onToggleEyeProtection: () -> Void
     let onToggleFillScreen: () -> Void
@@ -576,7 +576,7 @@ private struct PlayerControlLayer: View {
                 HStack(spacing: 20) {
                     Button(action: {
                         onInteraction()
-                        onTogglePlay()
+                        onTogglePlayback()
                     }) {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: isPad ? 32 : 28, weight: .bold))
