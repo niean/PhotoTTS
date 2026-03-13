@@ -16,8 +16,8 @@
 | 2 | 意图识别 | - | 分析需求，按需读取知识库和产品文档，产出结构化 spec（JSON） |
 | 3 | 意图确认 | `[GATE]` | spec 落盘，向用户输出完整摘要，等待确认；修正时重新输出摘要再次确认 |
 | 4 | 任务实现(含验收) | `[GATE-ENTRY]` | 按 spec 执行实现，对照验收标准检查，不通过时就地修正 |
-| 5 | 知识回填 | - | 按 AGENTS.md 知识回填规则回填 context/agents/，删除临时 spec |
-| 6 | 任务总结 | `[GATE]` | 自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> attempt_completion |
+| 5 | 知识回填 | - | 按 AGENTS.md 知识回填规则回填 context/agents/ |
+| 6 | 任务总结 | `[GATE]` | 自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> 计划归档 -> attempt_completion |
 
 ---
 
@@ -42,7 +42,7 @@
 
 - 输入：阶段 2 产出的 spec
 - 操作：
-  1. spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`
+  1. spec 写入计划文件 `.harness/plans/active/plan-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板）
   2. 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 验收标准）
   3. 使用 `ask_followup_question` 请求用户确认，立即结束当前回复
 - 修正循环：用户修正时更新 spec，重新输出完整摘要，再次走 GATE 确认；用户修正 ≠ 用户确认
@@ -63,9 +63,7 @@
 ### 阶段 5: 知识回填
 
 - 输入：阶段 4 的变更清单
-- 操作：
-  1. 按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
-  2. `rm -f` 删除临时 spec
+- 操作：按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
 - 输出：回填结果摘要
 
 ### 阶段 6: 任务总结 `[GATE]`

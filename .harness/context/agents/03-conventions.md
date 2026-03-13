@@ -91,9 +91,9 @@
 # 四、文件管理约定
 
 - 禁止主动创建 README（包括为新建目录添加 README.md 说明文件）
-- 不删除项目文件（临时 spec `agent-specs-*.md` 除外，任务结束 `rm -f` 删除）
+- 不删除项目文件
 - 文件名：小写英文 kebab-case，动词-名词语序
-- 临时 spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`
+- 执行计划文件落盘到 `.harness/plans/active/plan-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板），任务完成后移动到 `completed/`
 
 ---
 

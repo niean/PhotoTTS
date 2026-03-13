@@ -37,6 +37,7 @@ AGENTS.md                  -- 入口文件（项目根目录）
     agents/                -- AI 知识库（AI 可读写）
     users/                 -- 产品文档（AI 只读）
   guides/                  -- 方法论与参考文档（人工维护）
+  plans/                   -- AI 执行计划（AI 自主管理）
 ```
 
 每类知识有且只有一个归属文档，不重复维护。
@@ -109,7 +110,7 @@ AGENTS.md 中的规范分两层：
 | 角色 | 职责 | 权限 |
 |------|------|------|
 | 人工 | 定义需求、确认方案、审批删除 | 读写 context/users/ 和 guides/，审批 AI 变更 |
-| AI | 按规则执行、维护知识库、输出摘要 | 读写 context/agents/，只读 context/users/ |
+| AI | 按规则执行、维护知识库、管理执行计划、输出摘要 | 读写 context/agents/ 和 plans/，只读 context/users/ |
 
 - AI 遇模糊需求必须询问，不自行决定产品方向
 - 删除操作必须人工确认

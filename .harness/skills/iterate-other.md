@@ -25,7 +25,7 @@
 
 ## Phase 3: 意图确认 `[GATE]`
 - Agent: Orchestrator
-- spec 落盘到 `.harness/context/agents/agent-specs-${事项}.md`
+- spec 写入计划文件 `.harness/plans/active/plan-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板）
 - 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 验收标准），等待确认
 - 用户修正时：更新 spec，输出完整摘要再次确认
 - 用户修正 ≠ 用户确认：收到修正后必须重新输出完整摘要并重走 GATE 确认流程，禁止将修正视为确认直接进入下一 Phase
@@ -43,7 +43,6 @@
 ## Phase 5: 知识回填
 - Agent: Orchestrator
 - 按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
-- `rm -f` 删除临时 spec
 
 ## Phase 6: 任务总结 `[GATE]`
 - Agent: Orchestrator

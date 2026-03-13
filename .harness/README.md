@@ -56,4 +56,10 @@ Layer 3  .harness/skills/subskills/（Subskill 任务模板 -- "做什么"）
             |-- guides/00-harness-desc.md         通用方法论，人工维护
             |-- guides/01-harness-ops.md          项目维护手册，人工维护
             |-- guides/02-harness-dev.md          开发流程，人工维护
+            |
+辅助层   .harness/plans/（AI 自主管理的执行计划）
+            |
+            |-- active/                当前活跃计划（原则上 1 个文件）
+            |-- completed/             已完成计划归档
+            |-- debt-tracker.md        技术债追踪
 ```
