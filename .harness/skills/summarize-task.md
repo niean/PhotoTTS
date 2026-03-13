@@ -7,8 +7,8 @@
 ## 步骤
 
 1. 回顾任务完整过程
-2. 按报告模板输出，通过 `ask_followup_question` 的 question 参数承载完整报告（Cline 环境下纯文本不可见）
-3. `[GATE]` 总结报告与 attempt_completion 不得合并；先输出报告 -> 立即结束当前回复 -> 用户确认收到 -> attempt_completion；禁止在同一条回复中调用 `attempt_completion`
+2. 按报告模板组织总结内容
+3. 总结报告通过 `attempt_completion` 的 result 参数承载，在同一条回复中完成输出和任务关闭
 
 ## 报告模板
 

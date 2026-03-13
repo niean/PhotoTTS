@@ -16,7 +16,7 @@ PhotoTTS/Sources/UI/ 和 PhotoTTS/Sources/Core/ 下全部 .swift 文件。
 
 1. UI 不直接调 OCR/TTS -- UI/ 下不直接引用 `OCRService`/`TTSService`，须通过 Coordinator 或 Manager。
 2. 全屏页通过 AppState 控制 -- 全屏页用 `AppState.fullScreenKind`，不在局部视图用 `fullScreenCover`（PlayView 例外）。
-3. 制作页不参与 Tab 重置 -- tab1 不参与 tabResetId 重置。
+3. 制作页不参与 Tab 重置 -- tab1 不参与 tabXResetId 重置（代码仅定义 tab0/2/3ResetId，无 tab1ResetId）。
 4. 网络请求设超时 -- 必须设超时（`Constants.Network.requestTimeout`/`resourceTimeout`），不允许无超时。
 5. 异步操作非主线程 -- OCR/TTS/文件IO 后台执行，回调切回主线程更新 UI。
 6. 大数据集合设上限 -- 调试日志、历史记录等加载到内存必须设条数上限。

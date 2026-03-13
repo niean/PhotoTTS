@@ -35,7 +35,7 @@
   - Step 4.1 代码实现：Coder
   - Step 4.2 结果验收：Reviewer -- 构建验证 + 5 维度代码扫描 + 验收标准逐项检查 + 测试验证
 - Phase 5 知识回填：Orchestrator，回填知识库
-- Phase 6 任务总结：Orchestrator，`[GATE]` 自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> attempt_completion
+- Phase 6 任务总结：Orchestrator，自动触发 Skill: 总结任务，输出报告 -> 计划归档 -> attempt_completion（同一回复）
 
 ## 上下文管理
 

@@ -19,7 +19,7 @@
 
 ## 编码约束
 
-完整定义见 .harness/context/agents/03-conventions.md，核心规则：
+完整定义见 .harness/knowledge/03-conventions.md，核心规则：
 - 日志：禁 `print()`，用 `os.Logger`；禁 emoji/加粗/斜体；禁输出敏感字段
 - 手势：顶导有返回按钮时实现左边缘手势识别（`// 手势识别`，`Constants.Gesture`）
 - 常量：写入 `Constants.swift`

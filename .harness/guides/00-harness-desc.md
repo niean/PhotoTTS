@@ -33,9 +33,8 @@ AGENTS.md                  -- 入口文件（项目根目录）
   agents/                  -- Agent 角色模板
   skills/                  -- Skill 流程定义
     subskills/             -- Subskill 任务模板
-  context/
-    agents/                -- AI 知识库（AI 可读写）
-    users/                 -- 产品文档（AI 只读）
+  knowledge/               -- AI 知识库（AI 可读写）
+  prd/                     -- 产品文档（AI 只读）
   guides/                  -- 方法论与参考文档（人工维护）
   plans/                   -- AI 执行计划（AI 自主管理）
 ```
@@ -91,7 +90,7 @@ Skill 是可复用的 AI 操作单元：名称 kebab-case，触发方式（人�
 
 - 按需加载：只读取任务相关文档，不全量加载
 - 单一归属：每条知识只在一个文档维护，重复则合并
-- 知识回填：代码变更后同步回填到 context/agents/ 对应文档
+- 知识回填：代码变更后同步回填到 knowledge/ 对应文档
 - 自愈维护：AI 因缺少说明出错时，补充到知识库并同步 AGENTS.md
 
 ---
@@ -109,19 +108,19 @@ AGENTS.md 中的规范分两层：
 
 | 角色 | 职责 | 权限 |
 |------|------|------|
-| 人工 | 定义需求、确认方案、审批删除 | 读写 context/users/ 和 guides/，审批 AI 变更 |
-| AI | 按规则执行、维护知识库、管理执行计划、输出摘要 | 读写 context/agents/ 和 plans/，只读 context/users/ |
+| 人工 | 定义需求、确认方案、审批删除 | 读写 prd/ 和 guides/，审批 AI 变更 |
+| AI | 按规则执行、维护知识库、管理执行计划、输出摘要 | 读写 knowledge/ 和 plans/，只读 prd/ |
 
 - AI 遇模糊需求必须询问，不自行决定产品方向
 - 删除操作必须人工确认
-- users/ 与 agents/ 冲突时以 users/ 为准
+- prd/ 与 knowledge/ 冲突时以 prd/ 为准
 
 ---
 
 ## 8. 新项目接入
 
 1. 创建 AGENTS.md（项目背景 + 通用规范 + 项目规范）
-2. 创建 .harness/context/agents/（架构、约定、术语等知识库）
-3. 创建 .harness/context/users/（产品需求等人工文档）
+2. 创建 .harness/knowledge/（架构、约定、术语等知识库）
+3. 创建 .harness/prd/（产品需求等人工文档）
 4. 创建 .harness/skills/（可复用操作定义）
 5. 在 AGENTS.md 注册能力表和知识库索引

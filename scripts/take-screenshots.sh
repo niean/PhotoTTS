@@ -10,6 +10,7 @@
 # 截图内容（由 ScreenshotUITests 控制）:
 #   01_home     - 首页（含绘本列表）
 #   02_play     - 播放页（播放 "26.03.10 使用介绍"）
+#   03_make     - 制作页（拍照/选图制作界面）
 #
 # 工作原理:
 #   1. 在每个模拟器上运行 ScreenshotUITests

@@ -20,11 +20,11 @@
     - 执行计划（AI 自主管理在 .harness/plans/，跟踪进度和技术债）
 4. 实现需求。AI按照Harness规范，大部分自主执行、少量人工确认(如删除文件)。产出物如下
     - 代码（已验收通过）
-    - AI知识库（主要是 .harness/context/agents/ 文档库）
+    - AI知识库（主要是 .harness/knowledge/ 文档库）
 5. 验收需求。查看任务报告，按需擦屁股(如补充功能测试)
 6. [可选]回填知识。经过多轮迭代后，可以考虑 更新产品知识库、Harness知识库，指令和更新对象如下
-    - 执行 `回填知识库`，更新对象 `.harness/context/agents/ 文档库` + `AGENTS.md`
-    - 执行 `回填产品文档`，更新对象 `.harness/context/users/02-prd-baseline.md` + `01-prd-sense.md`
+    - 执行 `回填知识库`，更新对象 `.harness/knowledge/ 文档库` + `AGENTS.md`
+    - 执行 `回填产品文档`，更新对象 `.harness/prd/02-prd-baseline.md` + `01-prd-sense.md`
 
 
 ## 全自动开发（尚未就绪）

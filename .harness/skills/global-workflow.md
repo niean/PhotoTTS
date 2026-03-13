@@ -16,8 +16,8 @@
 | 2 | 意图识别 | - | 分析需求，按需读取知识库和产品文档，产出结构化 spec（JSON） |
 | 3 | 意图确认 | `[GATE]` | spec 落盘，向用户输出完整摘要，等待确认；修正时重新输出摘要再次确认 |
 | 4 | 任务实现(含验收) | `[GATE-ENTRY]` | 按 spec 执行实现，对照验收标准检查，不通过时就地修正 |
-| 5 | 知识回填 | - | 按 AGENTS.md 知识回填规则回填 context/agents/ |
-| 6 | 任务总结 | `[GATE]` | 自动触发 Skill: 总结任务，输出报告 -> 用户确认 -> 计划归档 -> attempt_completion |
+| 5 | 知识回填 | - | 按 AGENTS.md 知识回填规则回填 knowledge/ |
+| 6 | 任务总结 | - | 自动触发 Skill: 总结任务，输出报告 -> 计划归档 -> attempt_completion |
 
 ---
 
@@ -63,16 +63,15 @@
 ### 阶段 5: 知识回填
 
 - 输入：阶段 4 的变更清单
-- 操作：按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
+- 操作：按 AGENTS.md 知识回填规则回填 knowledge/（有变化才写，无变化也告知）
 - 输出：回填结果摘要
 
-### 阶段 6: 任务总结 `[GATE]`
+### 阶段 6: 任务总结
 
 - 输入：全流程检查点摘要
 - 操作：自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
-- 执行顺序：输出总结报告（通过 `ask_followup_question`）-> 用户确认收到 -> `attempt_completion`
-- GATE 规则：总结报告输出后必须立即结束回复，禁止在同一条回复中调用 `attempt_completion`
-- 总结报告与 attempt_completion 不得合并
+- 执行顺序：输出总结报告 -> 计划归档（移动到 completed/）-> `attempt_completion`，在同一条回复中完成
+- 总结报告内容通过 `attempt_completion` 的 result 参数承载
 
 ---
 

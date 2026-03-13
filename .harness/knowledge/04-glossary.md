@@ -1,6 +1,6 @@
 # 术语表
 
-- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabResetId、跨 Tab 协调标志、sessionRecordToPlay（Siri 触发）等
+- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志、sessionRecordToPlay（Siri 触发）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect 等
 - fullScreenKind：全屏类型枚举（nil=主界面，.loading=启动页，.imageViewer=全屏大图，.camera=全屏相机）
 - 底导：底部 Tab 栏（首页/制作/消息/我的）；顶导：各 Tab 内顶部导航栏
 - 手势识别：左边缘滑动返回（注释 // 手势识别，参数 Constants.Gesture）
@@ -19,4 +19,4 @@
 - AudioPlayerDelegate：AVAudioPlayerDelegate 封装类（定义于 MakeView.swift），持有播放结束回调
 - AppLoadingView/AppIntroView：位于 AppPagesView.swift；前者模拟加载后置 fullScreenKind=nil，后者用于"关于"页面
 - ExportManifest/ExportSessionInfo：导出包清单（version/exportDate/appName/totalSessions/totalSize/sessions），导入时解析 export_manifest.json
-- config_local.json：本地 API 配置（豆包 OCR/火山 TTS），SettingsManager 读取，设置页可编辑
+- config_local.json：本地 API 配置（OCR 多 Provider：豆包/OpenAI，TTS 多 Provider：火山引擎/阿里千问），SettingsManager 读取，设置页可编辑

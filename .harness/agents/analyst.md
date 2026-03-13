@@ -12,10 +12,10 @@
 ## 必读文档
 
 1. AGENTS.md
-2. .harness/context/users/01-prd-sense.md
-3. .harness/context/users/02-prd-baseline.md
-4. .harness/context/agents/01-overview.md
-5. .harness/context/agents/02-architecture.md
+2. .harness/prd/01-prd-sense.md
+3. .harness/prd/02-prd-baseline.md
+4. .harness/knowledge/01-overview.md
+5. .harness/knowledge/02-architecture.md
 
 ## 按需文档
 

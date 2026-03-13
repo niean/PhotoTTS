@@ -60,8 +60,8 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 2 | 意图识别 | - | 分析需求、产出结构化 spec |
 | 3 | 意图确认 | [GATE] | spec 落盘、用户确认、修正循环 |
 | 4 | 任务实现(含验收) | [GATE-ENTRY] | 按 spec 执行实现 + 对照验收标准检查 |
-| 5 | 知识回填 | - | 回填 context/agents/ |
-| 6 | 任务总结 | [GATE] | 触发总结任务 -> 用户确认 -> 计划归档 -> 完成 |
+| 5 | 知识回填 | - | 回填 knowledge/ |
+| 6 | 任务总结 | - | 触发总结任务 -> 输出报告 -> 计划归档 -> 完成 |
 
 
 ## 流程合规
@@ -87,7 +87,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
 - `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
-- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4、迭代功能 Phase 6（总结 -> 完成）、迭代其它 Phase 6（总结 -> 完成）
+- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4、迭代其它 Phase 3 -> Phase 4
 
 ### 引用外部步骤的执行约束（不可压缩）
 
@@ -111,8 +111,8 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 - 禁止主动创建 README；不删除项目文件
 - 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
-- AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/context/users/、.harness/guides/
-- users/ 与 agents/ 知识库冲突时，提示用户确认
+- AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/prd/、.harness/guides/
+- prd/ 与 knowledge/ 知识库冲突时，提示用户确认
 - 文档禁用 emoji/加粗/斜体，使用普通文字
 - 执行计划文件落盘到 `.harness/plans/active/plan-{desc}.md`，任务完成后移动到 `completed/`（详见"执行计划管理"章节）
 
@@ -127,7 +127,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | Layer 1 | .harness/agents/ | Agent 角色定义 -- "谁来做" |
 | Layer 2 | .harness/skills/ | Skill 流程定义 -- "怎么做" |
 | Layer 3 | .harness/skills/subskills/ | Subskill 任务模板 -- "做什么" |
-| 数据层 | .harness/context/ + .harness/guides/ | 知识库、产品文档、方法论，被上层按需读取 |
+| 数据层 | .harness/knowledge/ + .harness/prd/ + .harness/guides/ | 知识库、产品文档、方法论，被上层按需读取 |
 
 引用方向规则：
 - 向下引用：上层引用下层的具体定义（如 Skills 引用 Agents，Agents 调度 Subskills）
@@ -135,16 +135,16 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - 反向指回（限定）：下层仅允许"指回入口"式引用，不反向引用上层的具体定义
 
 允许的特例：
-- AGENTS.md 与 context/agents/03-conventions.md：双向声明摘要-权威源关系（AGENTS.md 项目规范为摘要，03-conventions.md 为权威源）
-- context/agents/01-overview.md 指回 AGENTS.md：入口指引（"操作约束见 AGENTS.md"）
+- AGENTS.md 与 knowledge/03-conventions.md：双向声明摘要-权威源关系（AGENTS.md 项目规范为摘要，03-conventions.md 为权威源）
+- knowledge/01-overview.md 指回 AGENTS.md：入口指引（"操作约束见 AGENTS.md"）
 
 路径规则：
 - .harness/ 下的文档引用项目文件路径时，使用项目根目录相对路径，不使用绝对路径
 
 ## 上下文管理
 
-- 首次加载（Task 首条消息），必须读取 `.harness/context/` 全部文件（除 03-prd-specs.md），了解项目全貌
-- 后续迭代（同一 Task 内），按需查阅 `.harness/context/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
+- 首次加载（Task 首条消息），必须读取 `.harness/knowledge/` 全部文件 + `.harness/prd/`（除 03-prd-specs.md），了解项目全貌
+- 后续迭代（同一 Task 内），按需查阅 `.harness/knowledge/` 和 `.harness/prd/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
 - 多步任务：每步完成压缩为检查点摘要（不超过 5 行），后续只携带摘要；每步只加载必需文件
 - 所有步骤均为必选项，禁止因上下文压力跳过；上下文紧张时先压缩已有内容再继续
 - 委派产出（subagent、跨 Phase 交接）：产出结构化结论（表格、要点），不搬运原文；需要完整内容时直接读取源文件
@@ -217,7 +217,7 @@ AI 通过 `.harness/plans/` 自主管理执行计划，跟踪任务进度和技�
 
 ## 维护
 
-修改约束/规范/规则时，检查 AGENTS.md 全局描述确保无矛盾。Agent 因缺少说明出错时：补充到 .harness/context/agents/，普遍性约束摘录到本文件，更新下方知识库索引。
+修改约束/规范/规则时，检查 AGENTS.md 全局描述确保无矛盾。Agent 因缺少说明出错时：补充到 .harness/knowledge/，普遍性约束摘录到本文件，更新下方知识库索引。
 
 ---
 
@@ -236,9 +236,8 @@ AGENTS.md              -- AI 知识库入口（本文件）
     completed/         -- 已完成计划归档（不入 git）
     debt-tracker.md    -- 技术债追踪
   guides/              -- 方法论与参考文档（人工维护）
-  context/
-    agents/            -- AI 知识库（01-overview ~ 07-key-patterns）
-    users/             -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
+  knowledge/           -- AI 知识库（01-overview ~ 07-key-patterns）
+  prd/                 -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
 PhotoTTS/
   Sources/
     UI/                -- SwiftUI 视图
@@ -269,11 +268,11 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 - 数据结构/存储变化 -> 05-data-boundaries.md
 - 新源文件 -> 06-file-map.md
 - 新跨文件模式 -> 07-key-patterns.md
-- 产品方向调整 -> 提示用户，人工更新 users/01-prd-sense.md 或触发 Skill: 回填产品文档
+- 产品方向调整 -> 提示用户，人工更新 prd/01-prd-sense.md 或触发 Skill: 回填产品文档
 
 ## 代码生成
 
-以下各节（代码生成、架构边界、质量守护、安全规范）为快速参考摘要，权威定义见 .harness/context/agents/03-conventions.md。
+以下各节（代码生成、架构边界、质量守护、安全规范）为快速参考摘要，权威定义见 .harness/knowledge/03-conventions.md。
 
 - 日志：禁止 `print()`，统一 `os.Logger`；内容禁用 emoji/加粗/斜体；禁止输出敏感字段（仅末四位 `key=***abcd`）
 - 手势：顶导有返回按钮时必须实现左边缘手势识别（注释 `// 手势识别`，参数 `Constants.Gesture`）
@@ -312,16 +311,16 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 
 | 文件 | 何时查阅 |
 |------|---------|
-| .harness/context/users/01-prd-sense.md | 功能迭代前，确认产品定位和判断准则 |
-| .harness/context/agents/01-overview.md | 任务开始时，了解项目边界 |
-| .harness/context/agents/02-architecture.md | 涉及模块新增、跨层调用时 |
-| .harness/context/agents/03-conventions.md | 涉及编码/UI/质量/安全约定细节时 |
-| .harness/context/agents/04-glossary.md | 对术语不清楚时 |
-| .harness/context/agents/05-data-boundaries.md | 涉及数据结构、存储格式时 |
-| .harness/context/agents/06-file-map.md | 确定功能对应源文件时 |
-| .harness/context/agents/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
-| .harness/context/users/02-prd-baseline.md | 确认功能需求与产品约束时 |
-| .harness/context/users/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
+| .harness/prd/01-prd-sense.md | 功能迭代前，确认产品定位和判断准则 |
+| .harness/knowledge/01-overview.md | 任务开始时，了解项目边界 |
+| .harness/knowledge/02-architecture.md | 涉及模块新增、跨层调用时 |
+| .harness/knowledge/03-conventions.md | 涉及编码/UI/质量/安全约定细节时 |
+| .harness/knowledge/04-glossary.md | 对术语不清楚时 |
+| .harness/knowledge/05-data-boundaries.md | 涉及数据结构、存储格式时 |
+| .harness/knowledge/06-file-map.md | 确定功能对应源文件时 |
+| .harness/knowledge/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
+| .harness/prd/02-prd-baseline.md | 确认功能需求与产品约束时 |
+| .harness/prd/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
 | .harness/guides/00-harness-desc.md | 了解 Harness 体系描述时 |
 | .harness/guides/01-harness-ops.md | 了解 Harness 运维操作时 |
 | .harness/guides/02-harness-dev.md | 了解 Harness 开发流程时 |

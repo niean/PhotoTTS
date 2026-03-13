@@ -14,7 +14,7 @@
 
 ## Phase 1: 任务调度
 - Agent: Orchestrator
-- 按 AGENTS.md "上下文管理"要求，首次加载必须读取 `.harness/context/` 全部文件（除 03-prd-specs.md）
+- 按 AGENTS.md "上下文管理"要求，首次加载必须读取 `.harness/knowledge/` 全部文件 + `.harness/prd/`（除 03-prd-specs.md）
 - 确认约束与产品方向，启动 Phase 2
 
 ## Phase 2: 意图理解
@@ -42,14 +42,13 @@
 
 ## Phase 5: 知识回填
 - Agent: Orchestrator
-- 按 AGENTS.md 知识回填规则回填 context/agents/（有变化才写，无变化也告知）
+- 按 AGENTS.md 知识回填规则回填 knowledge/（有变化才写，无变化也告知）
 
-## Phase 6: 任务总结 `[GATE]`
+## Phase 6: 任务总结
 - Agent: Orchestrator
 - 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
-- 执行顺序：输出总结报告（通过 `ask_followup_question`）-> 用户确认收到 -> attempt_completion
-- 总结报告与 attempt_completion 不得合并
-- `[GATE]` 总结报告输出后，必须立即结束当前回复，等待用户确认收到；禁止在同一条回复中调用 `attempt_completion`
+- 执行顺序：输出总结报告 -> 计划归档（移动到 completed/）-> attempt_completion，在同一条回复中完成
+- 总结报告内容通过 `attempt_completion` 的 result 参数承载
 
 ---
 

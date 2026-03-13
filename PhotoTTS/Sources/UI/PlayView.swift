@@ -539,6 +539,7 @@ private struct PlayerControlLayer: View {
     let onSeek: (Double) -> Void
     let onInteraction: () -> Void
 
+    @State private var isSettingsPanelVisible = false
     private var playButtonSize: CGFloat { isPad ? 28 : 25 }
     private var controlButtonSize: CGFloat { isPad ? 44 : 40 }
 
@@ -591,98 +592,117 @@ private struct PlayerControlLayer: View {
             .padding(.trailing, 60)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
-            // 播放设置面板
-            VStack(alignment: .leading, spacing: 0) {
-                // 标题行
-                HStack {
-                    Text("播放设置")
-                        .font(.system(size: 14, weight: .medium))
+            // 顶部控制栏（横屏 top-right -> 用户横屏 top-right）：更多按钮 + 播放设置面板
+            VStack(alignment: .trailing, spacing: 12) {
+                // 更多按钮（三白点图标）
+                Button(action: {
+                    isSettingsPanelVisible.toggle()
+                    onInteraction()
+                }) {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
-                    Spacer()
-                    Button(action: { onHideOverlay() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white.opacity(0.6))
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.white.opacity(0.15)))
+                        .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+                        .frame(width: 36, height: 36)
+                }
+
+                // 播放设置面板（点击更多按钮展开/收起）
+                if isSettingsPanelVisible {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // 标题行
+                        HStack {
+                            Text("播放设置")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Button(action: { isSettingsPanelVisible = false; onInteraction() }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .frame(width: 24, height: 24)
+                                    .background(Circle().fill(Color.white.opacity(0.15)))
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.top, 12)
+                        .padding(.bottom, 10)
+
+                        // 分割线
+                        Rectangle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(height: 0.5)
+                            .padding(.horizontal, 14)
+
+                        // 图标按钮区
+                        HStack(spacing: 16) {
+                            settingsIconButton(
+                                icon: eyeProtectionEnabled ? "eye.fill" : "eye",
+                                label: "护眼模式",
+                                isActive: eyeProtectionEnabled
+                            ) { onToggleEyeProtection(); onInteraction() }
+
+                            settingsIconButton(
+                                icon: "arrow.up.left.and.arrow.down.right",
+                                label: "撑满全屏",
+                                isActive: fillScreenEnabled
+                            ) { onToggleFillScreen(); onInteraction() }
+
+                            settingsIconButton(
+                                icon: animationStyle == .rightToLeft ? "arrow.left" : "arrow.down",
+                                label: animationStyle == .rightToLeft ? "左右翻页" : "上下翻页",
+                                isActive: true
+                            ) { onToggleAnimationStyle(); onInteraction() }
+
+                            settingsIconButton(
+                                icon: "xmark.circle",
+                                label: "关闭",
+                                isActive: true,
+                                activeColor: .red
+                            ) { onDismiss() }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 14)
+
+                        // 分割线
+                        Rectangle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(height: 0.5)
+                            .padding(.horizontal, 14)
+
+                        // 播完本集 Toggle 行
+                        HStack {
+                            Text("播完本集")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Button(action: { onToggleAutoStop(); onInteraction() }) {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(autoStopEnabled ? Color.green : Color.gray.opacity(0.4))
+                                    .frame(width: 40, height: 24)
+                                    .overlay(
+                                        Circle()
+                                            .fill(Color.white)
+                                            .frame(width: 20, height: 20)
+                                            .offset(x: autoStopEnabled ? 8 : -8)
+                                            .animation(.easeInOut(duration: 0.15), value: autoStopEnabled)
+                                    )
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                     }
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
-
-                // 分割线
-                Rectangle()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(height: 0.5)
-                    .padding(.horizontal, 14)
-
-                // 图标按钮区
-                HStack(spacing: 16) {
-                    settingsIconButton(
-                        icon: eyeProtectionEnabled ? "eye.fill" : "eye",
-                        label: "护眼模式",
-                        isActive: eyeProtectionEnabled
-                    ) { onToggleEyeProtection(); onInteraction() }
-
-                    settingsIconButton(
-                        icon: "arrow.up.left.and.arrow.down.right",
-                        label: "撑满全屏",
-                        isActive: fillScreenEnabled
-                    ) { onToggleFillScreen(); onInteraction() }
-
-                    settingsIconButton(
-                        icon: animationStyle == .rightToLeft ? "arrow.left" : "arrow.down",
-                        label: animationStyle == .rightToLeft ? "左右翻页" : "上下翻页",
-                        isActive: true
-                    ) { onToggleAnimationStyle(); onInteraction() }
-
-                    settingsIconButton(
-                        icon: "xmark.circle",
-                        label: "关闭",
-                        isActive: true,
-                        activeColor: .red
-                    ) { onDismiss() }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-
-                // 分割线
-                Rectangle()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(height: 0.5)
-                    .padding(.horizontal, 14)
-
-                // 播完本集 Toggle 行
-                HStack {
-                    Text("播完本集")
-                        .font(.system(size: 13))
-                        .foregroundColor(.white)
-                    Spacer()
-                    Button(action: { onToggleAutoStop(); onInteraction() }) {
+                    .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(autoStopEnabled ? Color.green : Color.gray.opacity(0.4))
-                            .frame(width: 40, height: 24)
-                            .overlay(
-                                Circle()
-                                    .fill(Color.white)
-                                    .frame(width: 20, height: 20)
-                                    .offset(x: autoStopEnabled ? 8 : -8)
-                                    .animation(.easeInOut(duration: 0.15), value: autoStopEnabled)
-                            )
-                    }
+                            .fill(Color.black.opacity(0.25))
+                    )
+                    .fixedSize(horizontal: true, vertical: false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topTrailing)))
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
             }
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.25))
-            )
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.trailing, 16)
+            .padding(.trailing, 60)
             .padding(.top, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .animation(.easeInOut(duration: 0.2), value: isSettingsPanelVisible)
         }
     }
 
