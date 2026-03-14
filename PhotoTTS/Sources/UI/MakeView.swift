@@ -51,7 +51,9 @@ struct MakeView: View {
     // 后台制作：当前观察的任务 sessionId
     @State private var observingTaskId: String? = nil
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
         
     var body: some View {
         NavigationStack {
@@ -483,7 +485,7 @@ struct MakeView: View {
                 }
             } label: {
                 Image(systemName: "plus.circle")
-                    .font(.system(size: isPad ? 24 : 22))
+                    .font(.system(size: scaled(22)))
                     .foregroundColor(.blue)
                     .background(Color.clear)
             }
@@ -800,7 +802,9 @@ struct PhotoProcessingView: View {
     @Binding var isProcessingReorder: Bool
     let onReorderImages: (Int, Int) -> Void
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     private struct LayoutMetrics {
         let defaultMargin: CGFloat = Constants.Layout.defaultMargin
@@ -813,14 +817,14 @@ struct PhotoProcessingView: View {
         let thumbBarHeight: CGFloat
         let imageAreaTotalHeight: CGFloat
         let bottomTabHeight: CGFloat
-        init(geometry: GeometryProxy, isPad: Bool) {
+        init(geometry: GeometryProxy) {
             screenWidth = geometry.size.width
             deltaScreenContentWidth = 16
             contentWidth = screenWidth - deltaScreenContentWidth
-            thumbSize = isPad ? 60 : 55
+            thumbSize = Constants.DeviceScale.adaptiveSize(iPhone: 55)
             thumbMargin = 5
             thumbBarHeight = thumbSize + thumbMargin * 2
-            bottomTabHeight = isPad ? 0 : 0
+            bottomTabHeight = 0
             let spacingTotal: CGFloat = 40
             imageAreaHeight = max(200, geometry.size.height - bottomTabHeight - thumbBarHeight - spacingTotal)
             imageAreaTotalHeight = imageAreaHeight + thumbBarHeight + spacingTotal
@@ -829,7 +833,7 @@ struct PhotoProcessingView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let layout = LayoutMetrics(geometry: geometry, isPad: isPad)
+            let layout = LayoutMetrics(geometry: geometry)
             VStack(spacing: 0) {
                 CustomZStack(alignment: .bottom) {
                     // 图片预览
@@ -864,7 +868,7 @@ struct PhotoProcessingView: View {
                     // 拍照制作
                     VStack(spacing: 12) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: isPad ? 100 : 80))
+                            .font(.system(size: scaled(80)))
                             .foregroundColor(.blue)
                         Text("拍照制作")
                             .font(.subheadline)
@@ -880,7 +884,7 @@ struct PhotoProcessingView: View {
                     // 选图制作
                     VStack(spacing: 12) {
                         Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: isPad ? 100 : 80))
+                            .font(.system(size: scaled(80)))
                             .foregroundColor(.blue)
                         Text("选图制作")
                             .font(.subheadline)
@@ -929,7 +933,7 @@ struct PhotoProcessingView: View {
                         onProcessOCRTTS()
                     }) {
                         Image(systemName: "text.viewfinder")
-                            .font(.system(size: isPad ? 28 : 25, weight: .semibold))
+                            .font(.system(size: scaled(25), weight: .semibold))
                             .foregroundColor(isProcessing || selectedImages.isEmpty ? Color.gray : Color.green)
                             .frame(width: layout.thumbSize, height: layout.thumbSize)
                             .background(
@@ -949,7 +953,7 @@ struct PhotoProcessingView: View {
                         onTogglePlayback()
                     }) {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: isPad ? 28 : 25))
+                            .font(.system(size: scaled(25)))
                             .foregroundColor(
                                 isProcessing || audioData == nil ? Color.gray :
                                 (isPlaying ? Color.yellow : Color.green)

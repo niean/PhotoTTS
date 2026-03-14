@@ -32,6 +32,19 @@ typealias AppConstants = Constants
 // MARK: - 扩展Constants
 extension Constants {
 
+    // MARK: - 设备缩放
+    struct DeviceScale {
+        /// iPad 相对于 iPhone 的页面尺寸缩放比例
+        static let iPadScale: CGFloat = 1.25
+
+        /// 根据当前设备类型返回适配后的尺寸
+        /// - Parameter iPhone: iPhone 上的基准尺寸（pt）
+        /// - Returns: iPhone 返回原值，iPad 返回 iPhone * iPadScale
+        static func adaptiveSize(iPhone value: CGFloat) -> CGFloat {
+            UIDevice.current.userInterfaceIdiom == .pad ? value * iPadScale : value
+        }
+    }
+
     // MARK: - 布局常量
     struct Layout {
         static let defaultMargin: CGFloat = 10

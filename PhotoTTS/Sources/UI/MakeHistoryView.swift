@@ -6,7 +6,9 @@ struct MakeHistoryView: View {
     let entries: [MakeHistoryEntry]
     var isEmpty: Bool { entries.isEmpty }
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -67,7 +69,7 @@ struct MakeHistoryView: View {
             
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.name)
-                    .font(.system(size: isPad ? 17 : 16, weight: .medium))
+                    .font(.system(size: scaled(16), weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 HStack(spacing: 6) {
@@ -94,7 +96,7 @@ struct MakeHistoryView: View {
     private var emptyState: some View {
         VStack(spacing: 20) {
             Image(systemName: "bookmark.circle")
-                .font(.system(size: isPad ? 56 : 44, weight: .light))
+                .font(.system(size: scaled(44), weight: .light))
                 .foregroundStyle(.tertiary)
             Text("暂无制作历史")
                 .font(.system(size: 18, weight: .medium))
@@ -112,7 +114,9 @@ struct MakeHistoryViewWithBar: View {
     @Environment(\.dismiss) private var dismiss
     @State private var entries: [MakeHistoryEntry] = []
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     var body: some View {
         CustomZStack(alignment: .top) {
@@ -122,8 +126,8 @@ struct MakeHistoryViewWithBar: View {
             TopAndLeftSideNavigationBar(title: "制作历史", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: isPad ? 18 : 16, weight: .medium))
-                        .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
+                        .font(.system(size: scaled(16), weight: .medium))
+                        .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }
             }, trailing: {

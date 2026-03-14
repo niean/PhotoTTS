@@ -51,10 +51,12 @@ struct PlayView: View {
     /// 翻页方向：true=正向(index增大)，false=反向(index减小)，用于动态控制 transition 方向
     @State private var isForwardTransition: Bool = true
 
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     private let overlayAutoHideInterval: TimeInterval = Constants.Playback.overlayAutoHideInterval
-    private var playButtonSize: CGFloat { isPad ? 28 : 25 }
-    private var controlButtonSize: CGFloat { isPad ? 44 : 40 }
+    private var playButtonSize: CGFloat { scaled(25) }
+    private var controlButtonSize: CGFloat { scaled(40) }
 
     /// 进度条分割点比例（0.0~1.0），每页音频段的起始位置
     private var segmentRatios: [Double] {
@@ -227,7 +229,6 @@ struct PlayView: View {
                         totalAudioDuration: totalAudioDuration,
                         segmentRatios: segmentRatios,
                         isDraggable: !isPlaying,
-                        isPad: isPad,
                         eyeProtectionEnabled: eyeProtectionEnabled,
                         fillScreenEnabled: fillScreenEnabled,
                         animationStyle: animationStyle,
@@ -525,7 +526,6 @@ private struct PlayerControlLayer: View {
     let totalAudioDuration: TimeInterval
     let segmentRatios: [Double]
     let isDraggable: Bool
-    let isPad: Bool
     let eyeProtectionEnabled: Bool
     let fillScreenEnabled: Bool
     let animationStyle: AnimationStyle
@@ -540,8 +540,13 @@ private struct PlayerControlLayer: View {
     let onInteraction: () -> Void
 
     @State private var isSettingsPanelVisible = false
-    private var playButtonSize: CGFloat { isPad ? 28 : 25 }
-    private var controlButtonSize: CGFloat { isPad ? 44 : 40 }
+    private var playButtonSize: CGFloat { scaled(25) }
+    private var controlButtonSize: CGFloat { scaled(40) }
+
+    /// 设备自适应缩放快捷方法（iPhone 返回原值，iPad 按比例放大）
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
 
     var body: some View {
         ZStack {
@@ -580,7 +585,7 @@ private struct PlayerControlLayer: View {
                         onTogglePlayback()
                     }) {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: isPad ? 32 : 28, weight: .bold))
+                            .font(.system(size: scaled(28), weight: .bold))
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                     }
@@ -600,10 +605,10 @@ private struct PlayerControlLayer: View {
                     onInteraction()
                 }) {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: scaled(18), weight: .bold))
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
-                        .frame(width: 36, height: 36)
+                        .frame(width: scaled(36), height: scaled(36))
                 }
 
                 // 播放设置面板（点击更多按钮展开/收起）
@@ -612,29 +617,29 @@ private struct PlayerControlLayer: View {
                         // 标题行
                         HStack {
                             Text("播放设置")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.system(size: scaled(14), weight: .medium))
                                 .foregroundColor(.white)
                             Spacer()
                             Button(action: { isSettingsPanelVisible = false; onInteraction() }) {
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(.system(size: scaled(11), weight: .bold))
                                     .foregroundColor(.white.opacity(0.6))
-                                    .frame(width: 24, height: 24)
+                                    .frame(width: scaled(24), height: scaled(24))
                                     .background(Circle().fill(Color.white.opacity(0.15)))
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 12)
-                        .padding(.bottom, 10)
+                        .padding(.horizontal, scaled(14))
+                        .padding(.top, scaled(12))
+                        .padding(.bottom, scaled(10))
 
                         // 分割线
                         Rectangle()
                             .fill(Color.white.opacity(0.15))
                             .frame(height: 0.5)
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, scaled(14))
 
                         // 图标按钮区
-                        HStack(spacing: 16) {
+                        HStack(spacing: scaled(16)) {
                             settingsIconButton(
                                 icon: eyeProtectionEnabled ? "eye.fill" : "eye",
                                 label: "护眼模式",
@@ -660,39 +665,39 @@ private struct PlayerControlLayer: View {
                                 activeColor: .red
                             ) { onDismiss() }
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, scaled(14))
+                        .padding(.vertical, scaled(14))
 
                         // 分割线
                         Rectangle()
                             .fill(Color.white.opacity(0.15))
                             .frame(height: 0.5)
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, scaled(14))
 
                         // 播完本集 Toggle 行
                         HStack {
                             Text("播完本集")
-                                .font(.system(size: 13))
+                                .font(.system(size: scaled(13)))
                                 .foregroundColor(.white)
                             Spacer()
                             Button(action: { onToggleAutoStop(); onInteraction() }) {
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: scaled(12))
                                     .fill(autoStopEnabled ? Color.green : Color.gray.opacity(0.4))
-                                    .frame(width: 40, height: 24)
+                                    .frame(width: scaled(40), height: scaled(24))
                                     .overlay(
                                         Circle()
                                             .fill(Color.white)
-                                            .frame(width: 20, height: 20)
-                                            .offset(x: autoStopEnabled ? 8 : -8)
+                                            .frame(width: scaled(20), height: scaled(20))
+                                            .offset(x: autoStopEnabled ? scaled(8) : -scaled(8))
                                             .animation(.easeInOut(duration: 0.15), value: autoStopEnabled)
                                     )
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, scaled(14))
+                        .padding(.vertical, scaled(10))
                     }
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: scaled(12))
                             .fill(Color.black.opacity(0.25))
                     )
                     .fixedSize(horizontal: true, vertical: false)
@@ -713,14 +718,14 @@ private struct PlayerControlLayer: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 
-    private var settingsIconSize: CGFloat { isPad ? 52 : 42 }
-    private var settingsIconFontSize: CGFloat { isPad ? 24 : 20 }
-    private var settingsLabelFontSize: CGFloat { isPad ? 13 : 11 }
+    private var settingsIconSize: CGFloat { scaled(42) }
+    private var settingsIconFontSize: CGFloat { scaled(20) }
+    private var settingsLabelFontSize: CGFloat { scaled(11) }
 
     @ViewBuilder
     private func settingsIconButton(icon: String, label: String, isActive: Bool, activeColor: Color = .white, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 6) {
+            VStack(spacing: scaled(6)) {
                 Image(systemName: icon)
                     .font(.system(size: settingsIconFontSize))
                     .foregroundColor(isActive ? activeColor : .white.opacity(0.4))

@@ -52,13 +52,13 @@ struct SessionRecordListView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     // 检测是否为 iPad
-    private var isPad: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
     
     // iPad 竖屏时的最大内容宽度
     private var maxContentWidth: CGFloat {
-        isPad ? .infinity : .infinity
+        .infinity
     }
     
     // 总页数
@@ -77,18 +77,18 @@ struct SessionRecordListView: View {
     private var searchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: isPad ? 16 : 14))
+                .font(.system(size: scaled(14)))
                 .foregroundColor(.gray)
             
             TextField(Constants.UI.searchPlaceholder, text: $searchText)
-                .font(isPad ? .body : .subheadline)
+                .font(.system(size: scaled(15)))
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
             
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: isPad ? 16 : 14))
+                        .font(.system(size: scaled(14)))
                         .foregroundColor(.gray)
                 }
                 .buttonStyle(.plain)
@@ -102,7 +102,7 @@ struct SessionRecordListView: View {
     
     // 分页控件
     private var paginationControl: some View {
-        HStack(spacing: isPad ? 24 : 16) {
+        HStack(spacing: scaled(16)) {
             Button(action: {
                 if currentPage > 1 {
                     currentPage -= 1
@@ -110,14 +110,14 @@ struct SessionRecordListView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: isPad ? 16 : 14, weight: .medium))
+                    .font(.system(size: scaled(14), weight: .medium))
                     .foregroundColor(currentPage > 1 ? .blue : .gray.opacity(0.4))
             }
             .disabled(currentPage <= 1)
             .buttonStyle(.plain)
             
             Text("\(currentPage) / \(totalPages)")
-                .font(isPad ? .subheadline : .caption)
+                .font(.system(size: scaled(12)))
                 .foregroundColor(.secondary)
                 .monospacedDigit()
             
@@ -128,14 +128,14 @@ struct SessionRecordListView: View {
                 }
             }) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: isPad ? 16 : 14, weight: .medium))
+                    .font(.system(size: scaled(14), weight: .medium))
                     .foregroundColor(currentPage < totalPages ? .blue : .gray.opacity(0.4))
             }
             .disabled(currentPage >= totalPages)
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, isPad ? 12 : 8)
+        .padding(.vertical, scaled(8))
     }
     
     var body: some View {
@@ -146,21 +146,21 @@ struct SessionRecordListView: View {
                     if isLoading {
                         Spacer()
                         ProgressView("加载中...")
-                            .scaleEffect(isPad ? 1.2 : 1.0)
+                            .scaleEffect(scaled(1.0))
                         Spacer()
                     } else if totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Spacer()
-                        VStack(spacing: isPad ? 24 : 20) {
+                        VStack(spacing: scaled(20)) {
                             Image(systemName: "book.closed")
-                                .font(.system(size: isPad ? 80 : 60))
+                                .font(.system(size: scaled(60)))
                                 .foregroundColor(.gray)
                             
                             Text("暂无会话记录")
-                                .font(isPad ? .title2 : .headline)
+                                .font(.system(size: scaled(17), weight: .semibold))
                                 .foregroundColor(.secondary)
                             
                             Text("导入记录，或播放完成后保存记录")
-                                .font(isPad ? .subheadline : .caption)
+                                .font(.system(size: scaled(12)))
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
@@ -182,16 +182,16 @@ struct SessionRecordListView: View {
                             
                             if pagedMetadataList.isEmpty {
                                 // 搜索无结果
-                                VStack(spacing: isPad ? 16 : 12) {
+                                VStack(spacing: scaled(12)) {
                                     Image(systemName: "magnifyingglass")
-                                        .font(.system(size: isPad ? 48 : 36))
+                                        .font(.system(size: scaled(36)))
                                         .foregroundColor(.gray)
                                     Text(Constants.UI.searchNoResult)
-                                        .font(isPad ? .title3 : .subheadline)
+                                        .font(.system(size: scaled(15), weight: .semibold))
                                         .foregroundColor(.secondary)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, isPad ? 60 : 40)
+                                .padding(.vertical, scaled(40))
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color(.systemBackground))
                                 .listRowSeparator(.hidden)
@@ -206,7 +206,6 @@ struct SessionRecordListView: View {
                                     }()
                                     SessionRecordRow(
                                         metadata: metadata,
-                                        isPad: isPad,
                                         makeProgress: makeProgress,
                                         onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
                                         onLoadToMake: (!metadata.isDefault && mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
@@ -239,15 +238,15 @@ struct SessionRecordListView: View {
                     }
                 }
                 .frame(maxWidth: maxContentWidth)
-                .padding(.top, showTopNav ? (isPad ? 50 : 45) : 8)
+                .padding(.top, showTopNav ? (scaled(45)) : 8)
             }
             
                 if showTopNav {
                     TopAndLeftSideNavigationBar(title: "会话记录", onSwipeBack: { dismiss() }, leading: {
                         Button(action: { dismiss() }) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: isPad ? 18 : 16, weight: .medium))
-                                .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
+                                .font(.system(size: scaled(16), weight: .medium))
+                                .frame(width: scaled(20), height: scaled(20))
                                 .foregroundStyle(.primary)
                         }
                     }, trailing: {
@@ -267,7 +266,7 @@ struct SessionRecordListView: View {
                             .disabled(totalCount == 0)
                         } label: {
                             Image(systemName: "plus.circle")
-                                .font(.system(size: isPad ? 24 : 22))
+                                .font(.system(size: scaled(22)))
                                 .foregroundColor(.blue)
                                 .background(Color.clear)
                         }
@@ -626,7 +625,6 @@ struct SessionRecordListView: View {
 // MARK: - 会话记录行视图
 struct SessionRecordRow: View {
     let metadata: SessionRecordMetadata
-    let isPad: Bool
     /// 后台制作实时进度（0.0~1.0），nil 表示无活跃任务或非制作中状态
     var makeProgress: Float? = nil
     let onLoad: (() -> Void)?
@@ -638,9 +636,13 @@ struct SessionRecordRow: View {
     
     @State private var avatarImage: UIImage? = nil
     @State private var loadingId: String? = nil
-    
+
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
+
     var body: some View {
-        HStack(spacing: isPad ? 16 : 12) {
+        HStack(spacing: scaled(12)) {
             // 图标
             Group {
                 if let avatar = avatarImage {
@@ -649,13 +651,13 @@ struct SessionRecordRow: View {
                         .aspectRatio(contentMode: .fill)
                 } else {
                     Image(systemName: "doc.text.fill")
-                        .font(.system(size: isPad ? 20 : 16))
+                        .font(.system(size: scaled(16)))
                         .foregroundColor(.blue)
                 }
             }
-            .frame(width: isPad ? 48 : 40, height: isPad ? 48 : 40)
+            .frame(width: scaled(40), height: scaled(40))
             .background(Color.blue.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: isPad ? 10 : 8))
+            .clipShape(RoundedRectangle(cornerRadius: scaled(8)))
             .onAppear {
                 loadAvatarImage()
             }
@@ -665,38 +667,38 @@ struct SessionRecordRow: View {
             }
             
             // 信息
-            VStack(alignment: .leading, spacing: isPad ? 4 : 2) {
+            VStack(alignment: .leading, spacing: scaled(2)) {
                 Text(metadata.name)
-                    .font(isPad ? .title3 : .headline)
+                    .font(.system(size: scaled(17), weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 
-                HStack(spacing: isPad ? 12 : 8) {
+                HStack(spacing: scaled(8)) {
                     if metadata.isMaking {
                         if let progress = makeProgress {
                             Text("制作中 \(Int(progress * 100))%")
-                                .font(isPad ? .subheadline : .caption)
+                                .font(.system(size: scaled(12)))
                                 .foregroundColor(.orange)
                                 .monospacedDigit()
                         } else {
                             Text("制作中")
-                                .font(isPad ? .subheadline : .caption)
+                                .font(.system(size: scaled(12)))
                                 .foregroundColor(.orange)
                         }
                     } else {
                         Label("\(metadata.validImageCount)/\(metadata.totalImageCount)张", systemImage: "photo")
                             .labelStyle(.titleOnly)
-                            .font(isPad ? .subheadline : .caption)
+                            .font(.system(size: scaled(12)))
                             .foregroundColor(.secondary)
                         
                         Label("\(formatDuration(metadata.audioDuration))", systemImage: "waveform")
                             .labelStyle(.titleOnly)
-                            .font(isPad ? .subheadline : .caption)
+                            .font(.system(size: scaled(12)))
                             .foregroundColor(.secondary)
                             
                         Label(formatStorageSize(metadata.storageSize), systemImage: "internaldrive")
                             .labelStyle(.titleOnly)
-                            .font(isPad ? .subheadline : .caption)
+                            .font(.system(size: scaled(12)))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -705,12 +707,12 @@ struct SessionRecordRow: View {
             Spacer()
             
             // 操作按钮
-            HStack(spacing: isPad ? 16 : 12) {
+            HStack(spacing: scaled(12)) {
                 // 加载按钮
                 if let onLoad = onLoad {
                     Button(action: onLoad) {
                         Image(systemName: "play.circle")
-                            .font(.system(size: isPad ? 24 : 20))
+                            .font(.system(size: scaled(20)))
                             .foregroundColor(.green)
                     }
                     .buttonStyle(.plain)
@@ -746,15 +748,15 @@ struct SessionRecordRow: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: isPad ? 18 : 16))
+                            .font(.system(size: scaled(16)))
                             .foregroundColor(.gray)
-                            .frame(width: isPad ? 28 : 24, height: isPad ? 28 : 24)
+                            .frame(width: scaled(24), height: scaled(24))
                     }
                 }
             }
         }
-        .padding(.horizontal, isPad ? 16 : 0)
-        .frame(minWidth: isPad ? 48 : 40, minHeight: isPad ? 48 : 40)
+        .padding(.horizontal, scaled(0))
+        .frame(minWidth: scaled(40), minHeight: scaled(40))
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {

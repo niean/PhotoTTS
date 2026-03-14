@@ -11,7 +11,9 @@ struct HomePageView: View {
     @ObservedObject var appState: AppState
     @State private var sessionToPlayFromHome: PlayFromHomeItem? = nil
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     var body: some View {
         CustomZStack(alignment: .top) {
@@ -34,7 +36,7 @@ struct HomePageView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .padding(.top, isPad ? 32 : 24)
+                .padding(.top, scaled(24))
 
                 // 会话记录
                 SessionRecordListView(
@@ -66,7 +68,7 @@ struct HomePageView: View {
     private func entryItem(icon: String, title: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: isPad ? 48 : 32))
+                .font(.system(size: scaled(32)))
                 .foregroundColor(.blue)
             Text(title)
                 .font(.subheadline)

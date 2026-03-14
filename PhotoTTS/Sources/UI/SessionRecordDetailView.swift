@@ -23,7 +23,9 @@ struct SessionRecordUnifiedView: View {
     @State private var selectedAvatarIndex: Int = 0
     @FocusState private var isTextFieldFocused: Bool
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     private var isEditable: Bool {
         switch mode {
@@ -75,8 +77,8 @@ struct SessionRecordUnifiedView: View {
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: isPad ? 18 : 16, weight: .medium))
-                        .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
+                        .font(.system(size: scaled(16), weight: .medium))
+                        .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }
             }, trailing: {

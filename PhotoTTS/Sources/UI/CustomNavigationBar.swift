@@ -7,7 +7,9 @@ struct CustomNavigationBar<Leading: View, Trailing: View>: View {
     let leading: Leading
     let trailing: Trailing
 
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
 
     init(
         showShadow: Bool = false,
@@ -53,7 +55,7 @@ struct CustomNavigationBar<Leading: View, Trailing: View>: View {
                 trailing
             }
             Text(title)
-                .font(isPad ? .title2 : .headline)
+                .font(.system(size: scaled(17), weight: .semibold))
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)
         }

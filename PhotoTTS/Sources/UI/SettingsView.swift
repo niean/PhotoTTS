@@ -204,7 +204,9 @@ struct SettingsView: View {
     @State private var isJSONEditing = false
     @State private var alertMessage = ""
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     private var defaultConfig: String {
         return SettingsManager.shared.loadConfigAsString() ?? SettingsManager.shared.loadDefaultConfig()
@@ -235,21 +237,21 @@ struct SettingsView: View {
                     leading: {
                         Button(action: { dismiss() }) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: isPad ? 18 : 16, weight: .medium))
-                                .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
+                                .font(.system(size: scaled(16), weight: .medium))
+                                .frame(width: scaled(20), height: scaled(20))
                                 .foregroundStyle(.primary)
                         }
                     },
                     trailing: {
-                        HStack(spacing: isPad ? 20 : 16) {
+                        HStack(spacing: scaled(16)) {
                             Button(action: { resetConfig() }) {
                                 Text("还原")
-                                    .font(.system(size: isPad ? 17 : 16, weight: .medium))
+                                    .font(.system(size: scaled(16), weight: .medium))
                                     .foregroundStyle(.primary)
                             }
                             Button(action: { saveConfig() }) {
                                 Text("保存")
-                                    .font(.system(size: isPad ? 17 : 16, weight: .medium))
+                                    .font(.system(size: scaled(16), weight: .medium))
                                     .foregroundStyle(.primary)
                             }
                         }

@@ -11,7 +11,9 @@ struct DebugLogView: View {
     
     @Environment(\.dismiss) var dismiss
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
 
     var body: some View {
         CustomZStack {
@@ -95,12 +97,12 @@ struct DebugLogView: View {
                 HStack(spacing: 16) {
                     Button(action: { loadLogs() }) {
                         Text("刷新")
-                            .font(.system(size: isPad ? 17 : 16, weight: .medium))
+                            .font(.system(size: scaled(16), weight: .medium))
                             .foregroundStyle(.primary)
                     }
                     Button(action: { showClearConfirmation = true }) {
                         Text("清空")
-                            .font(.system(size: isPad ? 17 : 16, weight: .medium))
+                            .font(.system(size: scaled(16), weight: .medium))
                             .foregroundStyle(.primary)
                     }
                 }

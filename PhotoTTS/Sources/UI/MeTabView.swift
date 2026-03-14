@@ -103,7 +103,9 @@ private struct IntroPagePushView: View {
     @ObservedObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
     
     var body: some View {
         CustomZStack(alignment: .top) {
@@ -112,8 +114,8 @@ private struct IntroPagePushView: View {
             TopAndLeftSideNavigationBar(title: "关于", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: isPad ? 18 : 16, weight: .medium))
-                        .frame(width: isPad ? 24 : 20, height: isPad ? 24 : 20)
+                        .font(.system(size: scaled(16), weight: .medium))
+                        .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }
             })
