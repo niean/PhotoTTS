@@ -42,7 +42,7 @@
 
 - 输入：阶段 2 产出的 spec
 - 操作：
-  1. spec 写入计划文件 `.harness/plans/active/plan-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板）
+  1. spec 写入计划文件 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板）
   2. 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 验收标准）
   3. 使用 `ask_followup_question` 请求用户确认，立即结束当前回复
 - 修正循环：用户修正时更新 spec，重新输出完整摘要，再次走 GATE 确认；用户修正 ≠ 用户确认

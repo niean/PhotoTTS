@@ -82,7 +82,27 @@ MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectW
 
 新增默认会话限制应在这三层同步添加防护。
 
-## 模式八：错误分层（Error Layering）
+## 模式十：iPad 自适应尺寸（DeviceScale）
+
+Constants.DeviceScale 提供 iPadScale（1.5）和 adaptiveSize(iPhone:) 函数，iPad 上将 iPhone 基准值乘以比例系数。
+
+每个 UI struct（View/组件）添加私有快捷方法：
+```swift
+private func scaled(_ value: CGFloat) -> CGFloat {
+    Constants.DeviceScale.adaptiveSize(iPhone: value)
+}
+```
+
+嵌套 struct（如 MakeView.LayoutMetrics）无法访问外层方法时，直接调用 `Constants.DeviceScale.adaptiveSize(iPhone: value)`。
+
+使用场景：
+- 数值型尺寸：padding/frame/spacing/cornerRadius 等，scaled(iPhone基准值)
+- 字体：原 .headline/.subheadline 等语义字体转为 .system(size: scaled(pt), weight:)，映射：headline=17pt, subheadline=15pt, caption=12pt, body=17pt
+- 全项目无 isPad 三元表达式控制尺寸，统一走 adaptiveSize
+
+覆盖范围：全部 11 个 UI 源文件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView）。
+
+## 模式十一：错误分层（Error Layering）
 
 三层错误架构，确保用户消息友好、开发日志含技术细节：
 

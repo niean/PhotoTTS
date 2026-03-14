@@ -114,8 +114,12 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/prd/、.harness/guides/
 - prd/ 与 knowledge/ 知识库冲突时，提示用户确认
 - 文档禁用 emoji/加粗/斜体，使用普通文字
-- 执行计划文件落盘到 `.harness/plans/active/plan-{desc}.md`，任务完成后移动到 `completed/`（详见"执行计划管理"章节）
+- 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`，任务完成后移动到 `completed/`（详见"执行计划管理"章节）
 
+## 命令执行
+
+- 命令行超过 10 行时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程
+- `locals/harness_tmp/` 由 AI 自主维护（创建、清理均无需用户确认），已在 `.gitignore` 覆盖范围内
 
 ### 文档引用方向
 
@@ -166,7 +170,7 @@ AI 通过 `.harness/plans/` 自主管理执行计划，跟踪任务进度和技�
 
 ### 计划文件
 
-命名：`plan-{desc}.md`，每个窗口使用独立计划文件，同一窗口内第 2+ 次迭代复用同一计划文件。
+命名：`plan-{YYMMDD}-{desc}.md`（YYMMDD 为创建日期），每个窗口使用独立计划文件，同一窗口内第 2+ 次迭代复用同一计划文件。
 
 模板：
 
@@ -205,7 +209,7 @@ AI 通过 `.harness/plans/` 自主管理执行计划，跟踪任务进度和技�
 ### 计划生命周期
 
 1. Phase 1（任务调度）：检测 `active/` 是否有未完成计划；若有，提示用户是否继续上个计划；若无，在后续 Phase 3 创建新计划文件
-2. Phase 3（意图确认）：spec 写入 `active/plan-{desc}.md`（取代独立的临时 spec 文件）
+2. Phase 3（意图确认）：spec 写入 `active/plan-{YYMMDD}-{desc}.md`（取代独立的临时 spec 文件）
 3. 任务执行中：更新检查清单状态，记录变更，记录发现的技术债
 4. Phase 6（任务总结）：将计划状态改为 completed，移动文件到 `completed/`
 

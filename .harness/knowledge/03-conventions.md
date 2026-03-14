@@ -32,7 +32,7 @@
 
 ## 常量
 
-- 统一收归 `Sources/Constants.swift`，已有分类：Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames
+- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames
 - 新增优先归入已有分类；不属于任何分类可新建 struct（PascalCase）
 - 禁止业务文件硬编码魔法值
 - 运行时可变配置通过 config_local.json + SettingsManager
@@ -93,7 +93,8 @@
 - 禁止主动创建 README（包括为新建目录添加 README.md 说明文件）
 - 不删除项目文件
 - 文件名：小写英文 kebab-case，动词-名词语序
-- 执行计划文件落盘到 `.harness/plans/active/plan-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板），任务完成后移动到 `completed/`
+- 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板），任务完成后移动到 `completed/`
+- 命令行超过 10 行时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程；AI 自主维护该目录（创建、清理均无需用户确认）
 
 ---
 
