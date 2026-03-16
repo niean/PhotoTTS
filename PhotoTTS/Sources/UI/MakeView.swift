@@ -150,9 +150,9 @@ struct MakeView: View {
             }
             .navigationDestination(isPresented: $showSaveSessionDialog) {
                 let suggestedName: String = {
-                    let f = DateFormatter()
-                    f.dateFormat = "yy.MM.dd "
-                    return f.string(from: Date())
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = Constants.sessionNameDatePrefixFormat
+                    return formatter.string(from: Date())
                 }()
                 SessionRecordUnifiedView(
                     mode: .save(
@@ -438,7 +438,7 @@ struct MakeView: View {
                             .tint(.white)
                         
                         Text("正在保存会话记录")
-                            .font(.headline)
+                            .font(Constants.Fonts.headline)
                             .foregroundColor(.white)
                     }
                     .padding(24)
@@ -485,7 +485,7 @@ struct MakeView: View {
                 }
             } label: {
                 Image(systemName: "plus.circle")
-                    .font(.system(size: scaled(22)))
+                    .font(Constants.Fonts.listAddIcon)
                     .foregroundColor(.blue)
                     .background(Color.clear)
             }
@@ -868,10 +868,10 @@ struct PhotoProcessingView: View {
                     // 拍照制作
                     VStack(spacing: 12) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: scaled(80)))
+                            .font(Constants.Fonts.makeLargeIcon)
                             .foregroundColor(.blue)
                         Text("拍照制作")
-                            .font(.subheadline)
+                            .font(Constants.Fonts.subheadline)
                             .foregroundColor(.secondary)
                     }
                     .contentShape(Rectangle())
@@ -884,10 +884,10 @@ struct PhotoProcessingView: View {
                     // 选图制作
                     VStack(spacing: 12) {
                         Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: scaled(80)))
+                            .font(Constants.Fonts.makeLargeIcon)
                             .foregroundColor(.blue)
                         Text("选图制作")
-                            .font(.subheadline)
+                            .font(Constants.Fonts.subheadline)
                             .foregroundColor(.secondary)
                     }
                     .contentShape(Rectangle())
@@ -933,7 +933,7 @@ struct PhotoProcessingView: View {
                         onProcessOCRTTS()
                     }) {
                         Image(systemName: "text.viewfinder")
-                            .font(.system(size: scaled(25), weight: .semibold))
+                            .font(Constants.Fonts.makeStartIcon)
                             .foregroundColor(isProcessing || selectedImages.isEmpty ? Color.gray : Color.green)
                             .frame(width: layout.thumbSize, height: layout.thumbSize)
                             .background(
@@ -953,7 +953,7 @@ struct PhotoProcessingView: View {
                         onTogglePlayback()
                     }) {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: scaled(25)))
+                            .font(Constants.Fonts.makeControlIcon)
                             .foregroundColor(
                                 isProcessing || audioData == nil ? Color.gray :
                                 (isPlaying ? Color.yellow : Color.green)
@@ -1066,7 +1066,7 @@ struct PhotoProcessingView: View {
                                             HStack {
                                                 Spacer()
                                                 Text("\(index + 1)")
-                                                    .font(.caption2)
+                                                    .font(Constants.Fonts.caption2)
                                                     .fontWeight(.medium)
                                                     .foregroundColor(.white)
                                                     .padding(.horizontal, 6)
@@ -1147,12 +1147,12 @@ struct PhotoProcessingView: View {
                             // 停止按钮：使用 xmark.circle.fill，白底色，大小为缩略图删除按钮的1.5倍
                             if isProcessing {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 26))
+                                    .font(Constants.Fonts.makeImageRemoveIcon)
                                     .foregroundColor(.white)
                             } else {
                                 // 关闭按钮：保持原样式
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 28))
+                                    .font(Constants.Fonts.makeImageDeleteIcon)
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -1189,7 +1189,7 @@ struct ProcessingStatusView: View {
                     .frame(maxWidth: contentWidth - 68)
                 
                 Text("整体\(Int(processingProgress * 100))%，\(currentOperation)")
-                    .font(.body)
+                    .font(Constants.Fonts.body)
                     .foregroundColor(.blue)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -1237,7 +1237,7 @@ struct ProcessingResultView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             ForEach(0..<ocrTextSegments.count, id: \.self) { index in
                                 Text("[图片\(index + 1)]：\(ocrTextSegments[index])")
-                                    .font(.body)
+                                    .font(Constants.Fonts.body)
                                     .foregroundColor(.primary)
                                     .multilineTextAlignment(.leading)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1261,13 +1261,13 @@ struct ProcessingResultView: View {
                 HStack {
                     Spacer()
                     Text("OCR:\(String(format: "%.0f", ocrDuration))s, TTS:\(String(format: "%.0f", ttsDuration))s")
-                        .font(.caption)
+                        .font(Constants.Fonts.caption)
                         .foregroundColor(.secondary)
                         .padding(.all, 3)
                         .cornerRadius(5)
                     
                     Text("图片:\(correctImageCount)/\(selectedImages.count)张, 文本:\(totalTextLength)B, 音频:\(ByteCountFormatter.string(fromByteCount: Int64(audioData?.count ?? 0), countStyle: .file))")
-                        .font(.caption)
+                        .font(Constants.Fonts.caption)
                         .foregroundColor(.secondary)
                         .padding(.all, 3)
                         .cornerRadius(5)
@@ -1289,15 +1289,15 @@ struct ErrorView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
+                .font(Constants.Fonts.makeErrorIcon)
                 .foregroundColor(.red)
             
             Text("处理失败")
-                .font(.headline)
+                .font(Constants.Fonts.headline)
                 .foregroundColor(.red)
             
             Text(error.localizedDescription)
-                .font(.body)
+                .font(Constants.Fonts.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3) // 限制行数，防止过高

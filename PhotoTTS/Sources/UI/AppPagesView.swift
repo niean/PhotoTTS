@@ -66,7 +66,7 @@ struct AppPageView: View {
                 .overlay(backgroundImageView)
             
             Image(systemName: "camera.fill")
-                .font(.system(size: 50))
+                .font(Constants.Fonts.launchAppIcon)
                 .foregroundColor(.blue)
                 .opacity(pageType == .intro ? 0.2 : 1.0) 
                 .rotationEffect(.degrees(rotationAngle))
@@ -132,13 +132,13 @@ struct AppPageView: View {
                         
                         // 应用名称
                         Text("Photo TTS")
-                            .font(.largeTitle)
+                            .font(Constants.Fonts.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(.blue)
                         
                         // 应用描述
                         Text("拍照阅读，让绘本更精彩")
-                            .font(.title3)
+                            .font(Constants.Fonts.title3)
                             .foregroundColor(.secondary)
                             .shadow(color: .black.opacity(0.8), radius: 2, x: 1, y: 1)
                             .multilineTextAlignment(.center)
@@ -155,13 +155,13 @@ struct AppPageView: View {
                             
                             // 加载消息
                             Text(appState.loadingMessage)
-                                .font(.headline)
+                                .font(Constants.Fonts.headline)
                                 .foregroundColor(.blue)
                                 .animation(.easeInOut(duration: 0.3), value: appState.loadingMessage)
                             
                             // 进度百分比
                             Text("\(Int(appState.loadingProgress * 100))%")
-                                .font(.caption)
+                                .font(Constants.Fonts.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -172,12 +172,12 @@ struct AppPageView: View {
                     VStack(spacing: 8) {
                         if pageType == .intro {
                             Link("隐私条款", destination: URL(string: Constants.Links.privacyPolicy)!)
-                                .font(.caption2)
+                                .font(Constants.Fonts.caption2)
                                 .foregroundColor(.secondary)
                         }
 
                         Text("Powered by AGI")
-                            .font(.caption2)
+                            .font(Constants.Fonts.caption2)
                             .foregroundColor(.secondary)
 
                     }

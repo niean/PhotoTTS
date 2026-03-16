@@ -10,6 +10,7 @@ private struct PlayFromHomeItem: Identifiable, Hashable {
 struct HomePageView: View {
     @ObservedObject var appState: AppState
     @State private var sessionToPlayFromHome: PlayFromHomeItem? = nil
+    @State private var isListScrolled = false
     
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -17,7 +18,7 @@ struct HomePageView: View {
     
     var body: some View {
         CustomZStack(alignment: .top) {
-            VStack() {
+            VStack(spacing: 0) {
                 // 制作入口
                 HStack(spacing: 0) {
                     Button(action: {
@@ -27,6 +28,8 @@ struct HomePageView: View {
                         entryItem(icon: "camera.fill", title: "拍照制作")
                     }
                     .frame(maxWidth: .infinity)
+                    .padding(.top, scaled(24))
+                    .padding(.bottom, scaled(12))
                     
                     Button(action: {
                         appState.openPhotoPickerOnNextRecordAppear = true
@@ -35,8 +38,11 @@ struct HomePageView: View {
                         entryItem(icon: "photo.on.rectangle.angled", title: "选图制作")
                     }
                     .frame(maxWidth: .infinity)
+                    .padding(.top, scaled(24))
+                    .padding(.bottom, scaled(12))
                 }
-                .padding(.top, scaled(24))
+                .background(Color(.systemBackground))
+                .padding(.bottom, isListScrolled ? 0 : 1)
 
                 // 会话记录
                 SessionRecordListView(
@@ -48,7 +54,8 @@ struct HomePageView: View {
                         appState.isPlayViewActive = true
                         sessionToPlayFromHome = PlayFromHomeItem(id: record.id)
                     },
-                    mode: .embedded
+                    mode: .embedded,
+                    onListScrolled: { isListScrolled = $0 }
                 )
             }
             .padding(.top, 45) // 为顶导留出空间
@@ -68,10 +75,10 @@ struct HomePageView: View {
     private func entryItem(icon: String, title: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: scaled(32)))
+                .font(Constants.Fonts.homeIcon)
                 .foregroundColor(.blue)
             Text(title)
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundColor(.secondary)
         }
         .contentShape(Rectangle())

@@ -343,6 +343,7 @@ struct FullScreenImageOverlay: View {
 struct FullScreenCameraOverlay: View {
     @ObservedObject var appState: AppState
     @State private var capturedImage: UIImage?
+    @State private var showLandscapeTip: Bool = true
     
     private var selectedImagesBinding: Binding<[UIImage]> {
         Binding(
@@ -352,21 +353,26 @@ struct FullScreenCameraOverlay: View {
     }
     
     var body: some View {
-        CustomCameraView(
-            image: $capturedImage,
-            selectedImages: selectedImagesBinding,
-            onImagesSelected: { images in
-                if !images.isEmpty {
-                    NotificationCenter.default.post(name: Constants.NotificationNames.updateImageCount, object: nil, userInfo: ["count": appState.cameraOverlayImages.count])
+        ZStack {
+            CustomCameraView(
+                image: $capturedImage,
+                selectedImages: selectedImagesBinding,
+                onImagesSelected: { images in
+                    if !images.isEmpty {
+                        NotificationCenter.default.post(name: Constants.NotificationNames.updateImageCount, object: nil, userInfo: ["count": appState.cameraOverlayImages.count])
+                    }
+                },
+                onPhotoCountUpdate: { count in
+                    NotificationCenter.default.post(name: Constants.NotificationNames.updateImageCount, object: nil, userInfo: ["count": count])
+                },
+                onDismiss: {
+                    appState.fullScreenKind = nil
                 }
-            },
-            onPhotoCountUpdate: { count in
-                NotificationCenter.default.post(name: Constants.NotificationNames.updateImageCount, object: nil, userInfo: ["count": count])
-            },
-            onDismiss: {
-                appState.fullScreenKind = nil
-            }
-        )
+            )
+
+            // 横拍提示覆盖层
+            LandscapeTipOverlay(isVisible: $showLandscapeTip)
+        }
         .onChange(of: capturedImage) { _, newImage in
             if let newImage = newImage {
                 appState.cameraOverlayImages.append(newImage)

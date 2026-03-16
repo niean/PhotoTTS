@@ -71,15 +71,15 @@ struct PlayHistoryView: View {
             // 卡片内容
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.playCount > 1 ? "\(entry.name) (\(entry.playCount))" : entry.name)
-                    .font(.system(size: scaled(16), weight: .medium))
+                    .font(Constants.Fonts.navAction)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Constants.Fonts.historyDate)
                         .foregroundStyle(.secondary)
                     Text("\(dateFormatter.string(from: entry.lastPlayedAt)) \(timeFormatter.string(from: entry.lastPlayedAt))")
-                        .font(.system(size: 13))
+                        .font(Constants.Fonts.historyDetail)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -98,13 +98,13 @@ struct PlayHistoryView: View {
     private var emptyState: some View {
         VStack(spacing: 20) {
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: scaled(44), weight: .light))
+                .font(Constants.Fonts.historyEmptyIcon)
                 .foregroundStyle(.tertiary)
             Text("暂无播放历史")
-                .font(.system(size: 18, weight: .medium))
+                .font(Constants.Fonts.historyEmptyTitle)
                 .foregroundStyle(.secondary)
             Text("播放绘本后会在这里记录")
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -128,7 +128,7 @@ struct PlayHistoryViewWithBar: View {
             TopAndLeftSideNavigationBar(title: "播放历史", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: scaled(16), weight: .medium))
+                        .font(Constants.Fonts.navAction)
                         .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }

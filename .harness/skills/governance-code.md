@@ -27,7 +27,7 @@
 ## Phase 4: 修复
 - Agent: Coder
 - 读取 `.harness/agents/coder.md`，按确认清单修复
-- 同步更新 06-file-map.md（如有文件删除）
+- 同步更新 22-file-map.md（如有文件删除）
 
 检查点：`[Phase 4 修复] 修复N项, 删除M个废弃项, 更新file-map: 是/否`
 

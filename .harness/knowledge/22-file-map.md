@@ -10,13 +10,14 @@
 
 - 首页：HomePageView（HomePageView.swift）
 - 制作：MakeView（MakeView.swift）
-- 消息：MessageTabView（MessageTabView.swift），含播放历史/制作历史/调试日志/更新记录入口
+- 消息：MessageTabView（MessageTabView.swift），含实时监控/播放历史/制作历史/调试日志/更新记录入口
 - 我的：MeTabView（MeTabView.swift）
 
 ## 全屏与相机
 
 - 全屏 overlay：PhotoTTSApp.swift 内 FullScreenImageOverlay/FullScreenCameraOverlay
 - 自定义相机+多选图：CustomCameraView.swift（含 MultiImagePicker 封装 PHPickerViewController）
+- 相机横拍提示覆盖层：LandscapeTipOverlay.swift（FullScreenCameraOverlay 叠加，3秒自动消失）
 
 ## 播放与记录
 
@@ -45,12 +46,14 @@
 
 - SettingsView/SettingsManager：SettingsView.swift / Core/Managers/Settings/SettingsManager.swift
 - PlayHistoryManager+View / MakeHistoryManager+View / DebugLogManager+View
+- PerformanceMonitorManager+View（实时监控）：Core/Managers/Monitor/PerformanceMonitorManager.swift / UI/RealTimeMonitorView.swift
 - ScheduledTasks（预留，空）
 
 ## 模型与常量
 
 - Models/：SessionRecord、AudioResponse（APIResponse.swift）、VoiceSettings
 - Constants.swift / CustomNavigationBar.swift
+- Monitor 模型：Core/Managers/Monitor/MetricModels.swift
 
 ## 配置与资源
 

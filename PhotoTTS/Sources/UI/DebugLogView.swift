@@ -26,7 +26,7 @@ struct DebugLogView: View {
                     HStack {
                         Button(action: { registerSiriShortcuts() }) {
                             Label("重新注册 Siri Shortcuts", systemImage: "waveform")
-                                .font(.caption)
+                                .font(Constants.Fonts.caption)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -35,7 +35,7 @@ struct DebugLogView: View {
                         
                         if let result = siriRegisterResult {
                             Text(result)
-                                .font(.caption)
+                                .font(Constants.Fonts.caption)
                                 .foregroundColor(result.contains("成功") ? .green : .red)
                         }
                     }
@@ -46,13 +46,13 @@ struct DebugLogView: View {
                     // 日志信息栏
                     HStack {
                         Text("日志大小: \(formatFileSize(logFileSize))")
-                            .font(.caption)
+                            .font(Constants.Fonts.caption)
                             .foregroundColor(.secondary)
                         
                         Spacer()
                         
                         Text("最后更新: \(Date().formatted(date: .omitted, time: .shortened))")
-                            .font(.caption)
+                            .font(Constants.Fonts.caption)
                             .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 20)
@@ -68,11 +68,11 @@ struct DebugLogView: View {
                         Spacer()
                         VStack(spacing: 20) {
                             Image(systemName: "doc.text")
-                                .font(.system(size: 60))
+                                .font(Constants.Fonts.debugEmptyIcon)
                                 .foregroundColor(.gray)
                             
                             Text("暂无日志")
-                                .font(.headline)
+                                .font(Constants.Fonts.headline)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
@@ -89,7 +89,7 @@ struct DebugLogView: View {
             TopAndLeftSideNavigationBar(title: "调试日志", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(Constants.Fonts.fixedNavAction)
                         .frame(width: 20, height: 20)
                         .foregroundStyle(.primary)
                 }
@@ -97,12 +97,12 @@ struct DebugLogView: View {
                 HStack(spacing: 16) {
                     Button(action: { loadLogs() }) {
                         Text("刷新")
-                            .font(.system(size: scaled(16), weight: .medium))
+                            .font(Constants.Fonts.navAction)
                             .foregroundStyle(.primary)
                     }
                     Button(action: { showClearConfirmation = true }) {
                         Text("清空")
-                            .font(.system(size: scaled(16), weight: .medium))
+                            .font(Constants.Fonts.navAction)
                             .foregroundStyle(.primary)
                     }
                 }

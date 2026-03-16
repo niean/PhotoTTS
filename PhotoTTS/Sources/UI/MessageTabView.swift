@@ -12,14 +12,14 @@ struct MessageTabView: View {
                 Section {
                     HStack(spacing: 16) {
                         Image(systemName: "message.fill")
-                            .font(.system(size: iconSize * 0.6))
+                            .font(.system(size: iconSize * 0.6)) // 动态计算，保留视图私有
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("消息")
-                                .font(.headline)
+                                .font(Constants.Fonts.headline)
                                 .foregroundStyle(.primary)
                             Text("分析和调试")
-                                .font(.subheadline)
+                                .font(Constants.Fonts.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -42,6 +42,11 @@ struct MessageTabView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        RealTimeMonitorView()
+                    } label: {
+                        Label("实时监控", systemImage: "gauge.medium")
+                    }
                     NavigationLink {
                         DebugLogView()
                     } label: {

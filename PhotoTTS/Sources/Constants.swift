@@ -152,6 +152,12 @@ extension Constants {
         static let searchNoResult = "未找到匹配的记录"
         /// 搜索栏行的 ScrollView 锚点 id
         static let searchBarRowId = "searchBarRow"
+        
+        // MARK: 首页入口按钮
+        /// 首页入口按钮最小高度（pt）
+        static let homeEntryButtonMinHeight: CGFloat = 80
+        /// 首页入口按钮圆角半径（pt）
+        static let homeEntryButtonCornerRadius: CGFloat = 12
     }
     
     // MARK: - 搜索栏布局
@@ -176,6 +182,16 @@ extension Constants {
     struct Pagination {
         /// 记录列表每页条数
         static let pageSize = 20
+    }
+    
+    // MARK: - 监控配置
+    struct Monitor {
+        /// 固定时间范围：5 分钟
+        static let fixedTimeRange: TimeInterval = 300
+        /// 采集间隔（秒）
+        static let collectionInterval: TimeInterval = 1.0
+        /// 最大数据点数量
+        static let maxPointsCount: Int = 300
     }
     
     // MARK: - 调试日志配置
@@ -264,15 +280,135 @@ extension Constants {
     // MARK: - 默认会话名称
     static let defaultSessionName = "未命名会话"
     
-    // MARK: - 后台制作
-    /// 草稿会话默认名称后缀（前缀为 "YY.MM.DD "）
-    static let draftSessionNameSuffix = "未命名"
-    
     // MARK: - 内置默认会话
     struct DefaultSession {
         /// 内置默认会话的 ID
         static let id = "A206CF0C-5461-4BDC-90A1-045C4ACC809A"
         /// Bundle 中资源文件的名称前缀
         static let bundleFilePrefix = "default_session_"
+    }
+    
+    // MARK: - 相机横拍提示
+    struct CameraTip {
+        /// 提示视图展示时长（秒），等于 animationDuration * rotationRepeatCount
+        static let displayDuration: TimeInterval = 3.0
+        /// 箭头旋转动画单次时长（秒）
+        static let animationDuration: TimeInterval = 1.0
+        /// 背景遮罩透明度
+        static let overlayOpacity: Double = 0.5
+        /// 淡出动画时长（秒）
+        static let fadeOutDuration: TimeInterval = 0.5
+        /// 箭头旋转起始角度（左上角位置）
+        static let rotationStartAngle: Double = -60
+        /// 箭头旋转结束角度（右上角位置）
+        static let rotationEndAngle: Double = 60
+        /// 箭头旋转次数
+        static let rotationRepeatCount: Int = 3
+    }
+
+    // MARK: - 会话命名
+    /// 会话名称日期前缀格式（2 位年份.2 位月份.2 位日期 + 空格）
+    static let sessionNameDatePrefixFormat = "yy.MM.dd "
+    /// 草稿会话默认名称后缀（前缀为日期格式）
+    static let draftSessionNameSuffix = "未命名"
+
+    // MARK: - 字体常量
+    struct Fonts {
+        /// iPad 自适应缩放快捷方法
+        private static func s(_ value: CGFloat) -> CGFloat {
+            DeviceScale.adaptiveSize(iPhone: value)
+        }
+
+        // MARK: 语义字体 (SwiftUI Text Style)
+        static let largeTitle: Font = .largeTitle
+        static let title2: Font = .title2
+        static let title3: Font = .title3
+        static let headline: Font = .headline
+        static let subheadline: Font = .subheadline
+        static let body: Font = .body
+        static let caption: Font = .caption
+        static let caption2: Font = .caption2
+        static let captionMonospaced: Font = .caption.monospaced()
+
+        // MARK: 自适应字体 (iPad 缩放)
+
+        /// PlayView 设置标签: 11pt
+        static var playSettingsLabel: Font { .system(size: s(11)) }
+        /// PlayView 关闭按钮: 11pt bold
+        static var playCloseIcon: Font { .system(size: s(11), weight: .bold) }
+        /// 记录状态标签、分页文本: 12pt
+        static var recordMeta: Font { .system(size: s(12)) }
+        /// PlayView 播完提示: 13pt
+        static var playNextLabel: Font { .system(size: s(13)) }
+        /// 搜索图标: 14pt
+        static var searchIcon: Font { .system(size: s(14)) }
+        /// 分页箭头、列表操作按钮: 14pt medium
+        static var listAction: Font { .system(size: s(14), weight: .medium) }
+        /// 搜索输入框: 15pt
+        static var searchInput: Font { .system(size: s(15)) }
+        /// 搜索无结果文本: 15pt semibold
+        static var searchNoResult: Font { .system(size: s(15), weight: .semibold) }
+        /// 记录图标、操作图标: 16pt
+        static var recordIcon: Font { .system(size: s(16)) }
+        /// 导航返回/操作按钮: 16pt medium
+        static var navAction: Font { .system(size: s(16), weight: .medium) }
+        /// 导航栏标题: 17pt semibold
+        static var navTitle: Font { .system(size: s(17), weight: .semibold) }
+        /// PlayView 更多按钮: 18pt bold
+        static var playMoreIcon: Font { .system(size: s(18), weight: .bold) }
+        /// 横拍提示返回: 18pt medium
+        static var tipBackIcon: Font { .system(size: s(18), weight: .medium) }
+        /// 播放/编辑圆形图标: 20pt
+        static var recordActionIcon: Font { .system(size: s(20)) }
+        /// 加号图标、复选框: 22pt
+        static var listAddIcon: Font { .system(size: s(22)) }
+        /// 制作控制按钮: 25pt
+        static var makeControlIcon: Font { .system(size: s(25)) }
+        /// 制作开始按钮: 25pt semibold
+        static var makeStartIcon: Font { .system(size: s(25), weight: .semibold) }
+        /// PlayView 播放按钮: 28pt bold
+        static var playMainIcon: Font { .system(size: s(28), weight: .bold) }
+        /// 横拍提示箭头: 30pt medium
+        static var tipArrowIcon: Font { .system(size: s(30), weight: .medium) }
+        /// 首页图标: 32pt
+        static var homeIcon: Font { .system(size: s(32)) }
+        /// 搜索空状态图标: 36pt
+        static var searchEmptyIcon: Font { .system(size: s(36)) }
+        /// 历史空状态图标: 44pt light
+        static var historyEmptyIcon: Font { .system(size: s(44), weight: .light) }
+        /// 横拍提示手机/列表空状态图标: 60pt
+        static var emptyStateIcon: Font { .system(size: s(60)) }
+        /// 制作页大图标: 80pt
+        static var makeLargeIcon: Font { .system(size: s(80)) }
+
+        // MARK: 固定字体 (不随设备缩放)
+
+        /// 启动页应用图标: 50pt
+        static let launchAppIcon: Font = .system(size: 50)
+        /// PlayView 时间显示: 14pt medium monospaced
+        static let playTimerText: Font = .system(size: 14, weight: .medium, design: .monospaced)
+        /// 配置编辑器: 16pt light monospaced
+        static let configEditorText: Font = .system(size: 16, weight: .light, design: .monospaced)
+        /// ChangeLog/Debug 返回按钮: 16pt medium
+        static let fixedNavAction: Font = .system(size: 16, weight: .medium)
+        /// 历史日期标签: 11pt medium
+        static let historyDate: Font = .system(size: 11, weight: .medium)
+        /// 历史详情文本: 13pt
+        static let historyDetail: Font = .system(size: 13)
+        /// 历史空状态标题: 18pt medium
+        static let historyEmptyTitle: Font = .system(size: 18, weight: .medium)
+        /// 制作页图片移除: 26pt
+        static let makeImageRemoveIcon: Font = .system(size: 26)
+        /// 制作页图片删除: 28pt
+        static let makeImageDeleteIcon: Font = .system(size: 28)
+        /// 制作失败图标: 40pt
+        static let makeErrorIcon: Font = .system(size: 40)
+        /// Debug空状态图标: 60pt
+        static let debugEmptyIcon: Font = .system(size: 60)
+
+        // MARK: PlayView 设置面板
+
+        /// PlayView 设置面板标题: 14pt medium
+        static var playSettingsTitle: Font { .system(size: s(14), weight: .medium) }
     }
 }

@@ -97,7 +97,7 @@ private func scaled(_ value: CGFloat) -> CGFloat {
 
 使用场景：
 - 数值型尺寸：padding/frame/spacing/cornerRadius 等，scaled(iPhone基准值)
-- 字体：原 .headline/.subheadline 等语义字体转为 .system(size: scaled(pt), weight:)，映射：headline=17pt, subheadline=15pt, caption=12pt, body=17pt
+- 字体：统一通过 `Constants.Fonts` 引用（详见 03-conventions.md 字体章节）。自适应字体内部调 `DeviceScale.adaptiveSize`，固定字体不随设备缩放
 - 全项目无 isPad 三元表达式控制尺寸，统一走 adaptiveSize
 
 覆盖范围：全部 11 个 UI 源文件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView）。

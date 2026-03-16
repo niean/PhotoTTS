@@ -1,16 +1,15 @@
 #!/bin/bash
 # App Store 截图自动化脚本
-# 用法: ./scripts/take-screenshots.sh
+# 用法:
+#   ./scripts/take-screenshots.sh                 # 运行全部设备
+#   ./scripts/take-screenshots.sh -d iPhone_14_Plus  # 指定单个设备
+#   ./scripts/take-screenshots.sh -d iPhone_14_Plus -d iPad_Pro_13_M5  # 指定多个设备
 #
 # 适配设备（App Store 必需尺寸）:
-#   - iPhone 16 Pro Max (6.9") : 1320 x 2868
 #   - iPhone 14 Plus (6.5")    : 1284 x 2778
 #   - iPad Pro 13-inch (M5)    : 2064 x 2752
 #
-# 截图内容（由 ScreenshotUITests 控制）:
-#   01_home     - 首页（含绘本列表）
-#   02_play     - 播放页（播放 "26.03.10 使用介绍"）
-#   03_make     - 制作页（拍照/选图制作界面）
+# 截图内容：由 ScreenshotUITests 控制
 #
 # 工作原理:
 #   1. 在每个模拟器上运行 ScreenshotUITests
@@ -26,12 +25,74 @@ PROJECT="${PROJECT_ROOT}/PhotoTTS.xcodeproj"
 TEST_CLASS="ScreenshotUITests"
 TEST_METHOD="testCaptureAllScreenshots"
 
-# 设备列表: "显示名|模拟器名称"
-DEVICES=(
-    "iPhone_16_Pro_Max|iPhone 16 Pro Max"
+# 设备列表："显示名 | 模拟器名称"
+ALL_DEVICES=(
     "iPhone_14_Plus|iPhone 14 Plus"
     "iPad_Pro_13_M5|iPad Pro 13-inch (M5)"
 )
+
+# 解析命令行参数
+SELECTED_DEVICES=()
+show_help() {
+    echo "用法：$0 [-d 设备名] ..."
+    echo ""
+    echo "选项:"
+    echo "  -d  指定设备名称（可多次使用），可选值:"
+    for entry in "${ALL_DEVICES[@]}"; do
+        IFS='|' read -r label sim <<< "${entry}"
+        echo "      ${label}"
+    done
+    echo "  -h  显示此帮助信息"
+    echo ""
+    echo "示例:"
+    echo "  $0                              # 运行全部设备"
+    echo "  $0 -d iPhone_14_Plus            # 仅运行 iPhone 14 Plus"
+    echo "  $0 -d iPhone_14_Plus -d iPad_Pro_13_M5  # 运行指定多个设备"
+}
+
+while getopts "d:h" opt; do
+    case $opt in
+        d)
+            SELECTED_DEVICES+=("$OPTARG")
+            ;;
+        h)
+            show_help
+            exit 0
+            ;;
+        *)
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# 如果没有指定设备，使用全部设备
+if [ ${#SELECTED_DEVICES[@]} -eq 0 ]; then
+    SELECTED_DEVICES=("${ALL_DEVICES[@]}")
+fi
+
+# 过滤出要处理的设备
+DEVICES=()
+for selected in "${SELECTED_DEVICES[@]}"; do
+    found=false
+    for entry in "${ALL_DEVICES[@]}"; do
+        IFS='|' read -r label sim <<< "${entry}"
+        if [ "$label" = "$selected" ]; then
+            DEVICES+=("${entry}")
+            found=true
+            break
+        fi
+    done
+    if [ "$found" = false ]; then
+        echo "错误：未知设备 '${selected}'"
+        echo "可用设备:"
+        for entry in "${ALL_DEVICES[@]}"; do
+            IFS='|' read -r label _ <<< "${entry}"
+            echo "  - ${label}"
+        done
+        exit 1
+    fi
+done
 
 rename_screenshots() {
     local device_dir="$1"
@@ -152,11 +213,6 @@ main() {
     echo ""
     echo "=== 截图完成 ==="
     echo "输出目录: ${OUTPUT_DIR}"
-    echo ""
-    echo "App Store 要求的截图尺寸:"
-    echo "  iPhone 16 Pro Max (6.9\"): 1320 x 2868"
-    echo "  iPhone 14 Plus (6.5\"):    1284 x 2778"
-    echo "  iPad Pro 13-inch:          2064 x 2752"
 }
 
 main "$@"

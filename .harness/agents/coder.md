@@ -29,7 +29,7 @@
 
 ## 上下文管理
 
-只加载 spec + scope 内源文件 + 必要依赖。不加载产品文档、知识库、scope 外源文件。按需读取 03-conventions.md 或 07-key-patterns.md。
+只加载 spec + scope 内源文件 + 必要依赖。不加载产品文档、知识库、scope 外源文件。按需读取 03-conventions.md 或 05-key-patterns.md。
 
 ## 输出
 

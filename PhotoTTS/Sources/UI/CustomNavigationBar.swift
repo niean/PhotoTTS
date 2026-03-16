@@ -55,7 +55,7 @@ struct CustomNavigationBar<Leading: View, Trailing: View>: View {
                 trailing
             }
             Text(title)
-                .font(.system(size: scaled(17), weight: .semibold))
+                .font(Constants.Fonts.navTitle)
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)
         }

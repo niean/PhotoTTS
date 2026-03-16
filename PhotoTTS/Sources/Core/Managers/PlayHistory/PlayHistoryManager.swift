@@ -37,11 +37,12 @@ class PlayHistoryManager {
 
     /// 记录一次播放（写入对应会话的 history.json）
     func recordPlay(sessionId: String, name: String, playedAt: Date = Date()) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.contains("未命名"), !trimmed.contains("测试") else { return }
         let identity = SettingsManager.shared.identityName
         SessionRecordManager.shared.addPlayEvent(sessionId: sessionId, timestamp: playedAt, identity: identity)
-        logger.info("记录播放: \(trimmed) @ \(playedAt), 身份: \(identity)")
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy.MM.dd HH:mm:ss"
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? TimeZone.current
+        logger.info("记录播放：\(name) @ \(formatter.string(from: playedAt)), 身份：\(identity)")
     }
 
     /// 供展示用：按名称去重、计数，按最近一次播放时间倒序

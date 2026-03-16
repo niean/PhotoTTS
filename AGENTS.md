@@ -190,6 +190,27 @@ AI 通过 `.harness/plans/` 自主管理执行计划，跟踪任务进度和技�
 ## 实现思路
 {方案要点}
 
+## 详细设计（重大功能适用，小型需求省略本章节）
+
+触发条件：用户在 PRD-Specs 中显式要求（如"约束：plan中请先给出PRD设计"），或 Analyst 判定影响 3+ 模块/涉及新模块创建时建议产出。
+
+详细设计是一次性产物，服务于当前任务的 Phase 4 实现，不做持久保鲜。实现完成后，持久性架构知识通过 Phase 5 知识回填写入 knowledge/。
+
+### UI 设计
+{页面布局、交互流程、状态展示}
+
+### 数据模型
+{新增/修改的数据结构}
+
+### 模块设计
+{模块职责、接口定义、依赖关系}
+
+### 状态管理
+{状态流转、跨模块协调}
+
+### 约束与兼容性
+{迁移策略、向下兼容、性能约束}
+
 ## 验收标准
 - [ ] 标准 1
 - [ ] 标准 2
@@ -208,7 +229,9 @@ AI 通过 `.harness/plans/` 自主管理执行计划，跟踪任务进度和技�
 
 ### 计划生命周期
 
-1. Phase 1（任务调度）：检测 `active/` 是否有未完成计划；若有，提示用户是否继续上个计划；若无，在后续 Phase 3 创建新计划文件
+同一 Task 只允许有 1 个 plan 文件。
+
+1. Phase 1（任务调度）：检测 `active/` 是否有未完成计划；若有，提示用户上个计划是继续或是删除；若无但 `completed/` 中有当前 Task 的 plan，移回 `active/` 复用（状态改回 active）；均无则在后续 Phase 3 创建新计划文件
 2. Phase 3（意图确认）：spec 写入 `active/plan-{YYMMDD}-{desc}.md`（取代独立的临时 spec 文件）
 3. 任务执行中：更新检查清单状态，记录变更，记录发现的技术债
 4. Phase 6（任务总结）：将计划状态改为 completed，移动文件到 `completed/`
@@ -216,6 +239,7 @@ AI 通过 `.harness/plans/` 自主管理执行计划，跟踪任务进度和技�
 ### 技术债管理
 
 - 没有及时处理的技术债（新引入或新发现），记录到 `debt-tracker.md`
+- 发现技术债时必须立即写入 `debt-tracker.md`（获得 ID），然后在计划文件中引用该 ID；禁止仅记录在计划文件中
 - 格式：表格（ID/描述/优先级/来源计划/发现时间/状态）
 - 在合适时机修复（如任务间隙、治理代码时）
 
@@ -240,7 +264,7 @@ AGENTS.md              -- AI 知识库入口（本文件）
     completed/         -- 已完成计划归档（不入 git）
     debt-tracker.md    -- 技术债追踪
   guides/              -- 方法论与参考文档（人工维护）
-  knowledge/           -- AI 知识库（01-overview ~ 07-key-patterns）
+  knowledge/           -- AI 知识库（01~05 认知约束类, 21~22 工具索引类）
   prd/                 -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
 PhotoTTS/
   Sources/
@@ -268,10 +292,10 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 
 知识回填 Phase（迭代功能 Phase 5 / 迭代其它 Phase 5）的回填目标：
 - 架构变化 -> 02-architecture.md
-- 新术语 -> 04-glossary.md
-- 数据结构/存储变化 -> 05-data-boundaries.md
-- 新源文件 -> 06-file-map.md
-- 新跨文件模式 -> 07-key-patterns.md
+- 新术语 -> 21-glossary.md
+- 数据结构/存储变化 -> 04-data-boundaries.md
+- 新源文件 -> 22-file-map.md
+- 新跨文件模式 -> 05-key-patterns.md
 - 产品方向调整 -> 提示用户，人工更新 prd/01-prd-sense.md 或触发 Skill: 回填产品文档
 
 ## 代码生成
@@ -283,6 +307,7 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 - 常量：优先写入 `PhotoTTS/Sources/Constants.swift`
 - 图片：入队降采样 2048px（`downsampleImageToMaxPixel`）；播放按需加载 1024pt（`loadImage`）；不得存原图
 - OCR：`"空字符串"` 是系统保留字，拼接后剔除；失败返回 `""`，保持索引对应
+- 禁止 Mock 造假：生产代码禁止硬编码假数据冒充真实实现；系统 API 不可用时必须标注原因并返回 nil/N/A，禁止静默返回零值
 
 ## 架构边界
 
@@ -319,10 +344,10 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 | .harness/knowledge/01-overview.md | 任务开始时，了解项目边界 |
 | .harness/knowledge/02-architecture.md | 涉及模块新增、跨层调用时 |
 | .harness/knowledge/03-conventions.md | 涉及编码/UI/质量/安全约定细节时 |
-| .harness/knowledge/04-glossary.md | 对术语不清楚时 |
-| .harness/knowledge/05-data-boundaries.md | 涉及数据结构、存储格式时 |
-| .harness/knowledge/06-file-map.md | 确定功能对应源文件时 |
-| .harness/knowledge/07-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
+| .harness/knowledge/04-data-boundaries.md | 涉及数据结构、存储格式时 |
+| .harness/knowledge/05-key-patterns.md | 实现跨 Tab、PlayView、图片加载、OCR 并发等模式时 |
+| .harness/knowledge/21-glossary.md | 对术语不清楚时 |
+| .harness/knowledge/22-file-map.md | 确定功能对应源文件时 |
 | .harness/prd/02-prd-baseline.md | 确认功能需求与产品约束时 |
 | .harness/prd/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
 | .harness/guides/00-harness-desc.md | 了解 Harness 体系描述时 |

@@ -69,15 +69,15 @@ struct MakeHistoryView: View {
             
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.name)
-                    .font(.system(size: scaled(16), weight: .medium))
+                    .font(Constants.Fonts.navAction)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     Image(systemName: "bookmark.fill")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Constants.Fonts.historyDate)
                         .foregroundStyle(.secondary)
                     Text("\(dateFormatter.string(from: entry.savedAt)) \(timeFormatter.string(from: entry.savedAt))")
-                        .font(.system(size: 13))
+                        .font(Constants.Fonts.historyDetail)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -96,13 +96,13 @@ struct MakeHistoryView: View {
     private var emptyState: some View {
         VStack(spacing: 20) {
             Image(systemName: "bookmark.circle")
-                .font(.system(size: scaled(44), weight: .light))
+                .font(Constants.Fonts.historyEmptyIcon)
                 .foregroundStyle(.tertiary)
             Text("暂无制作历史")
-                .font(.system(size: 18, weight: .medium))
+                .font(Constants.Fonts.historyEmptyTitle)
                 .foregroundStyle(.secondary)
             Text("保存绘本后会在这里记录")
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -126,7 +126,7 @@ struct MakeHistoryViewWithBar: View {
             TopAndLeftSideNavigationBar(title: "制作历史", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: scaled(16), weight: .medium))
+                        .font(Constants.Fonts.navAction)
                         .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }

@@ -39,13 +39,23 @@ struct SessionRecordListView: View {
     @State private var searchText: String = ""  // 搜索关键词
     @State private var searchDebounceTask: DispatchWorkItem?  // 搜索防抖任务
     
+    // 滚动位置追踪（首页嵌入模式用）
+    @State private var scrollAnchorSetup = false
+    @State private var scrollAnchorY: CGFloat = 0
+    
+    // 多选导出状态
+    @State private var isSelectionMode: Bool = false
+    @State private var selectedIDs: Set<String> = []
+    @State private var allRecordIDs: [String] = []  // 所有记录的 ID 列表（用于全选）
+    
     let onLoadSession: (SessionRecord) -> Void
     var onLoadToMake: ((String) -> Void)? = nil
     /// 展示模式
     var mode: SessionRecordListMode = .standard
+    var onListScrolled: ((Bool) -> Void)? = nil
     
     private var showTopNav: Bool { mode != .embedded }
-    private var allowPlayback: Bool { mode != .manage }
+    private var allowPlayback: Bool { mode == .embedded }
     private var allowEditDelete: Bool { mode != .embedded }
     
     @Environment(\.dismiss) var dismiss
@@ -77,18 +87,18 @@ struct SessionRecordListView: View {
     private var searchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: scaled(14)))
+                .font(Constants.Fonts.searchIcon)
                 .foregroundColor(.gray)
             
             TextField(Constants.UI.searchPlaceholder, text: $searchText)
-                .font(.system(size: scaled(15)))
+                .font(Constants.Fonts.searchInput)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
             
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: scaled(14)))
+                        .font(Constants.Fonts.searchIcon)
                         .foregroundColor(.gray)
                 }
                 .buttonStyle(.plain)
@@ -110,14 +120,14 @@ struct SessionRecordListView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: scaled(14), weight: .medium))
+                    .font(Constants.Fonts.listAction)
                     .foregroundColor(currentPage > 1 ? .blue : .gray.opacity(0.4))
             }
             .disabled(currentPage <= 1)
             .buttonStyle(.plain)
             
             Text("\(currentPage) / \(totalPages)")
-                .font(.system(size: scaled(12)))
+                .font(Constants.Fonts.recordMeta)
                 .foregroundColor(.secondary)
                 .monospacedDigit()
             
@@ -128,7 +138,7 @@ struct SessionRecordListView: View {
                 }
             }) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: scaled(14), weight: .medium))
+                    .font(Constants.Fonts.listAction)
                     .foregroundColor(currentPage < totalPages ? .blue : .gray.opacity(0.4))
             }
             .disabled(currentPage >= totalPages)
@@ -152,15 +162,15 @@ struct SessionRecordListView: View {
                         Spacer()
                         VStack(spacing: scaled(20)) {
                             Image(systemName: "book.closed")
-                                .font(.system(size: scaled(60)))
+                                .font(Constants.Fonts.emptyStateIcon)
                                 .foregroundColor(.gray)
                             
                             Text("暂无会话记录")
-                                .font(.system(size: scaled(17), weight: .semibold))
+                                .font(Constants.Fonts.navTitle)
                                 .foregroundColor(.secondary)
                             
                             Text("导入记录，或播放完成后保存记录")
-                                .font(.system(size: scaled(12)))
+                                .font(Constants.Fonts.recordMeta)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
@@ -184,10 +194,10 @@ struct SessionRecordListView: View {
                                 // 搜索无结果
                                 VStack(spacing: scaled(12)) {
                                     Image(systemName: "magnifyingglass")
-                                        .font(.system(size: scaled(36)))
+                                        .font(Constants.Fonts.searchEmptyIcon)
                                         .foregroundColor(.gray)
                                     Text(Constants.UI.searchNoResult)
-                                        .font(.system(size: scaled(15), weight: .semibold))
+                                        .font(Constants.Fonts.searchNoResult)
                                         .foregroundColor(.secondary)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -197,31 +207,29 @@ struct SessionRecordListView: View {
                                 .listRowSeparator(.hidden)
                             } else {
                                 ForEach(pagedMetadataList) { metadata in
-                                    let makeProgress: Float? = {
-                                        guard metadata.isMaking,
-                                              let task = bgMakeManager.currentTask,
-                                              task.id == metadata.id,
-                                              !task.isCompleted else { return nil }
-                                        return task.progress
-                                    }()
-                                    SessionRecordRow(
-                                        metadata: metadata,
-                                        makeProgress: makeProgress,
-                                        onLoad: (allowPlayback && !metadata.isMaking) ? { loadSession(metadata.id) } : nil,
-                                        onLoadToMake: (!metadata.isDefault && mode == .manage && onLoadToMake != nil) ? { onLoadToMake?(metadata.id) } : nil,
-                                        onView: (!metadata.isDefault && !metadata.isMaking) ? {
-                                            viewSessionDetail(metadata.id)
-                                        } : nil,
-                                        onEdit: (!metadata.isDefault && allowEditDelete && !metadata.isMaking) ? { editSessionDetail(metadata.id) } : nil,
-                                        onExport: (!metadata.isDefault && allowEditDelete && !metadata.isMaking) ? { exportOneSession(id: metadata.id) } : nil,
-                                        onDelete: (!metadata.isDefault && allowEditDelete) ? {
-                                            sessionToDelete = metadata
-                                            showDeleteConfirmation = true
-                                        } : nil
-                                    )
+                                    self.makeSessionRecordRow(for: metadata)
+                                        .overlay {
+                                            if metadata.id == pagedMetadataList.first?.id {
+                                                GeometryReader { geo in
+                                                    Color.clear
+                                                        .onAppear {
+                                                            if !scrollAnchorSetup {
+                                                                scrollAnchorY = geo.frame(in: .named("listOuter")).minY
+                                                            }
+                                                        }
+                                                        .onChange(of: geo.frame(in: .named("listOuter")).minY) { _, newY in
+                                                            guard scrollAnchorSetup else {
+                                                                scrollAnchorY = newY
+                                                                return
+                                                            }
+                                                            onListScrolled?(newY < scrollAnchorY - 5)
+                                                        }
+                                                }
+                                            }
+                                        }
                                 }
                                 
-                                // 分页控件
+                                // 分页控件（放在每页末尾）
                                 if showPagination {
                                     paginationControl
                                         .listRowInsets(EdgeInsets())
@@ -238,39 +246,81 @@ struct SessionRecordListView: View {
                     }
                 }
                 .frame(maxWidth: maxContentWidth)
-                .padding(.top, showTopNav ? (scaled(45)) : 8)
+                .padding(.top, showTopNav ? (scaled(45)) : 0)
+                .coordinateSpace(name: "listOuter")
             }
             
                 if showTopNav {
-                    TopAndLeftSideNavigationBar(title: "会话记录", onSwipeBack: { dismiss() }, leading: {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: scaled(16), weight: .medium))
-                                .frame(width: scaled(20), height: scaled(20))
-                                .foregroundStyle(.primary)
-                        }
-                    }, trailing: {
-                        Menu {
-                            Button(action: { showImportPicker = true }) {
-                                Label("导入", systemImage: "square.and.arrow.down")
+                    if isSelectionMode {
+                        // 多选模式下的操作栏
+                        TopAndLeftSideNavigationBar(
+                            title: "选择记录 (\(selectedIDs.count))",
+                            onSwipeBack: { },
+                            leading: {
+                                // 左侧按钮：全选
+                                Button(action: {
+                                    selectedIDs = Set(allRecordIDs.filter { $0 != Constants.DefaultSession.id })
+                                }) {
+                                    Text("全选")
+                                        .font(Constants.Fonts.listAction)
+                                }
+                            },
+                            trailing: {
+                                HStack(spacing: scaled(12)) {
+                                    // 导出按钮（有选中时可用）
+                                    Button(action: {
+                                        if !selectedIDs.isEmpty {
+                                            exportSelectedSessions()
+                                        }
+                                    }) {
+                                        Text("导出")
+                                            .font(Constants.Fonts.listAction)
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+                                    
+                                    // 取消按钮
+                                    Button(action: {
+                                        isSelectionMode = false
+                                        selectedIDs.removeAll()
+                                    }) {
+                                        Text("取消")
+                                            .font(Constants.Fonts.listAction)
+                                    }
+                                }
                             }
-                            Divider()
-                            Button(action: { exportToShareSheet() }) {
-                                Label("导出", systemImage: "square.and.arrow.up")
+                        )
+                    } else {
+                        // 正常模式下的导航栏
+                        TopAndLeftSideNavigationBar(title: "会话记录", onSwipeBack: { dismiss() }, leading: {
+                            Button(action: { dismiss() }) {
+                                Image(systemName: "chevron.left")
+                                    .font(Constants.Fonts.navAction)
+                                    .frame(width: scaled(20), height: scaled(20))
+                                    .foregroundStyle(.primary)
                             }
-                            .disabled(totalCount == 0)
-                            Divider()
-                            Button(role: .destructive, action: { showClearConfirmation = true }) {
-                                Label("清空", systemImage: "trash")
+                        }, trailing: {
+                            Menu {
+                                Button(action: { showImportPicker = true }) {
+                                    Label("导入", systemImage: "square.and.arrow.down")
+                                }
+                                Divider()
+                                Button(action: { startExportSelectionMode() }) {
+                                    Label("导出", systemImage: "square.and.arrow.up")
+                                }
+                                .disabled(totalCount == 0)
+                                Divider()
+                                Button(role: .destructive, action: { showClearConfirmation = true }) {
+                                    Label("清空", systemImage: "trash")
+                                }
+                                .disabled(totalCount == 0)
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(Constants.Fonts.listAddIcon)
+                                    .foregroundColor(.blue)
+                                    .background(Color.clear)
                             }
-                            .disabled(totalCount == 0)
-                        } label: {
-                            Image(systemName: "plus.circle")
-                                .font(.system(size: scaled(22)))
-                                .foregroundColor(.blue)
-                                .background(Color.clear)
-                        }
-                    })
+                        })
+                    }
                 }
         }
         .navigationBarHidden(true) // 隐藏系统导航栏
@@ -349,7 +399,7 @@ struct SessionRecordListView: View {
                     Color.black.opacity(0.3).ignoresSafeArea()
                     VStack(spacing: 12) {
                         ProgressView().tint(.white)
-                        Text("正在导入...").font(.headline).foregroundColor(.white)
+                        Text("正在导入...").font(Constants.Fonts.headline).foregroundColor(.white)
                     }
                 }
             }
@@ -374,6 +424,46 @@ struct SessionRecordListView: View {
         }
     }
     
+    // 创建会话记录行视图（拆分类型检查）
+    private func makeSessionRecordRow(for metadata: SessionRecordMetadata) -> some View {
+        let makeProgress: Float? = {
+            guard metadata.isMaking,
+                  let task = bgMakeManager.currentTask,
+                  task.id == metadata.id,
+                  !task.isCompleted else { return nil }
+            return task.progress
+        }()
+        
+        let isDefault = metadata.isDefault
+        let isMaking = metadata.isMaking
+        
+        return SessionRecordRow(
+            metadata: metadata,
+            makeProgress: makeProgress,
+            mode: mode,
+            onLoad: (allowPlayback && !isMaking && !isSelectionMode) ? { loadSession(metadata.id) } : nil,
+            onLoadToMake: (!isDefault && mode == .manage && onLoadToMake != nil && !isSelectionMode) ? { onLoadToMake?(metadata.id) } : nil,
+            onView: (!isDefault && !isMaking && !isSelectionMode) ? {
+                viewSessionDetail(metadata.id)
+            } : nil,
+            onEdit: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? { editSessionDetail(metadata.id) } : nil,
+            onExport: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? { exportOneSession(id: metadata.id) } : nil,
+            onDelete: (!isDefault && allowEditDelete && !isSelectionMode) ? {
+                sessionToDelete = metadata
+                showDeleteConfirmation = true
+            } : nil,
+            isSelectionMode: isSelectionMode,
+            isSelected: selectedIDs.contains(metadata.id),
+            onToggleSelection: {
+                if selectedIDs.contains(metadata.id) {
+                    selectedIDs.remove(metadata.id)
+                } else {
+                    selectedIDs.insert(metadata.id)
+                }
+            }
+        )
+    }
+    
     // 自动滚动到第一条记录，隐藏搜索栏
     private func scrollToHideSearchBar(proxy: ScrollViewProxy) {
         // 搜索框有输入文本时，不隐藏
@@ -381,6 +471,10 @@ struct SessionRecordListView: View {
         guard let firstId = pagedMetadataList.first?.id else { return }
         DispatchQueue.main.async {
             proxy.scrollTo(firstId, anchor: .top)
+            // 自动滚动完成后锁定基准位置
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.scrollAnchorSetup = true
+            }
         }
     }
     
@@ -520,45 +614,6 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 导出所有会话记录到临时目录，然后通过分享面板分享
-    private func exportToShareSheet() {
-        guard totalCount > 0 else {
-            message = "没有可导出的会话记录"
-            showMessage = true
-            return
-        }
-        
-        isExporting = true
-        
-        DispatchQueue.global(qos: .userInitiated).async {
-            // 创建临时目录作为导出目标
-            let tempBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent("PhotoTTS_SessionExport_\(UUID().uuidString.prefix(8))", isDirectory: true)
-            
-            // 执行导出操作
-            let result = SessionRecordManager.shared.exportAllSessions(to: tempBase)
-            
-            DispatchQueue.main.async {
-                self.isExporting = false
-                
-                if result.success {
-                    // 查找导出目录（exportAllSessions 会在 tempBase 下创建 PhotoTTS_yyyyMMdd 子目录）
-                    if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
-                       let exportDir = contents.first {
-                        self.exportItem = SessionExportableURL(url: exportDir)
-                    } else {
-                        self.exportItem = SessionExportableURL(url: tempBase)
-                    }
-                } else {
-                    self.message = "导出失败: \(result.errorMessage ?? "未知错误")"
-                    self.showMessage = true
-                    // 清理临时目录
-                    try? FileManager.default.removeItem(at: tempBase)
-                }
-            }
-        }
-    }
-    
     // 格式化存储大小
     private func formatStorageSize(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()
@@ -620,6 +675,71 @@ struct SessionRecordListView: View {
             }
         }
     }
+    
+    // 进入导出多选模式
+    private func startExportSelectionMode() {
+        isSelectionMode = true
+        selectedIDs.removeAll()
+        loadAllRecordIDs()
+    }
+    
+    // 加载所有记录 ID（用于全选功能）
+    private func loadAllRecordIDs() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "多选导出")
+            DispatchQueue.main.async {
+                self.allRecordIDs = allMetadata.map { $0.id }
+            }
+        }
+    }
+    
+    // 导出选中的会话记录
+    private func exportSelectedSessions() {
+        guard !selectedIDs.isEmpty else {
+            message = "请选择要导出的记录"
+            showMessage = true
+            return
+        }
+        
+        isExporting = true
+        
+        let selectedIDsCopy = selectedIDs
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            // 创建临时目录作为导出目标
+            let tempBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent("PhotoTTS_SessionExport_\(UUID().uuidString.prefix(8))", isDirectory: true)
+            
+            // 在后台线程获取权威总数，避免依赖可能未加载完成的 allRecordIDs
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "导出全选判断")
+            let nonDefaultCount = allMetadata.filter { $0.id != Constants.DefaultSession.id }.count
+            let isAllSelected = selectedIDsCopy.count >= nonDefaultCount && nonDefaultCount > 0
+            
+            // 执行导出操作
+            let result = SessionRecordManager.shared.exportSelectedSessions(Array(selectedIDsCopy), to: tempBase, isAllSelected: isAllSelected)
+            
+            DispatchQueue.main.async {
+                self.isExporting = false
+                self.isSelectionMode = false
+                self.selectedIDs.removeAll()
+                
+                if result.success {
+                    // 查找导出目录
+                    if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
+                       let exportDir = contents.first {
+                        self.exportItem = SessionExportableURL(url: exportDir)
+                    } else {
+                        self.exportItem = SessionExportableURL(url: tempBase)
+                    }
+                } else {
+                    self.message = "导出失败：\(result.errorMessage ?? "未知错误")"
+                    self.showMessage = true
+                    // 清理临时目录
+                    try? FileManager.default.removeItem(at: tempBase)
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 会话记录行视图
@@ -627,6 +747,7 @@ struct SessionRecordRow: View {
     let metadata: SessionRecordMetadata
     /// 后台制作实时进度（0.0~1.0），nil 表示无活跃任务或非制作中状态
     var makeProgress: Float? = nil
+    let mode: SessionRecordListMode
     let onLoad: (() -> Void)?
     let onLoadToMake: (() -> Void)?
     let onView: (() -> Void)?
@@ -634,8 +755,28 @@ struct SessionRecordRow: View {
     let onExport: (() -> Void)?
     let onDelete: (() -> Void)?
     
+    // 多选模式参数
+    var isSelectionMode: Bool = false
+    var isSelected: Bool = false
+    var onToggleSelection: (() -> Void)? = nil
+    
     @State private var avatarImage: UIImage? = nil
     @State private var loadingId: String? = nil
+
+    // 计算属性：是否展示播放按钮
+    private var showPlayButton: Bool {
+        mode == .embedded && onLoad != nil
+    }
+
+    // 计算属性：是否展示编辑按钮
+    private var showEditButton: Bool {
+        mode != .embedded && onEdit != nil
+    }
+    
+    // 计算属性：是否展示更多 Menu
+    private var showMoreMenu: Bool {
+        mode != .embedded && !isSelectionMode
+    }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -643,6 +784,13 @@ struct SessionRecordRow: View {
 
     var body: some View {
         HStack(spacing: scaled(12)) {
+            // 多选模式下显示复选框
+            if isSelectionMode {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(Constants.Fonts.listAddIcon)
+                    .foregroundColor(metadata.isDefault ? .gray.opacity(0.3) : (isSelected ? .blue : .gray))
+            }
+            
             // 图标
             Group {
                 if let avatar = avatarImage {
@@ -651,7 +799,7 @@ struct SessionRecordRow: View {
                         .aspectRatio(contentMode: .fill)
                 } else {
                     Image(systemName: "doc.text.fill")
-                        .font(.system(size: scaled(16)))
+                        .font(Constants.Fonts.recordIcon)
                         .foregroundColor(.blue)
                 }
             }
@@ -669,7 +817,7 @@ struct SessionRecordRow: View {
             // 信息
             VStack(alignment: .leading, spacing: scaled(2)) {
                 Text(metadata.name)
-                    .font(.system(size: scaled(17), weight: .semibold))
+                    .font(Constants.Fonts.body)
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 
@@ -677,28 +825,28 @@ struct SessionRecordRow: View {
                     if metadata.isMaking {
                         if let progress = makeProgress {
                             Text("制作中 \(Int(progress * 100))%")
-                                .font(.system(size: scaled(12)))
+                                .font(Constants.Fonts.recordMeta)
                                 .foregroundColor(.orange)
                                 .monospacedDigit()
                         } else {
                             Text("制作中")
-                                .font(.system(size: scaled(12)))
+                                .font(Constants.Fonts.recordMeta)
                                 .foregroundColor(.orange)
                         }
                     } else {
-                        Label("\(metadata.validImageCount)/\(metadata.totalImageCount)张", systemImage: "photo")
+                        Label("\(metadata.validImageCount)/\(metadata.totalImageCount) 张", systemImage: "photo")
                             .labelStyle(.titleOnly)
-                            .font(.system(size: scaled(12)))
+                            .font(Constants.Fonts.recordMeta)
                             .foregroundColor(.secondary)
                         
                         Label("\(formatDuration(metadata.audioDuration))", systemImage: "waveform")
                             .labelStyle(.titleOnly)
-                            .font(.system(size: scaled(12)))
+                            .font(Constants.Fonts.recordMeta)
                             .foregroundColor(.secondary)
                             
                         Label(formatStorageSize(metadata.storageSize), systemImage: "internaldrive")
                             .labelStyle(.titleOnly)
-                            .font(.system(size: scaled(12)))
+                            .font(Constants.Fonts.recordMeta)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -706,57 +854,70 @@ struct SessionRecordRow: View {
             
             Spacer()
             
-            // 操作按钮
-            HStack(spacing: scaled(12)) {
-                // 加载按钮
-                if let onLoad = onLoad {
-                    Button(action: onLoad) {
-                        Image(systemName: "play.circle")
-                            .font(.system(size: scaled(20)))
-                            .foregroundColor(.green)
+            // 操作按钮（多选模式下隐藏）
+            if !isSelectionMode {
+                HStack(spacing: scaled(12)) {
+                    // 加载按钮（播放）
+                    if showPlayButton {
+                        Button(action: onLoad!) {
+                            Image(systemName: "play.circle")
+                                .font(Constants.Fonts.recordActionIcon)
+                                .foregroundColor(.green)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                }
-                
-                // 更多按钮（embedded 模式不展示）
-                if onEdit != nil || onExport != nil || onDelete != nil {
-                    Menu {
-                        if let onView = onView {
-                            Button(action: onView) {
-                                Label("查看", systemImage: "eye.circle")
-                            }
+                    
+                    // 编辑按钮
+                    if showEditButton {
+                        Button(action: onEdit!) {
+                            Image(systemName: "pencil.circle")
+                                .font(Constants.Fonts.recordActionIcon)
+                                .foregroundColor(.blue)
                         }
-                        if let onEdit = onEdit {
-                            Button(action: onEdit) {
-                                Label("编辑", systemImage: "pencil")
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // 更多按钮（查看/导出/制作/删除）
+                    if showMoreMenu {
+                        Menu {
+                            if let onView = onView {
+                                Button(action: onView) {
+                                    Label("查看", systemImage: "eye.circle")
+                                }
                             }
-                        }
-                        if let onExport = onExport {
-                            Button(action: onExport) {
-                                Label("导出", systemImage: "square.and.arrow.up")
+                            if let onExport = onExport {
+                                Button(action: onExport) {
+                                    Label("导出", systemImage: "square.and.arrow.up")
+                                }
                             }
-                        }
-                        if let onLoadToMake = onLoadToMake {
-                            Button(action: onLoadToMake) {
-                                Label("制作", systemImage: "arrow.down.to.line.circle")
+                            if let onLoadToMake = onLoadToMake {
+                                Button(action: onLoadToMake) {
+                                    Label("制作", systemImage: "arrow.down.to.line.circle")
+                                }
                             }
-                        }
-                        if let onDelete = onDelete {
-                            Button(role: .destructive, action: onDelete) {
-                                Label("删除", systemImage: "trash")
+                            if let onDelete = onDelete {
+                                Button(role: .destructive, action: onDelete) {
+                                    Label("删除", systemImage: "trash")
+                                }
                             }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(Constants.Fonts.recordIcon)
+                                .foregroundColor(.gray)
+                                .frame(width: scaled(24), height: scaled(24))
                         }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: scaled(16)))
-                            .foregroundColor(.gray)
-                            .frame(width: scaled(24), height: scaled(24))
                     }
                 }
             }
         }
         .padding(.horizontal, scaled(0))
         .frame(minWidth: scaled(40), minHeight: scaled(40))
+        // 多选模式下，点击行任意位置切换选中状态
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard isSelectionMode, !metadata.isDefault else { return }
+            onToggleSelection?()
+        }
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {

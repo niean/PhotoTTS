@@ -562,7 +562,7 @@ private struct PlayerControlLayer: View {
                         Text(formatTime(totalAudioDuration))
                             .foregroundColor(.white.opacity(0.6))
                     }
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .font(Constants.Fonts.playTimerText)
                 }
 
                 // 进度条
@@ -585,7 +585,7 @@ private struct PlayerControlLayer: View {
                         onTogglePlayback()
                     }) {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: scaled(28), weight: .bold))
+                            .font(Constants.Fonts.playMainIcon)
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                     }
@@ -605,7 +605,7 @@ private struct PlayerControlLayer: View {
                     onInteraction()
                 }) {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: scaled(18), weight: .bold))
+                        .font(Constants.Fonts.playMoreIcon)
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                         .frame(width: scaled(36), height: scaled(36))
@@ -617,12 +617,12 @@ private struct PlayerControlLayer: View {
                         // 标题行
                         HStack {
                             Text("播放设置")
-                                .font(.system(size: scaled(14), weight: .medium))
+                                .font(Constants.Fonts.playSettingsTitle)
                                 .foregroundColor(.white)
                             Spacer()
                             Button(action: { isSettingsPanelVisible = false; onInteraction() }) {
                                 Image(systemName: "xmark")
-                                    .font(.system(size: scaled(11), weight: .bold))
+                                    .font(Constants.Fonts.playCloseIcon)
                                     .foregroundColor(.white.opacity(0.6))
                                     .frame(width: scaled(24), height: scaled(24))
                                     .background(Circle().fill(Color.white.opacity(0.15)))
@@ -677,7 +677,7 @@ private struct PlayerControlLayer: View {
                         // 播完本集 Toggle 行
                         HStack {
                             Text("播完本集")
-                                .font(.system(size: scaled(13)))
+                                .font(Constants.Fonts.playNextLabel)
                                 .foregroundColor(.white)
                             Spacer()
                             Button(action: { onToggleAutoStop(); onInteraction() }) {
@@ -719,15 +719,15 @@ private struct PlayerControlLayer: View {
     }
 
     private var settingsIconSize: CGFloat { scaled(42) }
-    private var settingsIconFontSize: CGFloat { scaled(20) }
-    private var settingsLabelFontSize: CGFloat { scaled(11) }
+    private var settingsIconFontSize: Font { Constants.Fonts.recordActionIcon }
+    private var settingsLabelFontSize: Font { Constants.Fonts.playSettingsLabel }
 
     @ViewBuilder
     private func settingsIconButton(icon: String, label: String, isActive: Bool, activeColor: Color = .white, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: scaled(6)) {
                 Image(systemName: icon)
-                    .font(.system(size: settingsIconFontSize))
+                    .font(settingsIconFontSize)
                     .foregroundColor(isActive ? activeColor : .white.opacity(0.4))
                     .frame(width: settingsIconSize, height: settingsIconSize)
                     .background(
@@ -735,7 +735,7 @@ private struct PlayerControlLayer: View {
                             .fill(Color.white.opacity(isActive ? 0.15 : 0.08))
                     )
                 Text(label)
-                    .font(.system(size: settingsLabelFontSize))
+                    .font(settingsLabelFontSize)
                     .foregroundColor(isActive ? .white : .white.opacity(0.5))
                     .multilineTextAlignment(.center)
             }

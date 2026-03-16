@@ -991,31 +991,31 @@ class SessionRecordManager {
         }
     }
 
-    /// 导出所有会话记录到指定目录
+    /// 导出选中的会话记录到指定目录
     /// 导出结构：
-    ///   PhotoTTS_YYYYMMDD/
+    ///   PhotoTTS_YYMMDD 或 PhotoTTS-P_YYMMDD/
     ///     - export_manifest.json (导出清单，包含版本、导出时间、会话列表等)
-    ///     - Sessions/ (所有会话记录目录)
+    ///     - Sessions/ (选中的会话记录目录)
     ///       - {session_id_1}/
     ///       - {session_id_2}/
     ///       - ...
-    /// - Parameter destinationURL: 目标目录URL（用户选择的目录）
+    /// - Parameters:
+    ///   - sessionIDs: 要导出的会话 ID 列表
+    ///   - destinationURL: 目标目录 URL（用户选择的目录）
+    ///   - isAllSelected: 是否选中了全部记录（用于决定导出目录命名）
     /// - Returns: 导出结果
-    func exportAllSessions(to destinationURL: URL) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
-        // 注意：调用此方法前，调用方应该已经获取了destinationURL的安全作用域资源访问权限
+    func exportSelectedSessions(_ sessionIDs: [String], to destinationURL: URL, isAllSelected: Bool = false) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         do {
-            // 生成导出目录名称：PhotoTTS_20260211 形式
+            // 生成导出目录名称：全选时用 PhotoTTS_YYMMDD，部分选择时用 PhotoTTS-P_YYMMDD
             let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyyMMdd"
+            dateFormatter.dateFormat = "yyMMdd"
             let dateStr = dateFormatter.string(from: Date())
-            let exportDirName = "PhotoTTS_\(dateStr)"
+            let exportDirName = isAllSelected ? "PhotoTTS_\(dateStr)" : "PhotoTTS-P_\(dateStr)"
             let exportDir = destinationURL.appendingPathComponent(exportDirName, isDirectory: true)
             
             // 创建导出目录
             try fileManager.createDirectory(at: exportDir, withIntermediateDirectories: true)
             
-            // 获取所有会话记录
-            let allMetadata = getAllSessionMetadata(caller: "导出")
             var exportedCount = 0
             var totalSize: Int64 = 0
             var exportedSessions: [ExportSessionInfo] = []
@@ -1026,9 +1026,24 @@ class SessionRecordManager {
                 try fileManager.createDirectory(at: sessionsExportDir, withIntermediateDirectories: true)
             }
             
-            // 复制每个会话记录目录（文件夹名使用经合法性校验的记录名称）
-            for metadata in allMetadata {
-                let sourceSessionDir = sessionsDirectory.appendingPathComponent(metadata.id, isDirectory: true)
+            // 复制每个选中的会话记录目录
+            for id in sessionIDs {
+                // 跳过默认会话
+                if isBundledDefaultSession(id) {
+                    continue
+                }
+                
+                let sourceSessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+                guard fileManager.fileExists(atPath: sourceSessionDir.path) else {
+                    continue
+                }
+                
+                // 读取元数据获取名称
+                let metadataURL = sourceSessionDir.appendingPathComponent("metadata.json")
+                guard let metadataData = try? Data(contentsOf: metadataURL),
+                      let metadata = try? JSONDecoder().decode(SessionRecordMetadata.self, from: metadataData) else {
+                    continue
+                }
                 
                 // 计算合法的文件夹名，处理名称冲突
                 let baseFolderName = sanitizeFolderName(metadata.name)
@@ -1041,24 +1056,22 @@ class SessionRecordManager {
                 let targetSessionDir = sessionsExportDir.appendingPathComponent(folderName, isDirectory: true)
                 
                 // 复制整个会话目录
-                if fileManager.fileExists(atPath: sourceSessionDir.path) {
-                    try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
-                    
-                    // 计算会话大小
-                    let sessionSize = calculateDirectorySize(targetSessionDir)
-                    totalSize += sessionSize
-                    exportedCount += 1
-                    
-                    exportedSessions.append(ExportSessionInfo(
-                        id: metadata.id,
-                        name: metadata.name,
-                        createdAt: metadata.createdAt,
-                        size: sessionSize,
-                        folderName: folderName
-                    ))
-                    
-                    logger.info("导出会话记录: \(metadata.name), 文件夹: \(folderName) (\(self.formatStorageSize(sessionSize)))")
-                }
+                try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
+                
+                // 计算会话大小
+                let sessionSize = calculateDirectorySize(targetSessionDir)
+                totalSize += sessionSize
+                exportedCount += 1
+                
+                exportedSessions.append(ExportSessionInfo(
+                    id: metadata.id,
+                    name: metadata.name,
+                    createdAt: metadata.createdAt,
+                    size: sessionSize,
+                    folderName: folderName
+                ))
+                
+                logger.info("导出会话记录：\(metadata.name), 文件夹：\(folderName) (\(self.formatStorageSize(sessionSize)))")
             }
             
             // 创建导出清单文件
@@ -1076,12 +1089,11 @@ class SessionRecordManager {
             try manifestData.write(to: manifestURL)
             
             // 创建导出说明文件
-            // 生成会话名称列表（按展示顺序排序）
             var sessionNameList = ""
-            if !allMetadata.isEmpty {
+            if !exportedSessions.isEmpty {
                 sessionNameList = "\n\n会话列表（按展示顺序）：\n"
-                for (index, metadata) in allMetadata.enumerated() {
-                    sessionNameList += "\(index + 1). \(metadata.name)\n"
+                for (index, session) in exportedSessions.enumerated() {
+                    sessionNameList += "\(index + 1). \(session.name)\n"
                 }
             }
             
@@ -1089,9 +1101,9 @@ class SessionRecordManager {
             PhotoTTS 会话记录导出包
             ======================
             
-            导出时间: \(manifest.formattedExportDate)
-            会话数量: \(exportedCount) 个
-            总大小: \(self.formatStorageSize(totalSize))\(sessionNameList)
+            导出时间：\(manifest.formattedExportDate)
+            会话数量：\(exportedCount) 个
+            总大小：\(self.formatStorageSize(totalSize))\(sessionNameList)
             
             目录结构：
             - export_manifest.json: 导出清单（包含所有会话的元数据）
@@ -1099,10 +1111,10 @@ class SessionRecordManager {
               - {session_id}/: 每个会话记录的完整数据
             
             导入说明：
-            将来可以通过PhotoTTS应用的导入功能，选择此目录进行导入。
+            将来可以通过 PhotoTTS 应用的导入功能，选择此目录进行导入。
             导入时会自动解析 export_manifest.json 并恢复所有会话记录。
             
-            版本: \(manifest.version)
+            版本：\(manifest.version)
             """
             let readmeURL = exportDir.appendingPathComponent("README.txt")
             try readmeContent.write(to: readmeURL, atomically: true, encoding: .utf8)
@@ -1113,15 +1125,24 @@ class SessionRecordManager {
             resourceValues.isExcludedFromBackup = false
             try? mutableExportDir.setResourceValues(resourceValues)
             
-            logger.info("导出完成: \(exportedCount) 个会话记录，总大小: \(self.formatStorageSize(totalSize))")
-            logger.info("导出位置: \(exportDir.path)")
+            logger.info("导出完成：\(exportedCount) 个会话记录，总大小：\(self.formatStorageSize(totalSize))")
+            logger.info("导出位置：\(exportDir.path)")
             
             return (true, exportedCount, totalSize, nil)
             
         } catch {
-            logger.error("导出会话记录失败: \(error.localizedDescription)")
+            logger.error("导出会话记录失败：\(error.localizedDescription)")
             return (false, 0, 0, error.localizedDescription)
         }
+    }
+    
+    /// 导出所有会话记录到指定目录（全量导出，委托给 exportSelectedSessions）
+    /// - Parameter destinationURL: 目标目录 URL（用户选择的目录）
+    /// - Returns: 导出结果
+    func exportAllSessions(to destinationURL: URL) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
+        let allMetadata = getAllSessionMetadata(caller: "全量导出")
+        let allIDs = allMetadata.map { $0.id }
+        return exportSelectedSessions(allIDs, to: destinationURL, isAllSelected: true)
     }
     
     // MARK: - 导入会话记录

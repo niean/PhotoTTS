@@ -2,7 +2,7 @@
 
 ## 会话记录
 
-SessionRecord（Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 04-glossary.md。record.json 不存实际音频和图片二进制。
+SessionRecord（Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 21-glossary.md。record.json 不存实际音频和图片二进制。
 
 MakeStatus（同文件）：enum { making, completed }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking 计算属性供 UI 判断。
 

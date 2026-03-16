@@ -20,13 +20,15 @@
 ## Phase 2: 意图理解
 - Agent: Orchestrator
 - 按需读取知识库和产品文档，分析需求，输出 spec（JSON，格式参考 `.harness/agents/analyst.md`）
+- 详细设计判定：当用户显式要求或判定任务复杂度较高时，在 spec 的 implementation_notes 中标注 `需要详细设计`
 
-检查点：`[Phase 2 意图理解] goal: ..., scope: N 文件, M 行为, K 验收标准`
+检查点：`[Phase 2 意图理解] goal: ..., scope: N 文件, M 行为, K 验收标准, 详细设计: 是/否`
 
 ## Phase 3: 意图确认 `[GATE]`
 - Agent: Orchestrator
 - spec 写入计划文件 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板）
-- 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 验收标准），等待确认
+- 需要详细设计时：在计划文件中填写"详细设计"章节，一并纳入确认范围
+- 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 详细设计（如有）+ 验收标准），等待确认
 - 用户修正时：更新 spec，输出完整摘要再次确认
 - 用户修正 ≠ 用户确认：收到修正后必须重新输出完整摘要并重走 GATE 确认流程，禁止将修正视为确认直接进入下一 Phase
 - `[GATE]` 每次输出完整摘要后（含修正后重新输出），必须使用 `ask_followup_question` 向用户请求确认，立即结束当前回复；禁止在同一条回复中继续 Phase 4

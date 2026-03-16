@@ -39,7 +39,7 @@ struct JSONHighlightView: View {
     var body: some View {
         if isEditing {
             TextEditor(text: $text)
-                .font(.system(size: 16, weight: .light, design: .monospaced))
+                .font(Constants.Fonts.configEditorText)
                 .padding(12)
                 .background(Color(.systemGray5))
                 .cornerRadius(8)
@@ -63,7 +63,7 @@ struct JSONHighlightView: View {
                         HStack(alignment: .top, spacing: 0) {
                             ForEach(line.tokens, id: \.id) { token in
                                 Text(token.text)
-                                    .font(.system(size: 16, weight: .light, design: .monospaced))
+                                    .font(Constants.Fonts.configEditorText)
                                     .foregroundColor(colorForToken(token.type))
                             }
                             Spacer()
@@ -237,7 +237,7 @@ struct SettingsView: View {
                     leading: {
                         Button(action: { dismiss() }) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: scaled(16), weight: .medium))
+                                .font(Constants.Fonts.navAction)
                                 .frame(width: scaled(20), height: scaled(20))
                                 .foregroundStyle(.primary)
                         }
@@ -246,12 +246,12 @@ struct SettingsView: View {
                         HStack(spacing: scaled(16)) {
                             Button(action: { resetConfig() }) {
                                 Text("还原")
-                                    .font(.system(size: scaled(16), weight: .medium))
+                                    .font(Constants.Fonts.navAction)
                                     .foregroundStyle(.primary)
                             }
                             Button(action: { saveConfig() }) {
                                 Text("保存")
-                                    .font(.system(size: scaled(16), weight: .medium))
+                                    .font(Constants.Fonts.navAction)
                                     .foregroundStyle(.primary)
                             }
                         }

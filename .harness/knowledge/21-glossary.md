@@ -20,3 +20,4 @@
 - AppLoadingView/AppIntroView：位于 AppPagesView.swift；前者模拟加载后置 fullScreenKind=nil，后者用于"关于"页面
 - ExportManifest/ExportSessionInfo：导出包清单（version/exportDate/appName/totalSessions/totalSize/sessions），导入时解析 export_manifest.json
 - config_local.json：本地 API 配置（OCR 多 Provider：豆包/OpenAI，TTS 多 Provider：火山引擎/阿里千问），SettingsManager 读取，设置页可编辑
+- 会话命名约定：会话名称以日期前缀 `YY.MM.DD ` 开头（如 `26.03.16 `），前缀自动生成且只读，用户只能编辑前缀后的自定义名称部分

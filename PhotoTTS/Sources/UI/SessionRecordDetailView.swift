@@ -20,6 +20,8 @@ struct SessionRecordUnifiedView: View {
     let mode: Mode
     @Environment(\.dismiss) var dismiss
     @State private var sessionName: String = ""
+    @State private var sessionNamePrefix: String = ""  // 日期前缀（只读）
+    @State private var sessionNameSuffix: String = ""  // 用户可编辑部分
     @State private var selectedAvatarIndex: Int = 0
     @FocusState private var isTextFieldFocused: Bool
     
@@ -77,7 +79,7 @@ struct SessionRecordUnifiedView: View {
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: scaled(16), weight: .medium))
+                        .font(Constants.Fonts.navAction)
                         .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }
@@ -109,20 +111,33 @@ struct SessionRecordUnifiedView: View {
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("名称")
-                .font(.headline)
+                .font(Constants.Fonts.headline)
                 .foregroundColor(.primary)
             if isEditable {
-                TextField("请输入会话名称", text: $sessionName)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isTextFieldFocused)
+                // 拆分式名称输入：只读日期前缀 + 可编辑后缀
+                HStack(spacing: 0) {
+                    // 只读的日期前缀
+                    Text(sessionNamePrefix)
+                        .font(Constants.Fonts.body)
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                    // 可编辑的后缀部分
+                    TextField("请输入会话名称", text: $sessionNameSuffix)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($isTextFieldFocused)
+                        .onChange(of: sessionNameSuffix) { _, newValue in
+                            // 同步更新 sessionName（前缀 + 后缀）
+                            sessionName = sessionNamePrefix + newValue
+                        }
+                }
             } else {
                 Text(sessionName.isEmpty ? "—" : sessionName)
-                    .font(.body)
+                    .font(Constants.Fonts.body)
                     .foregroundColor(.primary)
             }
             if let id = recordId {
                 Text("UID: \(id)")
-                    .font(.caption.monospaced())
+                    .font(Constants.Fonts.captionMonospaced)
                     .foregroundColor(.secondary)
             }
         }
@@ -139,7 +154,7 @@ struct SessionRecordUnifiedView: View {
         if count > 0 {
             VStack(alignment: .leading, spacing: 12) {
                 Text("头像")
-                    .font(.headline)
+                    .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 if isEditable {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -219,10 +234,10 @@ struct SessionRecordUnifiedView: View {
     private func saveSummarySection(_ ctx: SaveSessionContext) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("即将保存")
-                .font(.headline)
+                .font(Constants.Fonts.headline)
                 .foregroundColor(.primary)
             Text("共 \(ctx.imageCount) 张图片，\(ctx.textLength) 字，保存为会话记录。")
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundColor(.secondary)
         }
         .padding()
@@ -237,7 +252,7 @@ struct SessionRecordUnifiedView: View {
             // 基本信息
             VStack(alignment: .leading, spacing: 12) {
                 Text("基本信息")
-                    .font(.headline)
+                    .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 InfoRow(label: "创建时间", value: record.formattedCreatedAt)
                 InfoRow(label: "更新时间", value: record.formattedUpdatedAt)
@@ -251,10 +266,10 @@ struct SessionRecordUnifiedView: View {
             if record.totalImageCount > 0 {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("图片预览")
-                        .font(.headline)
+                        .font(Constants.Fonts.headline)
                         .foregroundColor(.primary)
                     Text("共 \(record.totalImageCount) 张")
-                        .font(.caption)
+                        .font(Constants.Fonts.caption)
                         .foregroundColor(.secondary)
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) {
@@ -276,7 +291,7 @@ struct SessionRecordUnifiedView: View {
             // 音频信息
             VStack(alignment: .leading, spacing: 12) {
                 Text("音频信息")
-                    .font(.headline)
+                    .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 InfoRow(label: "格式", value: record.audioFormat.uppercased())
                 InfoRow(label: "时长", value: formatDuration(record.audioDuration))
@@ -289,7 +304,7 @@ struct SessionRecordUnifiedView: View {
             // 处理统计
             VStack(alignment: .leading, spacing: 12) {
                 Text("处理统计")
-                    .font(.headline)
+                    .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 InfoRow(label: "OCR耗时", value: "\(Int(record.ocrDuration))秒")
                 InfoRow(label: "TTS耗时", value: "\(Int(record.ttsDuration))秒")
@@ -303,24 +318,24 @@ struct SessionRecordUnifiedView: View {
             // 识别文本
             VStack(alignment: .leading, spacing: 12) {
                 Text("识别文本")
-                    .font(.headline)
+                    .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 InfoRow(label: "文本长度", value: "\(record.textLength)字符")
                 if !record.ocrTextSegments.isEmpty {
                     ForEach(0..<record.ocrTextSegments.count, id: \.self) { index in
                         VStack(alignment: .leading, spacing: 4) {
                             Text("图片 \(index + 1)")
-                                .font(.caption)
+                                .font(Constants.Fonts.caption)
                                 .foregroundColor(.secondary)
                             Text(record.ocrTextSegments[index])
-                                .font(.body)
+                                .font(Constants.Fonts.body)
                                 .foregroundColor(.primary)
                         }
                         .padding(.bottom, 8)
                     }
                 } else {
                     Text(record.ocrText)
-                        .font(.body)
+                        .font(Constants.Fonts.body)
                         .foregroundColor(.primary)
                 }
             }
@@ -342,7 +357,12 @@ struct SessionRecordUnifiedView: View {
     private func setupFromMode() {
         switch mode {
         case .save(let ctx, _, _):
-            sessionName = ctx.suggestedName
+            // 解析建议名称：日期前缀 + 后缀
+            let suggestedName = ctx.suggestedName
+            let (prefix, suffix) = parseSessionName(suggestedName)
+            sessionNamePrefix = prefix
+            sessionNameSuffix = suffix
+            sessionName = suggestedName
             selectedAvatarIndex = 0
             if isEditable {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -350,9 +370,48 @@ struct SessionRecordUnifiedView: View {
                 }
             }
         case .edit(let record, _, _), .view(let record, _):
-            sessionName = record.name
+            // 解析记录名称：日期前缀 + 后缀
+            let recordName = record.name
+            let (prefix, suffix) = parseSessionName(recordName)
+            sessionNamePrefix = prefix
+            sessionNameSuffix = suffix
+            sessionName = recordName
             selectedAvatarIndex = record.avatarImageIndex
         }
+    }
+    
+    // 解析会话名称：提取日期前缀和自定义后缀
+    // 如果名称符合日期前缀格式，返回 (前缀，后缀)
+    // 如果名称不符合格式，返回 (当前日期前缀，原名称)
+    private func parseSessionName(_ name: String) -> (prefix: String, suffix: String) {
+        let datePrefixFormat = Constants.sessionNameDatePrefixFormat
+        let datePrefixLength = datePrefixFormat.count  // "yy.MM.dd " = 9
+        
+        if name.count >= datePrefixLength {
+            let prefix = String(name.prefix(datePrefixLength))
+            // 检查前缀是否符合日期格式（简单检查：前 8 个字符是否符合 yy.MM.dd 格式）
+            if isValidDatePrefix(prefix) {
+                let suffix = String(name.dropFirst(datePrefixLength))
+                return (prefix, suffix)
+            }
+        }
+        // 名称不符合日期前缀格式，使用当前日期作为前缀
+        let currentDatePrefix = generateDatePrefix()
+        return (currentDatePrefix, name)
+    }
+    
+    // 验证日期前缀格式（yy.MM.dd ）
+    private func isValidDatePrefix(_ prefix: String) -> Bool {
+        // 检查格式：2 位数字.2 位数字.2 位数字 + 空格
+        let pattern = #"^\d{2}\.\d{2}\.\d{2} $"#
+        return prefix.range(of: pattern, options: .regularExpression) != nil
+    }
+    
+    // 生成当前日期前缀
+    private func generateDatePrefix() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = Constants.sessionNameDatePrefixFormat
+        return formatter.string(from: Date())
     }
     
     private func performSave() {
@@ -403,11 +462,11 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundColor(.secondary)
             Spacer()
             Text(value)
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundColor(.primary)
         }
     }

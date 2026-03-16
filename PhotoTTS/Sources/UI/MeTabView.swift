@@ -25,16 +25,16 @@ struct MeTabView: View {
                                 .clipShape(Circle())
                         } else {
                             Image(systemName: "person.circle.fill")
-                                .font(.system(size: avatarSize))
+                                .font(.system(size: avatarSize)) // 动态计算，保留视图私有
                                 .foregroundColor(Color(.systemGray4))
                         }
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 4) {
                                 Text(displayName)
-                                    .font(.headline)
+                                    .font(Constants.Fonts.headline)
                                     .foregroundStyle(.primary)
                                 Image(systemName: "pencil")
-                                    .font(.system(size: 12))
+                                    .font(.system(size: 12)) // 编辑图标，视图私有
                                     .foregroundStyle(.secondary)
                             }
                             .onTapGesture {
@@ -42,7 +42,7 @@ struct MeTabView: View {
                                 showNameEditor = true
                             }
                             Text("拍照阅读，让绘本更精彩")
-                                .font(.subheadline)
+                                .font(Constants.Fonts.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -114,7 +114,7 @@ private struct IntroPagePushView: View {
             TopAndLeftSideNavigationBar(title: "关于", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: scaled(16), weight: .medium))
+                        .font(Constants.Fonts.navAction)
                         .frame(width: scaled(20), height: scaled(20))
                         .foregroundStyle(.primary)
                 }

@@ -21,11 +21,11 @@
 
 | 文档 | 何时读取 |
 |------|---------|
-| 06-file-map.md | 确定影响的源文件 |
-| 05-data-boundaries.md | 涉及数据结构/存储变更 |
-| 07-key-patterns.md | 涉及跨模块交互 |
+| 22-file-map.md | 确定影响的源文件 |
+| 04-data-boundaries.md | 涉及数据结构/存储变更 |
+| 05-key-patterns.md | 涉及跨模块交互 |
 | 03-conventions.md | 涉及编码/UI 约定细节 |
-| 04-glossary.md | 术语不清楚时 |
+| 21-glossary.md | 术语不清楚时 |
 | 03-prd-specs.md | 了解历史需求规格 |
 
 ## 输出格式
@@ -47,9 +47,17 @@
 }
 ```
 
+## 详细设计判定
+
+当满足以下任一条件时，在 spec 的 implementation_notes 中标注 `需要详细设计`：
+- 用户在 PRD-Specs 中显式要求（如"约束：plan中请先给出PRD设计"）
+- 需求影响 3+ 模块或涉及新模块创建
+
+标注后，Orchestrator 将在 Phase 3 的计划文件中产出详细设计章节（UI 设计/数据模型/模块设计/状态管理/约束与兼容性），详见 AGENTS.md 执行计划管理 > 计划文件模板。
+
 ## 约束
 
-- scope.files_to_modify 必须是实际存在的文件（通过 06-file-map.md 和目录结构确认）
+- scope.files_to_modify 必须是实际存在的文件（通过 22-file-map.md 和目录结构确认）
 - constraints 必须包含相关的架构边界、质量守护、安全规范条目
 - test_criteria 必须是可验证的具体条件
 - 有 {correction} 时在上一轮基础上修正，不重头分析

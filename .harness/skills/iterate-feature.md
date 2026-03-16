@@ -19,13 +19,15 @@
 - Agent: Analyst（subagent）
 - 读取 `.harness/agents/analyst.md`，将需求填充到 `{user_request}`，通过 `use_subagents` 启动
 - Analyst 按需读取知识库和产品文档，输出 spec（JSON）
+- 详细设计判定：当用户在 PRD-Specs 中显式要求（如"约束：plan中请先给出PRD设计"），或 Analyst 判定影响 3+ 模块/涉及新模块创建时，在 spec 的 implementation_notes 中标注 `需要详细设计`
 
-检查点：`[Phase 2 意图理解] goal: ..., scope: N 文件, M 行为, K 验收标准`
+检查点：`[Phase 2 意图理解] goal: ..., scope: N 文件, M 行为, K 验收标准, 详细设计: 是/否`
 
 ## Phase 3: 意图确认 `[GATE]`
 - Agent: Orchestrator
 - spec 写入计划文件 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板）
-- 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 验收标准），等待确认
+- 需要详细设计时：在计划文件中填写"详细设计"章节（UI 设计/数据模型/模块设计/状态管理/约束与兼容性），一并纳入确认范围
+- 向用户输出完整摘要（目标 + 影响范围 + 实现思路 + 详细设计（如有）+ 验收标准），等待确认
 - 用户修正时：重启 Analyst（`{correction}` 参数），更新 spec，输出完整摘要再次确认
 - 用户修正 ≠ 用户确认：收到修正后必须重新输出完整摘要并重走 GATE 确认流程，禁止将修正视为确认直接进入 Phase 4
 - `[GATE]` 每次输出完整摘要后（含修正后重新输出），必须使用 `ask_followup_question` 向用户请求确认，立即结束当前回复；禁止在同一条回复中继续 Phase 4

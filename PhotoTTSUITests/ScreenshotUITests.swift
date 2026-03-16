@@ -1,12 +1,14 @@
 import XCTest
 
-/// App Store 截图自动化测试
+/// App Store 自动化测试
 /// 运行方式：通过 distribution/take_screenshots.sh 脚本在多设备上执行
 ///
 /// 截图清单:
 ///   01_home     - 首页（含绘本列表）
-///   02_play     - 播放页（播放 "26.03.10 使用介绍"）
-///   03_make     - 制作页（拍照/选图制作界面）
+///   02_make     - 制作页（拍照/选图制作界面）
+///   03_message  - 消息页
+///   04_me       - 我的页（设置页）
+///   05_play     - 播放页（播放 "26.03.10 使用介绍"）
 final class ScreenshotUITests: XCTestCase {
 
     private var app: XCUIApplication!
@@ -25,28 +27,53 @@ final class ScreenshotUITests: XCTestCase {
     func testCaptureAllScreenshots() throws {
         let deviceName = UIDevice.current.name.replacingOccurrences(of: " ", with: "_")
 
-        // 等待首页加载完成（含缩略图异步加载）
-        sleep(5)
+        let makeTabForHome = app.tabBars.buttons["制作"]
+        if makeTabForHome.waitForExistence(timeout: 3) {
+            makeTabForHome.tap()
+            sleep(2)  // 等待制作页加载
+        }
+        sleep(10)
+        
 
-        // 1. 首页截图
-        captureScreenshot(named: "01_home_\(deviceName)")
+        // 1. 首页截图（先点击制作 Tab 再返回首页，确保 Tab 栏状态正确）
+        let homeTabForHome = app.tabBars.buttons["首页"]
+        if homeTabForHome.waitForExistence(timeout: 3) {
+            homeTabForHome.tap()
+            sleep(3)  // 等待首页加载完成
+            captureScreenshot(named: "01_home_\(deviceName)")
+        }
 
-        // 2. 制作页截图（在播放前切换，避免 PlayView 全屏返回后的状态干扰）
+        // 2. 制作页截图
         let makeTabButton = app.tabBars.buttons["制作"]
         if makeTabButton.waitForExistence(timeout: 5) {
             makeTabButton.tap()
             sleep(3)  // 等待制作页加载完成
-            captureScreenshot(named: "03_make_\(deviceName)")
+            captureScreenshot(named: "02_make_\(deviceName)")
         }
 
-        // 切回首页，准备播放截图
+        // 3. 消息页截图
+        let messageTabButton = app.tabBars.buttons["消息"]
+        if messageTabButton.waitForExistence(timeout: 3) {
+            messageTabButton.tap()
+            sleep(2)  // 等待消息页加载完成
+            captureScreenshot(named: "03_message_\(deviceName)")
+        }
+
+        // 4. 我的页截图
+        let meTabButton = app.tabBars.buttons["我的"]
+        if meTabButton.waitForExistence(timeout: 3) {
+            meTabButton.tap()
+            sleep(2)  // 等待我的页加载完成
+            captureScreenshot(named: "04_me_\(deviceName)")
+        }
+
+        // 5. 播放页截图（最后截图，防止干扰其他页面）- 点击 "26.03.10 使用介绍" 的播放按钮
         let homeTabButton = app.tabBars.buttons["首页"]
         if homeTabButton.waitForExistence(timeout: 3) {
             homeTabButton.tap()
             sleep(2)
         }
-
-        // 3. 播放页截图 - 点击 "26.03.10 使用介绍" 的播放按钮
+        
         let playButton = app.buttons["play.circle"].firstMatch
         if playButton.waitForExistence(timeout: 5) {
             playButton.tap()
@@ -56,7 +83,7 @@ final class ScreenshotUITests: XCTestCase {
             let window = app.windows.firstMatch
             window.tap()
             sleep(1)
-            captureScreenshot(named: "02_play_\(deviceName)")
+            captureScreenshot(named: "05_play_\(deviceName)")
         }
     }
 

@@ -30,12 +30,28 @@
 - developmentRegion: zh-Hans，knownRegions: en/zh-Hans/Base
 - App Intents SSU 按 developmentRegion 生成语言模型，中文短语配合 zh-Hans
 
+## 字体
+
+- 全项目字体统一通过 `Constants.Fonts` 引用，禁止在视图中硬编码 `.font(.system(size:))` 或 `.font(.headline)` 等
+- Constants.Fonts 分三类：语义字体（static let，如 headline/body）、iPad自适应字体（computed static var，内部调 `s()` = `DeviceScale.adaptiveSize`）、固定字体（static let，不随设备缩放）
+- 视图私有的动态计算字体（如 `iconSize * 0.6`、`avatarSize`）允许保留在视图内，需加注释说明原因
+- 新增字体场景优先复用已有常量，确需新增时按命名规则（驼峰，语义化）添加到 Constants.Fonts
+
 ## 常量
 
-- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames
+- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts
 - 新增优先归入已有分类；不属于任何分类可新建 struct（PascalCase）
 - 禁止业务文件硬编码魔法值
 - 运行时可变配置通过 config_local.json + SettingsManager
+
+## 禁止 Mock 造假
+
+生产代码禁止以硬编码假数据冒充真实实现。具体规则：
+
+- 禁止返回硬编码零值/固定值伪装为真实采集结果（如 `return (0, 0)` 冒充网络计数器、`value: 0` 冒充磁盘 IO）
+- 系统 API 不可用或受沙箱限制时，必须在代码中明确标注不可用原因（注释 `// [Unavailable]` + 原因），并在返回值或 UI 上体现"不可用"状态（如显示 "N/A"、返回 nil/Optional），禁止静默返回零值让调用方误以为正常
+- Stub/占位实现必须满足以下全部条件：(1) 函数名或注释包含 `stub`/`placeholder` 标识；(2) 运行时通过日志（os.Logger warning 级别）输出提示；(3) 返回值使用 Optional nil 或专用枚举 case 表达"未实现"，禁止返回业务合法值
+- Code Review 检查项：凡新增采集/监控/统计类函数，必须验证数据来源为真实系统 API 调用，不接受无数据源的常量返回
 
 ---
 
@@ -93,6 +109,7 @@
 - 禁止主动创建 README（包括为新建目录添加 README.md 说明文件）
 - 不删除项目文件
 - 文件名：小写英文 kebab-case，动词-名词语序
+- 知识库编号分段：同一目录下按文件性质分段编号（如 knowledge/ 01~05 认知约束类、21~22 工具索引类），新增文件归入对应段的下一个序号
 - 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板），任务完成后移动到 `completed/`
 - 命令行超过 10 行时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程；AI 自主维护该目录（创建、清理均无需用户确认）
 

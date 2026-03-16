@@ -27,7 +27,7 @@ struct ChangeLogsView: View {
             TopAndLeftSideNavigationBar(title: "更新记录", onSwipeBack: { dismiss() }, leading: {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(Constants.Fonts.fixedNavAction)
                         .frame(width: 20, height: 20)
                         .foregroundStyle(.primary)
                 }
@@ -43,7 +43,7 @@ struct ChangeLogsView: View {
     private var renderedBody: some View {
         if content.isEmpty || content == "暂无更新记录。" {
             Text(content.isEmpty ? "暂无更新记录。" : content)
-                .font(.body)
+                .font(Constants.Fonts.body)
                 .foregroundStyle(.secondary)
         } else {
             VStack(alignment: .leading, spacing: 12) {
@@ -59,24 +59,24 @@ struct ChangeLogsView: View {
         switch block {
         case .title(let text):
             Text(text)
-                .font(.title2)
+                .font(Constants.Fonts.title2)
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)
         case .heading(let text):
             Text(text)
-                .font(.headline)
+                .font(Constants.Fonts.headline)
                 .foregroundStyle(.primary)
         case .bullet(let text):
             HStack(alignment: .top, spacing: 6) {
                 Text("•")
                     .foregroundStyle(.secondary)
                 Text(text)
-                    .font(.subheadline)
+                    .font(Constants.Fonts.subheadline)
                     .foregroundStyle(.primary)
             }
         case .paragraph(let text):
             Text(text)
-                .font(.subheadline)
+                .font(Constants.Fonts.subheadline)
                 .foregroundStyle(.primary)
         case .table(header: let header, rows: let rows):
             tableView(header: header, rows: rows)
@@ -146,7 +146,7 @@ struct ChangeLogsView: View {
             HStack(alignment: .top, spacing: 8) {
                 ForEach(Array(header.prefix(columnCount).enumerated()), id: \.offset) { i, cell in
                     Text(cell.trimmingCharacters(in: .whitespaces))
-                        .font(.caption)
+                        .font(Constants.Fonts.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity, alignment: i == columnCount - 1 ? .leading : .leading)
@@ -162,7 +162,7 @@ struct ChangeLogsView: View {
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(Array(row.prefix(columnCount).enumerated()), id: \.offset) { i, cell in
                         Text(cell.trimmingCharacters(in: .whitespaces))
-                            .font(.caption)
+                            .font(Constants.Fonts.caption)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

@@ -4,7 +4,7 @@
 
 - 表现层（Sources/UI）：SwiftUI+UIKit 封装。主要视图：PhotoTTSApp（根）、MainTabView（底导）、HomePageView、MakeView（含 PhotoProcessingView）、MessageTabView、MeTabView、PlayView（全屏播放）、SessionRecordListView、SessionRecordUnifiedView（保存/编辑/查看，位于 SessionRecordDetailView.swift）、AppLoadingView/AppIntroView（位于 AppPagesView.swift）
 - 协调层（Sources/Core/Coordinators）：ImageToSpeechCoordinator 串联 OCR+TTS，上报进度与结果
-- 能力层（Sources/Core/Handlers+Managers）：OCRService、TTSService、NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager、BackgroundMakeManager。PlayHistoryManager/MakeHistoryManager 将数据存储委托 SessionRecordManager（会话级 history.json）。BackgroundMakeManager 管理单个后台 MakeTask（持有独立 Coordinator）
+- 能力层（Sources/Core/Handlers+Managers）：OCRService、TTSService、NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager、BackgroundMakeManager、PerformanceMonitorManager。PlayHistoryManager/MakeHistoryManager 将数据存储委托 SessionRecordManager（会话级 history.json）。BackgroundMakeManager 管理单个后台 MakeTask（持有独立 Coordinator）。PerformanceMonitorManager 负责实时监控 CPU、内存、磁盘、网络指标
 - 系统集成（Sources/Core/Intents）：PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts，通过 AppState+SessionRecordManager 桥接
 - 数据层（Sources/Models）：SessionRecord、APIResponse、VoiceSettings；Constants.swift、config_local.json
 - 预留：Sources/Core/Managers/ScheduledTasks/（空）
