@@ -13,7 +13,7 @@ struct SaveSessionContext {
 struct SessionRecordUnifiedView: View {
     enum Mode {
         case save(SaveSessionContext, onSave: (String, Int) -> Void, onCancel: () -> Void)
-        case edit(SessionRecord, onSave: (String, Int) -> Void, onDismiss: () -> Void)
+        case edit(SessionRecord, onSave: (String, Int, AnimationStyle) -> Void, onDismiss: () -> Void)
         case view(SessionRecord, onDismiss: () -> Void)
     }
     
@@ -23,6 +23,7 @@ struct SessionRecordUnifiedView: View {
     @State private var sessionNamePrefix: String = ""  // 日期前缀（只读）
     @State private var sessionNameSuffix: String = ""  // 用户可编辑部分
     @State private var selectedAvatarIndex: Int = 0
+    @State private var selectedAnimationStyle: AnimationStyle = .rightToLeft
     @FocusState private var isTextFieldFocused: Bool
     
     private func scaled(_ value: CGFloat) -> CGFloat {
@@ -34,6 +35,11 @@ struct SessionRecordUnifiedView: View {
         case .save, .edit: return true
         case .view: return false
         }
+    }
+
+    // 日期前缀格式是否有效
+    private var isDatePrefixValid: Bool {
+        isValidDatePrefix(sessionNamePrefix)
     }
 
     // edit / view 模式下有真实 record，返回其 id；save 模式下无 record，返回 nil
@@ -61,9 +67,11 @@ struct SessionRecordUnifiedView: View {
                         nameSection
                         // 头像
                         avatarSection
+                        // 播放方向
+                        animationStyleSection
 
                         Divider()
-                        
+
                         // 记录信息
                         contentSection
                     }
@@ -86,7 +94,7 @@ struct SessionRecordUnifiedView: View {
             }, trailing: {
                 if isEditable {
                     Button("保存") { performSave() }
-                        .disabled(sessionName.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(sessionName.trimmingCharacters(in: .whitespaces).isEmpty || !isDatePrefixValid)
                 } else {
                     EmptyView()
                 }
@@ -114,21 +122,39 @@ struct SessionRecordUnifiedView: View {
                 .font(Constants.Fonts.headline)
                 .foregroundColor(.primary)
             if isEditable {
-                // 拆分式名称输入：只读日期前缀 + 可编辑后缀
-                HStack(spacing: 0) {
-                    // 只读的日期前缀
-                    Text(sessionNamePrefix)
-                        .font(Constants.Fonts.body)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                    // 可编辑的后缀部分
-                    TextField("请输入会话名称", text: $sessionNameSuffix)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($isTextFieldFocused)
-                        .onChange(of: sessionNameSuffix) { _, newValue in
-                            // 同步更新 sessionName（前缀 + 后缀）
-                            sessionName = sessionNamePrefix + newValue
-                        }
+                // 拆分式名称输入：可编辑日期前缀 + 可编辑后缀
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 0) {
+                        // 可编辑的日期前缀（编辑时不含空格，保存时自动补空格）
+                        TextField("日期前缀", text: $sessionNamePrefix)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: scaled(100))
+                            .monospacedDigit()
+                            .onChange(of: sessionNamePrefix) { _, newValue in
+                                // 限制输入字符：仅允许0-9和英文点号
+                                let filtered = newValue.filter { $0.isNumber || $0 == "." }
+                                if filtered != newValue {
+                                    sessionNamePrefix = filtered
+                                    return
+                                }
+                                // 同步更新 sessionName（前缀 + 后缀，保存时会补空格）
+                                sessionName = newValue + " " + sessionNameSuffix
+                            }
+                        // 可编辑的后缀部分
+                        TextField("请输入会话名称", text: $sessionNameSuffix)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($isTextFieldFocused)
+                            .onChange(of: sessionNameSuffix) { _, newValue in
+                                // 同步更新 sessionName（前缀 + 空格 + 后缀）
+                                sessionName = sessionNamePrefix + " " + newValue
+                            }
+                    }
+                    // 日期格式错误提示
+                    if !sessionNamePrefix.isEmpty && !isDatePrefixValid {
+                        Text("日期格式错误")
+                            .font(Constants.Fonts.caption)
+                            .foregroundColor(.red)
+                    }
                 }
             } else {
                 Text(sessionName.isEmpty ? "—" : sessionName)
@@ -219,7 +245,67 @@ struct SessionRecordUnifiedView: View {
                 .aspectRatio(contentMode: .fill)
         }
     }
-    
+
+    // MARK: - 播放方向区域
+    @ViewBuilder
+    private var animationStyleSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("播放方向")
+                .font(Constants.Fonts.headline)
+                .foregroundColor(.primary)
+
+            if isEditable {
+                HStack(spacing: 12) {
+                    animationStyleButton(
+                        title: "横向",
+                        icon: "arrow.left.arrow.right",
+                        style: .rightToLeft
+                    )
+                    animationStyleButton(
+                        title: "纵向",
+                        icon: "arrow.up.arrow.down",
+                        style: .topToBottom
+                    )
+                }
+            } else {
+                HStack {
+                    Image(systemName: selectedAnimationStyle == .rightToLeft ? "arrow.left.arrow.right" : "arrow.up.arrow.down")
+                        .foregroundColor(.secondary)
+                    Text(selectedAnimationStyle == .rightToLeft ? "横向" : "纵向")
+                        .font(Constants.Fonts.body)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGray5))
+        .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private func animationStyleButton(title: String, icon: String, style: AnimationStyle) -> some View {
+        Button(action: { selectedAnimationStyle = style }) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(Constants.Fonts.body)
+                Text(title)
+                    .font(Constants.Fonts.body)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(selectedAnimationStyle == style ? Color.blue : Color.clear)
+            .foregroundColor(selectedAnimationStyle == style ? .white : .primary)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(selectedAnimationStyle == style ? Color.blue : Color.gray.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - 其它内容区域
     @ViewBuilder
     private var contentSection: some View {
@@ -377,21 +463,30 @@ struct SessionRecordUnifiedView: View {
             sessionNameSuffix = suffix
             sessionName = recordName
             selectedAvatarIndex = record.avatarImageIndex
+            selectedAnimationStyle = record.animationStyle
         }
     }
     
     // 解析会话名称：提取日期前缀和自定义后缀
-    // 如果名称符合日期前缀格式，返回 (前缀，后缀)
+    // 如果名称符合日期前缀格式，返回 (前缀不含空格，后缀)
     // 如果名称不符合格式，返回 (当前日期前缀，原名称)
+    // 注意：日期前缀编辑时不带空格，保存时自动补空格
     private func parseSessionName(_ name: String) -> (prefix: String, suffix: String) {
-        let datePrefixFormat = Constants.sessionNameDatePrefixFormat
-        let datePrefixLength = datePrefixFormat.count  // "yy.MM.dd " = 9
-        
-        if name.count >= datePrefixLength {
-            let prefix = String(name.prefix(datePrefixLength))
-            // 检查前缀是否符合日期格式（简单检查：前 8 个字符是否符合 yy.MM.dd 格式）
+        // 尝试匹配带空格的完整前缀（YY.MM.DD + 空格 = 9字符）
+        if name.count >= 9 {
+            let prefixWithSpace = String(name.prefix(9))
+            // 检查是否符合 YY.MM.DD 格式（第9字符是空格）
+            let prefixWithoutSpace = String(prefixWithSpace.prefix(8))
+            if isValidDatePrefix(prefixWithoutSpace) && prefixWithSpace.suffix(1) == " " {
+                let suffix = String(name.dropFirst(9))
+                return (prefixWithoutSpace, suffix)
+            }
+        }
+        // 尝试匹配不带空格的前缀（8字符）
+        if name.count >= 8 {
+            let prefix = String(name.prefix(8))
             if isValidDatePrefix(prefix) {
-                let suffix = String(name.dropFirst(datePrefixLength))
+                let suffix = String(name.dropFirst(8))
                 return (prefix, suffix)
             }
         }
@@ -399,23 +494,25 @@ struct SessionRecordUnifiedView: View {
         let currentDatePrefix = generateDatePrefix()
         return (currentDatePrefix, name)
     }
-    
-    // 验证日期前缀格式（yy.MM.dd ）
+
+    // 验证日期前缀格式（yy.MM.dd，不含空格）
     private func isValidDatePrefix(_ prefix: String) -> Bool {
-        // 检查格式：2 位数字.2 位数字.2 位数字 + 空格
-        let pattern = #"^\d{2}\.\d{2}\.\d{2} $"#
+        // 检查格式：2 位数字.2 位数字.2 位数字（共8字符）
+        let pattern = #"^\d{2}\.\d{2}\.\d{2}$"#
         return prefix.range(of: pattern, options: .regularExpression) != nil
     }
-    
-    // 生成当前日期前缀
+
+    // 生成当前日期前缀（不含空格）
     private func generateDatePrefix() -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = Constants.sessionNameDatePrefixFormat
+        formatter.dateFormat = "yy.MM.dd"
         return formatter.string(from: Date())
     }
     
     private func performSave() {
-        let name = sessionName.trimmingCharacters(in: .whitespaces)
+        // 保存时自动补充空格：前缀 + 空格 + 后缀
+        let fullPrefix = sessionNamePrefix + " "
+        let name = (fullPrefix + sessionNameSuffix).trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         let avatarIndex = min(max(0, selectedAvatarIndex), max(0, avatarImageCount() - 1))
         switch mode {
@@ -423,7 +520,7 @@ struct SessionRecordUnifiedView: View {
             onSave(name, avatarIndex)
             dismiss()
         case .edit(_, let onSave, _):
-            onSave(name, avatarIndex)
+            onSave(name, avatarIndex, selectedAnimationStyle)
             dismiss()
         case .view:
             break

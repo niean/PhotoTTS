@@ -21,6 +21,7 @@ struct MakeView: View {
     @State private var ocrStartTime: Date?
     @State private var ttsStartTime: Date?
     @State private var ocrDuration: TimeInterval = 0.0
+    @State private var llmDuration: TimeInterval = 0.0
     @State private var ttsDuration: TimeInterval = 0.0
     
     // 批量处理相关状态
@@ -47,6 +48,8 @@ struct MakeView: View {
     @State private var processingOverlayDismissed = false
     /// 制作页 OCR+TTS 完成后用当前数据全屏播放
     @State private var currentSessionToPlay: SessionRecord? = nil
+    /// 制作完成后使用 recordId 播放（统一播放逻辑，支持要点图片）
+    @State private var currentSessionIdToPlay: String? = nil
     
     // 后台制作：当前观察的任务 sessionId
     @State private var observingTaskId: String? = nil
@@ -112,10 +115,16 @@ struct MakeView: View {
                 syncBackgroundTaskState()
             }
             .fullScreenCover(isPresented: Binding(
-                get: { currentSessionToPlay != nil },
-                set: { if !$0 { currentSessionToPlay = nil } }
+                get: { currentSessionToPlay != nil || currentSessionIdToPlay != nil },
+                set: { if !$0 { currentSessionToPlay = nil; currentSessionIdToPlay = nil } }
             )) {
-                if let record = currentSessionToPlay {
+                if let sessionId = currentSessionIdToPlay {
+                    // 使用 recordId 播放（与首页播放保持一致，支持要点图片）
+                    PlayView(recordId: sessionId, onDismiss: {
+                        currentSessionIdToPlay = nil
+                        appState.isPlayViewActive = false
+                    })
+                } else if let record = currentSessionToPlay {
                     PlayView(preloadedRecord: record, onDismiss: {
                         currentSessionToPlay = nil
                         appState.isPlayViewActive = false
@@ -470,11 +479,6 @@ struct MakeView: View {
     private var customNavigationBar: some View {
         CustomNavigationBar(title: recordPageNavigationTitle, trailing: {
             Menu {
-                Button { checkCameraPermissionAndTakePhoto() } label: {
-                    Label("拍照", systemImage: "camera.fill")
-                }
-                .disabled(isProcessing)
-                Divider()
                 Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
                     Label("保存", systemImage: "bookmark.fill")
                 }
@@ -629,6 +633,7 @@ struct MakeView: View {
         processingProgress = task.progress
         currentOperation = task.operationMessage
         ocrDuration = task.ocrDuration
+        llmDuration = task.llmDuration
         ttsDuration = task.ttsDuration
 
         if task.isCompleted {
@@ -647,13 +652,18 @@ struct MakeView: View {
                     parseOCRTextSegments(response.text)
                 }
 
-                let totalDuration = task.ocrDuration + task.ttsDuration
-                os.Logger.makeView.info("处理完成! OCR:\(String(format: "%.2f", task.ocrDuration))s, TTS:\(String(format: "%.2f", task.ttsDuration))s, 总:\(String(format: "%.2f", totalDuration))s, 文字:\(response.text.count)字符")
+                let totalDuration = task.ocrDuration + task.llmDuration + task.ttsDuration
+                os.Logger.makeView.info("处理完成! OCR:\(String(format: "%.2f", task.ocrDuration))s, LLM:\(String(format: "%.2f", task.llmDuration))s, TTS:\(String(format: "%.2f", task.ttsDuration))s, 总:\(String(format: "%.2f", totalDuration))s, 文字:\(response.text.count)字符")
 
-                // 自动播放：仅当用户在制作页时触发，后台完成不自动播放以免打断当前操作
+                // 自动播放：使用 recordId 加载已保存记录，统一播放逻辑（支持要点图片）
                 if response.audioData != nil && appState.selectedTab == 1 {
-                    os.Logger.makeView.debug("开始自动播放")
-                    togglePlayback()
+                    guard !appState.isPlayViewActive else {
+                        os.Logger.makeView.warning("播放互斥: 已有播放中，拒绝制作页自动播放")
+                        return
+                    }
+                    os.Logger.makeView.debug("开始自动播放，使用 recordId: \(taskId)")
+                    appState.isPlayViewActive = true
+                    currentSessionIdToPlay = taskId
                 } else if response.audioData != nil {
                     os.Logger.makeView.info("后台制作完成，跳过自动播放")
                 }
@@ -688,6 +698,7 @@ struct MakeView: View {
             processingProgress = task.progress
             currentOperation = task.operationMessage
             ocrDuration = task.ocrDuration
+            llmDuration = task.llmDuration
             ttsDuration = task.ttsDuration
             error = nil
             ocrResult = ""

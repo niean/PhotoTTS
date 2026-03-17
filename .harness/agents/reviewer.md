@@ -20,7 +20,7 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 
 ### Step 2: 代码扫描
 
-优先通过 use_subagents 并行启动。无 subagent 能力时，主 Agent 顺序执行每个扫描模板（读取模板 -> 对变更文件逐一扫描 -> 输出结论）。每个维度必须有独立扫描结论，禁止跳过或虚报。
+必须通过 Agent 工具（subagent_type=general-purpose，model=opus）并行启动扫描，每个维度一个 subagent，subagent使用独立上下文。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。每个维度必须有独立扫描结论，禁止跳过或虚报。
 
 扫描模板列表：
 
@@ -33,6 +33,8 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 | 5 | .harness/skills/subskills/scan-logging.md | 日志规范 |
 
 可选：scan-dead-code.md（涉及文件删除时）。超 5 个分批执行。
+
+备注：新发现的既存问题（非本次引入）记录到 技术债跟踪文件`debt-tracker.md`，不强制在本次迭代修复；本次任务新引入的技术债，必须修复、修复后重新扫描验证。
 
 ### Step 3: 验收标准检查
 

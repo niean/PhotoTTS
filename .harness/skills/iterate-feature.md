@@ -44,11 +44,12 @@
 - Agent: Reviewer，按 `.harness/agents/reviewer.md` Step 1-4 执行
 - 扫描范围：仅本次变更文件
 - 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报
+- Step 2 代码扫描必须通过 Agent 工具以 model=opus 启动 subagent，不得内联替代，subagent使用独立上下文
 - 构建失败、扫描违规或验收不通过时回到 Step 4.1
 
 必须执行的步骤：
 1. Step 1 构建验证：执行 xcodebuild build，要求零警告
-2. Step 2 代码扫描：对变更文件执行 5 个维度扫描（架构/编码/安全/图片/日志），逐维度输出结论
+2. Step 2 代码扫描：通过 Agent 工具以 subagent_type=general-purpose、model=opus 并行启动 5 个维度 subagent（架构/编码/安全/图片/日志），每个维度独立输出结论；禁止合并为单个 subagent 或内联执行
 3. Step 3 验收标准检查：对照 spec 验收标准逐项验证，输出每项通过/不通过
 4. Step 4 测试验证：有相关测试时执行，无则标注"跳过"及原因
 

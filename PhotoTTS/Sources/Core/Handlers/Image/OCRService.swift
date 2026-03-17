@@ -109,7 +109,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         let startTime = Date()
         
         // 打印图片索引和Provider
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[OCR] 模型\(configuration.provider)，"
         if let index = imageIndex {
             os.Logger.ocrService.info("\(providerTag) 开始OCR识别，图片索引: \(index + 1)")
         } else {
@@ -201,7 +201,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
     private func callOCRAPIWithRetry(imageData: Data, prompt: String, imageIndex: Int?) async throws -> String {
         var lastError: Error?
         
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[OCR] 模型\(configuration.provider)，"
         let imageIndexText = imageIndex != nil ? "，图片索引: \(imageIndex! + 1)" : ""
         let totalStartTime = Date()
         

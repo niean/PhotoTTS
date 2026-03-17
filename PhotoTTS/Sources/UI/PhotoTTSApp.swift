@@ -23,6 +23,7 @@ extension os.Logger {
     static let playHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PlayHistory")
     static let backgroundMake = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "BackgroundMake")
     static let makeHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeHistory")
+    static let llmService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "LLMService")
 }
 
 // MARK: - AppDelegate
@@ -343,7 +344,7 @@ struct FullScreenImageOverlay: View {
 struct FullScreenCameraOverlay: View {
     @ObservedObject var appState: AppState
     @State private var capturedImage: UIImage?
-    @State private var showLandscapeTip: Bool = true
+    @State private var showLandscapeTip: Bool = !UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.landscapeTipDismissed)
     
     private var selectedImagesBinding: Binding<[UIImage]> {
         Binding(

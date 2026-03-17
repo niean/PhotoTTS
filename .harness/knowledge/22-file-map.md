@@ -17,7 +17,7 @@
 
 - 全屏 overlay：PhotoTTSApp.swift 内 FullScreenImageOverlay/FullScreenCameraOverlay
 - 自定义相机+多选图：CustomCameraView.swift（含 MultiImagePicker 封装 PHPickerViewController）
-- 相机横拍提示覆盖层：LandscapeTipOverlay.swift（FullScreenCameraOverlay 叠加，3秒自动消失）
+- 相机横拍提示覆盖层：LandscapeTipOverlay.swift（FullScreenCameraOverlay 叠加，3秒自动消失，含「不再提示」按钮，偏好持久化到 UserDefaults[landscape_tip_dismissed]）
 
 ## 播放与记录
 
@@ -35,6 +35,7 @@
 - ImageToSpeechCoordinator：Core/Coordinators/ImageToSpeechCoordinator.swift
 - OCRService/OCRServiceFactory（多 Provider：doubao/openai）：Core/Handlers/Image/OCRService.swift
 - TTSServiceProtocol/TTSService（火山）/AliqwenTTSService（阿里千问）/TTSServiceFactory（多 Provider：huoshan/aliqwen）：Core/Handlers/Audio/TTSService.swift
+- LLMServiceProtocol/LLMServiceFactory/DoubaoLLMService/OpenAILLMService（多 Provider：doubao/openai）：Core/Handlers/LLM/LLMService.swift
 - NetworkService：Core/Managers/Network/NetworkService.swift
 
 ## Siri

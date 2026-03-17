@@ -13,8 +13,9 @@ struct LandscapeTipOverlay: View {
     var body: some View {
         if isVisible {
             ZStack {
-                // 半透明遮罩
+                // 半透明遮罩（透传点击到相机层）
                 Color.black.opacity(Constants.CameraTip.overlayOpacity)
+                    .allowsHitTesting(false)
 
                 // 提示内容
                 VStack(spacing: scaled(20)) {
@@ -33,15 +34,26 @@ struct LandscapeTipOverlay: View {
                             .offset(x: scaled(55), y: scaled(-10))
                             .rotationEffect(.degrees(arrowRotation))
                     }
+                    .allowsHitTesting(false)
 
                     // 文案
                     Text("横拍效果更佳")
                         .font(Constants.Fonts.tipBackIcon)
                         .foregroundColor(.white)
+                        .allowsHitTesting(false)
+
+                    // 不再提示按钮
+                    Button {
+                        UserDefaults.standard.set(true, forKey: Constants.UserDefaultsKeys.landscapeTipDismissed)
+                        isVisible = false
+                    } label: {
+                        Text("不再提示")
+                            .font(Constants.Fonts.listAction)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                 }
                 .padding(scaled(30))
             }
-            .allowsHitTesting(false)
             .onAppear {
                 startArrowAnimation()
                 scheduleAutoDismiss()

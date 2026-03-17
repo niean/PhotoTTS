@@ -5,4 +5,4 @@ completed/*
 active/*
 !active/.gitkeep
 
-debt-tracker.md
+# debt-tracker.md

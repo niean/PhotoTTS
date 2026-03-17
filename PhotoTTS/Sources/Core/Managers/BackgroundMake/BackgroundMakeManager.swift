@@ -30,6 +30,8 @@ class MakeTask: ObservableObject, Identifiable {
 
     /// OCR 耗时
     var ocrDuration: TimeInterval = 0
+    /// LLM 耗时
+    var llmDuration: TimeInterval = 0
     /// TTS 耗时
     var ttsDuration: TimeInterval = 0
 
@@ -37,6 +39,7 @@ class MakeTask: ObservableObject, Identifiable {
     let coordinator: ImageToSpeechCoordinator
 
     private var ocrStartTime: Date?
+    private var llmStartTime: Date?
     private var ttsStartTime: Date?
 
     init(sessionId: String, imageCount: Int) {
@@ -54,18 +57,33 @@ class MakeTask: ObservableObject, Identifiable {
         self.progress = Float(normalized)
         self.operationMessage = processingProgress.message
 
+        // 记录 OCR 开始时间
+        if processingProgress.stage == .ocr && ocrStartTime == nil {
+            ocrStartTime = Date()
+        }
+
+        // 记录 LLM 开始时间
+        if processingProgress.stage == .llm && llmStartTime == nil {
+            llmStartTime = Date()
+        }
+
         // 记录 TTS 开始时间
-        if processingProgress.message.contains("TTS") && ttsStartTime == nil {
+        if processingProgress.stage == .tts && ttsStartTime == nil {
             ttsStartTime = Date()
         }
 
         // 计算 OCR 耗时
-        if processingProgress.message.contains("OCR"), let start = ocrStartTime {
+        if processingProgress.stage == .llm, let start = ocrStartTime {
             ocrDuration = Date().timeIntervalSince(start)
         }
 
-        // 计算 TTS 耗时
-        if processingProgress.message.contains("TTS"), let start = ttsStartTime {
+        // 计算 LLM 耗时
+        if processingProgress.stage == .tts, let start = llmStartTime {
+            llmDuration = Date().timeIntervalSince(start)
+        }
+
+        // 计算 TTS 耗时（更新中）
+        if processingProgress.stage == .tts, let start = ttsStartTime {
             ttsDuration = Date().timeIntervalSince(start)
         }
     }
@@ -79,7 +97,8 @@ class MakeTask: ObservableObject, Identifiable {
     func markCompleted(response: AudioResponse) {
         let endTime = Date()
         if let start = ocrStartTime {
-            ocrDuration = endTime.timeIntervalSince(start)
+            ocrDuration = endTime.timeIntervalSince(start) - llmDuration - ttsDuration
+            if ocrDuration < 0 { ocrDuration = 0 }
         }
         if let start = ttsStartTime {
             ttsDuration = endTime.timeIntervalSince(start)
@@ -199,6 +218,7 @@ class BackgroundMakeManager: ObservableObject {
                                 id: sessionId,
                                 audioResponse: audioResponse,
                                 ocrDuration: task.ocrDuration,
+                                llmDuration: task.llmDuration,
                                 ttsDuration: task.ttsDuration
                             )
                             if updated {

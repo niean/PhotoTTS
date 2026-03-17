@@ -16,16 +16,17 @@
 默认目录：./locals/harness_tpl/
 
 ### Step 2 -- 分批蒸馏写入
-分 7 组：AGENTS.md+README / agents/ / guides/ / skills/（含 subskills/） / plans/（含 active/、completed/、debt-tracker.md） / knowledge/ / prd/
+分 8 组：CLAUDE.md / AGENTS.md+README / agents/ / guides/ / skills/（含 subskills/） / plans/（含 active/、completed/、debt-tracker.md） / knowledge/ / prd/
 
 蒸馏规则：
-1. 剥离项目专属信息，替换为 `{{占位符}}`
-2. 保留通用框架/结构/流程
-3. 通用规范原文保留；项目规范保留骨架，专属条目替换占位符
-4. Subskills 合并为 scan-example.md
-5. knowledge/ 和 prd/ 文件保留结构，正文替换占位符；特例：prd/03-prd-specs.md也需要蒸馏为模板
-6. Plans 保留目录结构；特例：debt-tracker.md 也需要蒸馏为模板
-7. 禁用 emoji/加粗/斜体
+1. CLAUDE.md：直接拷贝，无需修改内容（兼容Claude Code项目环境）
+2. AGENTS.md+README：剥离项目专属信息，替换为 `{{占位符}}`
+3. 保留通用框架/结构/流程
+4. 通用规范原文保留；项目规范保留骨架，专属条目替换占位符
+5. Subskills 合并为 scan-example.md
+6. knowledge/ 和 prd/ 文件保留结构，正文替换占位符；特例：prd/03-prd-specs.md也需要蒸馏为模板
+7. Plans 保留目录结构；特例：debt-tracker.md 也需要蒸馏为模板
+8. 禁用 emoji/加粗/斜体
 
 ### Step 3 -- 清理多余文件
 比对目标目录，排除 .git/LICENSE 等，多余文件经确认后删除。

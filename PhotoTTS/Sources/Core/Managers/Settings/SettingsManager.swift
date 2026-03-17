@@ -838,6 +838,132 @@ class SettingsManager {
             audioCount: 0
         )
     }
+
+    // MARK: - LLM配置
+
+    /// 读取LLM配置部分（完整llm节点）
+    /// - Returns: LLM配置字典，如果读取失败返回空字典
+    func loadLLMConfig() -> [String: Any] {
+        guard let config = loadConfig(),
+              let llmConfig = config["llm"] as? [String: Any] else {
+            os.Logger.settingsManager.warning("读取LLM配置失败：config_local.json缺少llm节点或配置格式错误")
+            return [:]
+        }
+        return llmConfig
+    }
+
+    /// 获取活跃的LLM Provider名称
+    /// - Returns: Provider名称（如"doubao"、"openai"），默认返回"doubao"
+    func getActiveLLMProvider() -> String {
+        let llmConfig = loadLLMConfig()
+        return llmConfig["provider"] as? String ?? "doubao"
+    }
+
+    /// 加载活跃LLM Provider的配置
+    /// - Returns: LLMProviderConfig配置对象，配置无效时返回nil
+    func loadActiveLLMProviderConfig() -> LLMProviderConfig? {
+        let llmConfig = loadLLMConfig()
+        let provider = getActiveLLMProvider()
+
+        guard let providerConfig = llmConfig[provider] as? [String: Any] else {
+            os.Logger.settingsManager.warning("LLM Provider配置缺失: \(provider)")
+            return nil
+        }
+
+        guard let baseURL = providerConfig["base_url"] as? String,
+              let modelName = providerConfig["model_name"] as? String,
+              !baseURL.isEmpty, !modelName.isEmpty else {
+            let missingFields = [
+                providerConfig["base_url"] as? String == nil ? "base_url" : nil,
+                providerConfig["model_name"] as? String == nil ? "model_name" : nil
+            ].compactMap { $0 }
+            os.Logger.settingsManager.warning("LLM Provider配置不完整: \(provider)，缺失字段: \(missingFields.joined(separator: ", "))")
+            return nil
+        }
+
+        let apiKey = getLLMAPIKeyForProvider(provider)
+        if apiKey.isEmpty {
+            os.Logger.settingsManager.warning("LLM API Key为空，provider: \(provider)，请检查Keychain配置")
+        }
+        let promptUser = providerConfig["prompt_user"] as? String ?? ""
+        let timeout = providerConfig["timeout"] as? TimeInterval ?? Constants.Network.requestTimeout
+        let maxRetryCount = providerConfig["max_retry_count"] as? Int ?? 3
+        let retryDelay = providerConfig["retry_delay"] as? TimeInterval ?? 1.0
+
+        return LLMProviderConfig(
+            provider: provider,
+            baseURL: baseURL,
+            modelName: modelName,
+            apiKey: apiKey,
+            promptUser: promptUser,
+            timeout: timeout,
+            maxRetryCount: maxRetryCount,
+            retryDelay: retryDelay
+        )
+    }
+
+    /// 获取指定Provider的LLM API Key（优先Keychain，回退config，首次回退写入Keychain）
+    /// - Parameter provider: Provider名称（"doubao"或"openai"）
+    /// - Returns: API Key，如果读取失败返回空字符串
+    func getLLMAPIKeyForProvider(_ provider: String) -> String {
+        let keychainKey: String
+        switch provider {
+        case "doubao":
+            keychainKey = Constants.KeychainKeys.doubaoLLMAPIKey
+        case "openai":
+            keychainKey = Constants.KeychainKeys.openaiLLMAPIKey
+        default:
+            return ""
+        }
+        // 优先从 Keychain 读取
+        if let stored = keychainString(forKey: keychainKey), !stored.isEmpty {
+            return stored
+        }
+        // 回退到 config 文件中对应 Provider 的子配置
+        let llmConfig = loadLLMConfig()
+        guard let providerConfig = llmConfig[provider] as? [String: Any] else {
+            return ""
+        }
+        let configKey = providerConfig["api_key"] as? String ?? ""
+        // 首次从 config 读取后写入 Keychain
+        if !configKey.isEmpty {
+            _ = keychainSet(configKey, forKey: keychainKey)
+            os.Logger.settingsManager.info("LLM[\(provider)] API密钥已从配置文件迁移到Keychain")
+        }
+        return configKey
+    }
+
+    /// 保存LLM API Key
+    /// - Parameters:
+    ///   - apiKey: API Key
+    ///   - provider: Provider名称（"doubao"或"openai"）
+    /// - Returns: 是否保存成功
+    @discardableResult
+    func saveLLMAPIKey(_ apiKey: String, forProvider provider: String) -> Bool {
+        let key: String
+        switch provider {
+        case "doubao":
+            key = Constants.KeychainKeys.doubaoLLMAPIKey
+        case "openai":
+            key = Constants.KeychainKeys.openaiLLMAPIKey
+        default:
+            return false
+        }
+        return keychainSet(apiKey, forKey: key)
+    }
+}
+
+// MARK: - LLM Provider配置模型
+/// LLM Provider配置
+struct LLMProviderConfig {
+    let provider: String
+    let baseURL: String
+    let modelName: String
+    let apiKey: String
+    let promptUser: String
+    let timeout: TimeInterval
+    let maxRetryCount: Int
+    let retryDelay: TimeInterval
 }
 
 // MARK: - 设置导出数据模型

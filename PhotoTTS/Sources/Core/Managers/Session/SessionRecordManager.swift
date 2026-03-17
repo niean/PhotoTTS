@@ -371,15 +371,10 @@ class SessionRecordManager {
         let safePage = max(1, page)
         let startIndex = (safePage - 1) * pageSize
         guard startIndex < totalCount else {
-            let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
-            logger.info("分页查询: 第\(safePage)页超出范围, 总数=\(totalCount), 搜索='\(trimmed)'\(callerTag)")
             return ([], totalCount)
         }
         let endIndex = min(startIndex + pageSize, totalCount)
         let pageItems = Array(metadataList[startIndex..<endIndex])
-        
-        let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
-        logger.info("分页查询: 第\(safePage)页, \(pageItems.count)/\(totalCount)条, 搜索='\(trimmed)'\(callerTag)")
         
         return (pageItems, totalCount)
     }
@@ -429,7 +424,11 @@ class SessionRecordManager {
                 audioSize: audioData.count,
                 voiceSettings: record.voiceSettings,
                 avatarImageIndex: record.avatarImageIndex,
-                storageSize: record.storageSize
+                storageSize: record.storageSize,
+                makeStatus: record.makeStatus,
+                storyHighlights: record.storyHighlights,
+                hasVirtualPage: record.hasVirtualPage,
+                animationStyle: record.animationStyle
             )
             
             logger.info("加载会话记录成功: \(record.name)")
@@ -446,16 +445,16 @@ class SessionRecordManager {
         let cacheKey = "\(sessionId):\(index):\(maxDimension ?? -1)"
         return Self.imageLoadCache.object(forKey: cacheKey as NSString)
     }
-    
+
     /// 后台预加载相邻图到缓存，切换时即可同步显示、避免闪动。已命中缓存则跳过。
-    func preloadImage(sessionId: String, index: Int, maxDimension: CGFloat? = nil) {
-        let cacheKey = "\(sessionId):\(index):\(maxDimension ?? -1)"
+    func preloadImage(sessionId: String, index: Int, maxDimension: CGFloat? = Constants.ImageDisplay.playbackFullScreenMaxDimension) {
+        let effectiveMaxD = (maxDimension ?? 0) > 0 ? maxDimension! : Constants.ImageDisplay.playbackFullScreenMaxDimension
+        let cacheKey = "\(sessionId):\(index):\(effectiveMaxD)"
         if Self.imageLoadCache.object(forKey: cacheKey as NSString) != nil { return }
         let sid = sessionId
         let idx = index
-        let maxD = maxDimension
         DispatchQueue.global(qos: .utility).async {
-            _ = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: maxD)
+            _ = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: effectiveMaxD)
         }
     }
     
@@ -464,10 +463,64 @@ class SessionRecordManager {
     /// - Parameters:
     ///   - sessionId: 会话 ID
     ///   - index: 图片索引
-    ///   - maxDimension: 最大边长（点），超过则等比缩小；nil 表示不缩小
+    ///   - maxDimension: 最大边长（点），超过则等比缩小；默认 1024pt 保护内存
     /// - Returns: 图片，不存在或失败返回 nil
-    func loadImage(sessionId: String, index: Int, maxDimension: CGFloat? = nil) -> UIImage? {
-        let cacheKey = "\(sessionId):\(index):\(maxDimension ?? -1)"
+    func loadImage(sessionId: String, index: Int, maxDimension: CGFloat? = Constants.ImageDisplay.playbackFullScreenMaxDimension) -> UIImage? {
+        return loadImageImpl(sessionId: sessionId, index: index, maxDimension: maxDimension)
+    }
+
+    /// 播放专用：按需加载单张图片，支持要点图片页处理。
+    /// 当索引超出真实图片数量时，自动复用最后一张图片（要点图片页机制）。
+    /// - Parameters:
+    ///   - sessionId: 会话 ID
+    ///   - index: 图片索引（要点图片页时会自动映射到最后一张真实图片）
+    ///   - maxDimension: 最大边长（点），超过则等比缩小；默认 1024pt 保护内存
+    ///   - totalImageCount: 真实图片总数，用于判断要点图片页
+    /// - Returns: 图片，不存在或失败返回 nil
+    func loadImageForPlayback(sessionId: String, index: Int, maxDimension: CGFloat? = Constants.ImageDisplay.playbackFullScreenMaxDimension, totalImageCount: Int) -> UIImage? {
+        // 要点图片页处理：当索引超出范围时，复用最后一张图片
+        let effectiveIndex = index < totalImageCount ? index : max(0, totalImageCount - 1)
+        return loadImageImpl(sessionId: sessionId, index: effectiveIndex, maxDimension: maxDimension)
+    }
+
+    /// 从 Bundle 加载要点图片（EndPicts），根据动画方向从对应目录随机选取
+    /// - Parameters:
+    ///   - animationStyle: 动画方向（横向/纵向）
+    ///   - maxDimension: 最大边长（点），超过则等比缩小
+    /// - Returns: 图片，加载失败返回 nil
+    func loadEndPictFromBundle(animationStyle: AnimationStyle, maxDimension: CGFloat) -> UIImage? {
+        // 根据动画方向确定目录和图片数量
+        let directoryName: String
+        let imageCount: Int
+        switch animationStyle {
+        case .rightToLeft:
+            directoryName = Constants.EndPicts.horizontalDirectoryName
+            imageCount = Constants.EndPicts.horizontalImageCount
+        case .topToBottom:
+            directoryName = Constants.EndPicts.verticalDirectoryName
+            imageCount = Constants.EndPicts.verticalImageCount
+        }
+
+        // 随机选取一张（索引从 1 开始，匹配文件名 h-1, h-2... 或 z-1, z-2...）
+        let randomIndex = Int.random(in: 1...imageCount)
+        // 资源文件被扁平化复制到 Bundle 根目录，直接使用文件名
+        let resourceName = "\(directoryName)-\(randomIndex)"
+
+        // 从 Bundle 加载
+        guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
+            logger.warning("要点图片不存在: \(resourceName).jpg")
+            return nil
+        }
+
+        // 使用 Image I/O 降采样加载
+        return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
+    }
+
+    /// 内部实现：实际加载图片
+    private func loadImageImpl(sessionId: String, index: Int, maxDimension: CGFloat? = Constants.ImageDisplay.playbackFullScreenMaxDimension) -> UIImage? {
+        // 始终走降采样路径，保护内存；maxDimension 无效时使用默认上限
+        let effectiveMaxD = (maxDimension ?? 0) > 0 ? maxDimension! : Constants.ImageDisplay.playbackFullScreenMaxDimension
+        let cacheKey = "\(sessionId):\(index):\(effectiveMaxD)"
         if let cached = Self.imageLoadCache.object(forKey: cacheKey as NSString) {
             return cached
         }
@@ -483,13 +536,7 @@ class SessionRecordManager {
             imageURL = fileManager.fileExists(atPath: candidate.path) ? candidate : nil
         }
         guard let imageURL else { return nil }
-        let result: UIImage?
-        if let maxD = maxDimension, maxD > 0 {
-            result = Self.downsampleImageFromFile(url: imageURL, maxDimension: maxD)
-        } else {
-            result = Self.decodeImageFromFile(url: imageURL)
-        }
-        guard let img = result else { return nil }
+        guard let img = Self.downsampleImageFromFile(url: imageURL, maxDimension: effectiveMaxD) else { return nil }
         Self.imageLoadCache.setObject(img, forKey: cacheKey as NSString)
         return img
     }
@@ -547,12 +594,18 @@ class SessionRecordManager {
     // MARK: - 记录头像
     private static let avatarFileName = "avatar.jpg"
     
-    /// 当 avatar.jpg 缺失时，将传入的已解码图片写入会话目录（用于列表页回退加载后补写）
+    /// 当 avatar.jpg 缺失时，将传入的已解码图片降采样后写入会话目录（用于列表页回退加载后补写）
     func saveAvatarIfMissing(sessionId: String, image: UIImage) {
         let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
         let avatarURL = sessionDir.appendingPathComponent(Self.avatarFileName)
         guard !fileManager.fileExists(atPath: avatarURL.path) else { return }
-        if let jpegData = image.jpegData(compressionQuality: 0.85) {
+
+        // 降采样到 96pt（与 writeAvatarImage 一致，避免超大头像文件）
+        let maxDim = Constants.ImageDisplay.recordAvatarMaxDimension
+        let maxPixel = Int(maxDim * max(1, UIScreen.main.scale))
+        let downsampled = Self.downsampleImageToMaxPixel(image, maxPixelLength: maxPixel) ?? image
+
+        if let jpegData = downsampled.jpegData(compressionQuality: 0.85) {
             try? jpegData.write(to: avatarURL)
         }
     }
@@ -670,7 +723,7 @@ class SessionRecordManager {
     ///   - ocrDuration: OCR 耗时
     ///   - ttsDuration: TTS 耗时
     /// - Returns: 是否更新成功
-    func updateSessionWithResults(id: String, audioResponse: AudioResponse, ocrDuration: TimeInterval, ttsDuration: TimeInterval) -> Bool {
+    func updateSessionWithResults(id: String, audioResponse: AudioResponse, ocrDuration: TimeInterval, llmDuration: TimeInterval = 0, ttsDuration: TimeInterval) -> Bool {
         let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
         let recordURL = sessionDir.appendingPathComponent("record.json")
         guard fileManager.fileExists(atPath: recordURL.path) else {
@@ -687,9 +740,21 @@ class SessionRecordManager {
             let audioData = audioResponse.audioData ?? Data()
             let audioFormat = audioResponse.format.isEmpty ? "mp3" : audioResponse.format
 
+            // 处理LLM生成的名称：保留日期前缀"yy.MM.dd "，替换后半部分
+            let updatedName: String
+            if let storyName = audioResponse.storyName, !storyName.isEmpty {
+                // 生成默认日期前缀（当前日期）
+                let formatter = DateFormatter()
+                formatter.dateFormat = Constants.sessionNameDatePrefixFormat
+                let defaultDatePrefix = formatter.string(from: Date())
+                updatedName = defaultDatePrefix + storyName
+            } else {
+                updatedName = oldRecord.name
+            }
+
             let updatedRecord = SessionRecord(
                 id: oldRecord.id,
-                name: oldRecord.name,
+                name: updatedName,
                 createdAt: oldRecord.createdAt,
                 updatedAt: Date(),
                 imageDataList: oldRecord.imageDataList,
@@ -707,7 +772,10 @@ class SessionRecordManager {
                 voiceSettings: audioResponse.voiceSettings,
                 avatarImageIndex: oldRecord.avatarImageIndex,
                 storageSize: 0,
-                makeStatus: .completed
+                makeStatus: .completed,
+                storyHighlights: audioResponse.storyHighlights,
+                hasVirtualPage: audioResponse.hasVirtualPage ?? false,
+                animationStyle: oldRecord.animationStyle
             )
 
             // 保存音频文件
@@ -752,7 +820,7 @@ class SessionRecordManager {
     ///   - name: 新名称（nil 表示不修改）
     ///   - avatarImageIndex: 头像图片索引（nil 表示不修改）
     /// - Returns: 更新是否成功
-    func updateSession(id: String, name: String? = nil, avatarImageIndex: Int? = nil) -> Bool {
+    func updateSession(id: String, name: String? = nil, avatarImageIndex: Int? = nil, animationStyle: AnimationStyle? = nil) -> Bool {
         // 内置默认会话不可更新
         if isBundledDefaultSession(id) {
             logger.warning("内置默认会话不可更新")
@@ -761,17 +829,19 @@ class SessionRecordManager {
         guard let record = loadSession(id: id) else {
             return false
         }
-        
+
         let newName = name?.trimmingCharacters(in: .whitespaces) ?? record.name
         guard !newName.isEmpty else { return false }
-        
+
         let newAvatarIndex: Int
         if let idx = avatarImageIndex {
             newAvatarIndex = min(max(0, idx), record.totalImageCount > 0 ? record.totalImageCount - 1 : 0)
         } else {
             newAvatarIndex = record.avatarImageIndex
         }
-        
+
+        let newAnimationStyle = animationStyle ?? record.animationStyle
+
         let updatedRecord = SessionRecord(
             id: record.id,
             name: newName,
@@ -791,9 +861,13 @@ class SessionRecordManager {
             audioSize: record.audioSize,
             voiceSettings: record.voiceSettings,
             avatarImageIndex: newAvatarIndex,
-            storageSize: record.storageSize
+            storageSize: record.storageSize,
+            makeStatus: record.makeStatus,
+            storyHighlights: record.storyHighlights,
+            hasVirtualPage: record.hasVirtualPage,
+            animationStyle: newAnimationStyle
         )
-        
+
         let result = saveSession(updatedRecord)
         return result.success
     }
@@ -1494,7 +1568,11 @@ class SessionRecordManager {
                 audioSize: audioData.count,
                 voiceSettings: record.voiceSettings,
                 avatarImageIndex: record.avatarImageIndex,
-                storageSize: record.storageSize
+                storageSize: record.storageSize,
+                makeStatus: record.makeStatus,
+                storyHighlights: record.storyHighlights,
+                hasVirtualPage: record.hasVirtualPage,
+                animationStyle: record.animationStyle
             )
 
             logger.info("加载内置默认会话成功: \(record.name)")

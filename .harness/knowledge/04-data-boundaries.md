@@ -6,6 +6,8 @@ SessionRecord（Sources/Models/SessionRecord.swift）：Codable/Identifiable/Has
 
 MakeStatus（同文件）：enum { making, completed }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking 计算属性供 UI 判断。
 
+AnimationStyle（同文件）：enum { rightToLeft, topToBottom }，SessionRecord/Metadata 的 animationStyle 默认 rightToLeft（横向翻页），向后兼容（旧数据解码时默认横向）。
+
 ## 语音与配置
 
 - VoiceSettings（Sources/Models/VoiceSettings.swift）：speed/pitch/volume/voiceType/encoding，关联 TTS 请求和 SessionRecord
@@ -50,6 +52,13 @@ MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionReco
     "provider": "huoshan",
     "huoshan": { "base_url": "", "appid": "", "access_key": "" },
     "aliqwen": { "base_url": "", "secret_key": "", "model": "", "voice": "", "language_type": "", "instructions": "", "stream": false }
+  },
+  "llm": {
+    "provider": "doubao",
+    "providers": {
+      "doubao": { "base_url": "", "model_name": "", "api_key": "", "prompt_user": "", "timeout": 30, "max_retry_count": 3, "retry_delay": 1 },
+      "openai": { "base_url": "", "model_name": "", "api_key": "", "prompt_user": "", "timeout": 30, "max_retry_count": 3, "retry_delay": 1 }
+    }
   }
 }
 ```
@@ -57,6 +66,8 @@ MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionReco
 ocr.provider 选择活跃供应商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveOCRProvider() 读取活跃供应商，loadActiveOCRProviderConfig() 返回对应子配置。API Key 按供应商存储不同 Keychain key（doubao_api_key/openai_ocr_api_key），通过 getOCRAPIKeyForProvider(_:) 获取。
 
 tts.provider 选择活跃供应商（"huoshan"/"aliqwen"），对应子配置独立维护。火山 TTS 音频格式 mp3，阿里千问 TTS 音频格式 wav，SessionRecord.audioFormat 记录实际格式。
+
+llm.provider 选择活跃供应商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveLLMProvider() 读取活跃供应商，loadActiveLLMProviderConfig() 返回 LLMProviderConfig。API Key 按供应商存储不同 Keychain key（doubao_llm_api_key/openai_llm_api_key），通过 getLLMAPIKeyForProvider(_:) 获取。
 
 SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle。
 

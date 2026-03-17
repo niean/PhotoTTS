@@ -4,11 +4,16 @@
 - fullScreenKind：全屏类型枚举（nil=主界面，.loading=启动页，.imageViewer=全屏大图，.camera=全屏相机）
 - 底导：底部 Tab 栏（首页/制作/消息/我的）；顶导：各 Tab 内顶部导航栏
 - 手势识别：左边缘滑动返回（注释 // 手势识别，参数 Constants.Gesture）
-- SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/ocrDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
+- SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/ocrDuration/llmDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus/storyHighlights/hasVirtualPage。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
+- storyHighlights：绘本要点（LLM生成的15-30字符摘要），可选字段，播放时作为虚拟页追加到ocrTextSegments末尾
+- hasVirtualPage：是否存在要点图片页（由storyHighlights生成），Bool类型，要点图片从EndPicts资源库随机选取
+- EndPicts：要点图片资源库，位于Bundle中，按动画方向分h（横向）和z（纵向）两组图片，播放至要点图片页时随机选取
 - SessionRecordMetadata：SessionRecord 轻量摘要（不含图片/音频），字段：id/name/createdAt/updatedAt/totalImageCount/validImageCount/textLength/audioDuration/avatarImageIndex/storageSize。写入 metadata.json
 - SessionRecordManager：会话记录本地读写与列表管理，单例
-- ImageToSpeechCoordinator：协调批量图片 OCR+TTS，输出进度与 AudioResponse/错误
-- ProcessingProgress/ProcessingStage：进度（stage: ocr/tts/completed/failed，percentage 由 currentStep/totalSteps 算）
+- ImageToSpeechCoordinator：协调批量图片 OCR+LLM+TTS 三阶段流程，输出进度与 AudioResponse/错误
+- ProcessingProgress/ProcessingStage：进度（stage: ocr/llm/tts/completed/failed，percentage 由 currentStep/totalSteps 算；LLM阶段占比50~70%，失败不阻断流程）
+- LLMService：LLM分析服务（多Provider：doubao/openai），用于OCR后生成绘本名称和要点（storyHighlights），支持重试和长度校验（maxInputTextLength=20000）
+- 要点图片页：storyHighlights存在时，PlayView在真实图片段后追加一页（从EndPicts随机选取图片），textSegmentRanges比totalImageCount多1段；默认记录不追加要点图片页
 - PlayView：播放器，入参 recordId（已保存按需加载）或 preloadedRecord（未保存内存图片），播放结束自动 onDismiss + PlayHistoryManager 记录
 - CustomZStack：主界面画布，承载底导与全屏容器层级
 - FullScreenImageContent：全屏大图组件，支持按需加载（sessionId+totalImageCount）和预加载（preloadedImages）两种模式
@@ -19,5 +24,5 @@
 - AudioPlayerDelegate：AVAudioPlayerDelegate 封装类（定义于 MakeView.swift），持有播放结束回调
 - AppLoadingView/AppIntroView：位于 AppPagesView.swift；前者模拟加载后置 fullScreenKind=nil，后者用于"关于"页面
 - ExportManifest/ExportSessionInfo：导出包清单（version/exportDate/appName/totalSessions/totalSize/sessions），导入时解析 export_manifest.json
-- config_local.json：本地 API 配置（OCR 多 Provider：豆包/OpenAI，TTS 多 Provider：火山引擎/阿里千问），SettingsManager 读取，设置页可编辑
+- config_local.json：本地 API 配置（OCR 多 Provider：豆包/OpenAI，TTS 多 Provider：火山引擎/阿里千问，LLM 多 Provider：豆包/OpenAI），SettingsManager 读取，设置页可编辑
 - 会话命名约定：会话名称以日期前缀 `YY.MM.DD ` 开头（如 `26.03.16 `），前缀自动生成且只读，用户只能编辑前缀后的自定义名称部分

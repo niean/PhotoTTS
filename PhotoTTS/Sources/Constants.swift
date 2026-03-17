@@ -65,8 +65,10 @@ extension Constants {
         static let blurBackgroundRadius: CGFloat = 10
         /// 图片模糊背景透明度
         static let blurBackgroundOpacity: Double = 0.5
-        /// 记录头像最大边长
+        /// 记录头像最大边长（详情页）
         static let recordAvatarMaxDimension: CGFloat = 96
+        /// 记录列表行头像最大边长
+        static let listRowAvatarMaxDimension: CGFloat = 120
         /// 记录单张图片最大边长
         static let saveImageMaxPixel: CGFloat = 2048
     }
@@ -83,6 +85,10 @@ extension Constants {
         static let longPressDuration: TimeInterval = 0.5
         /// 全屏图左右滑动切换的最小距离（pt）
         static let swipeMinDistance: CGFloat = 40
+        /// 音量亮度调节单次滑动步长（0.0~1.0）
+        static let volumeBrightnessStep: CGFloat = 0.05
+        /// 音量亮度调节触发最小滑动距离（pt）
+        static let gestureMinDragDistance: CGFloat = 20
     }
 
     // MARK: - 网络配置扩展
@@ -207,7 +213,7 @@ extension Constants {
         /// 护眼模式背景色
         static let eyeProtectionBackgroundColor = Color(red: 0.85, green: 0.95, blue: 0.88)
         /// 播放器控制层无操作自动隐藏间隔（秒）
-        static let overlayAutoHideInterval: TimeInterval = 5
+        static let overlayAutoHideInterval: TimeInterval = 3
         /// 进度条轨道高度（pt）
         static let progressBarHeight: CGFloat = 3
         /// 进度条滑块直径（pt）
@@ -224,6 +230,8 @@ extension Constants {
         static let openaiOCRAPIKey = "openai_ocr_api_key"
         static let ttsAccessKey = "tts_access_key"
         static let aliqwenTTSSecretKey = "aliqwen_tts_secret_key"
+        static let doubaoLLMAPIKey = "doubao_llm_api_key"
+        static let openaiLLMAPIKey = "openai_llm_api_key"
     }
     
     // MARK: - 身份名称
@@ -247,6 +255,7 @@ extension Constants {
         static let maxCacheSize = "max_cache_size"
         static let autoCleanupEnabled = "auto_cleanup_enabled"
         static let siriPendingSessionId = "siriPendingPlaySessionId"
+        static let landscapeTipDismissed = "landscape_tip_dismissed"
     }
     
     // MARK: - 通知名
@@ -312,6 +321,20 @@ extension Constants {
     /// 草稿会话默认名称后缀（前缀为日期格式）
     static let draftSessionNameSuffix = "未命名"
 
+    // MARK: - 要点图片配置（EndPicts）
+    struct EndPicts {
+        /// 横向动画（rightToLeft）对应的结束图目录名
+        static let horizontalDirectoryName = "h"
+        /// 纵向动画（topToBottom）对应的结束图目录名
+        static let verticalDirectoryName = "z"
+        /// 横向目录图片数量
+        static let horizontalImageCount = 5
+        /// 纵向目录图片数量
+        static let verticalImageCount = 4
+        /// Bundle 中 EndPicts 根目录名
+        static let bundleDirectoryName = "EndPicts"
+    }
+
     // MARK: - 字体常量
     struct Fonts {
         /// iPad 自适应缩放快捷方法
@@ -376,6 +399,12 @@ extension Constants {
         static var searchEmptyIcon: Font { .system(size: s(36)) }
         /// 历史空状态图标: 44pt light
         static var historyEmptyIcon: Font { .system(size: s(44), weight: .light) }
+        /// 历史空状态标题: 18pt medium
+        static var historyEmptyTitle: Font { .system(size: s(18), weight: .medium) }
+        /// 历史日期标签: 11pt medium
+        static var historyDate: Font { .system(size: s(11), weight: .medium) }
+        /// 历史详情文本: 13pt
+        static var historyDetail: Font { .system(size: s(13)) }
         /// 横拍提示手机/列表空状态图标: 60pt
         static var emptyStateIcon: Font { .system(size: s(60)) }
         /// 制作页大图标: 80pt
@@ -391,12 +420,6 @@ extension Constants {
         static let configEditorText: Font = .system(size: 16, weight: .light, design: .monospaced)
         /// ChangeLog/Debug 返回按钮: 16pt medium
         static let fixedNavAction: Font = .system(size: 16, weight: .medium)
-        /// 历史日期标签: 11pt medium
-        static let historyDate: Font = .system(size: 11, weight: .medium)
-        /// 历史详情文本: 13pt
-        static let historyDetail: Font = .system(size: 13)
-        /// 历史空状态标题: 18pt medium
-        static let historyEmptyTitle: Font = .system(size: 18, weight: .medium)
         /// 制作页图片移除: 26pt
         static let makeImageRemoveIcon: Font = .system(size: 26)
         /// 制作页图片删除: 28pt

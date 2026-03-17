@@ -47,7 +47,7 @@ class TTSService: TTSServiceProtocol {
     
     // MARK: - 语音合成
     func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[TTS] 模型\(configuration.provider)，"
         logInfo("\(providerTag) 转换，文字长度: \(text.count)")
         
         guard !text.isEmpty else {
@@ -61,7 +61,7 @@ class TTSService: TTSServiceProtocol {
     }
     
     private func synthesizeSpeechWithRetry(text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[TTS] 模型\(configuration.provider)，"
         
         func attemptTTS(attempt: Int, lastError: Error?) {
             logInfo("\(providerTag) TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
@@ -93,7 +93,7 @@ class TTSService: TTSServiceProtocol {
     }
     
     private func synthesizeSpeechOnce(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[TTS] 模型\(configuration.provider)，"
         let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let timestamp = Int(Date().timeIntervalSince1970)
         
@@ -307,7 +307,7 @@ class AliqwenTTSService: TTSServiceProtocol {
     
     // MARK: - 语音合成
     func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[TTS] 模型\(configuration.provider)，"
         logInfo("\(providerTag) 转换，文字长度: \(text.count)")
         
         guard !text.isEmpty else {
@@ -321,7 +321,7 @@ class AliqwenTTSService: TTSServiceProtocol {
     }
     
     private func synthesizeSpeechWithRetry(text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[TTS] 模型\(configuration.provider)，"
         
         func attemptTTS(attempt: Int, lastError: Error?) {
             logInfo("\(providerTag) TTS API调用尝试 \(attempt)/\(configuration.maxRetryCount)")
@@ -353,7 +353,7 @@ class AliqwenTTSService: TTSServiceProtocol {
     }
     
     private func synthesizeSpeechOnce(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
-        let providerTag = "[\(configuration.provider)]"
+        let providerTag = "[TTS] 模型\(configuration.provider)，"
         
         // 构建阿里千问3-TTS-Flash请求体（DashScope扁平input格式）
         // 官方文档: https://help.aliyun.com/zh/model-studio/qwen-tts-api
@@ -598,11 +598,11 @@ class TTSServiceFactory {
             ?? ttsConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ttsService.info("[\(activeProvider)] 配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
-        os.Logger.ttsService.info("[\(activeProvider)] 凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))")
+        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
+        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))")
         
         guard !baseURL.isEmpty && !appId.isEmpty && !accessKey.isEmpty else {
-            os.Logger.ttsService.error("[\(activeProvider)] TTS配置不完整")
+            os.Logger.ttsService.error("[TTS] 模型\(activeProvider)，TTS配置不完整")
             return nil
         }
         
@@ -622,7 +622,7 @@ class TTSServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ttsService.info("[\(activeProvider)] TTS服务初始化成功")
+        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，TTS服务初始化成功")
         return TTSService(configuration: configuration)
     }
     
@@ -647,11 +647,11 @@ class TTSServiceFactory {
             ?? ttsConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ttsService.info("[\(activeProvider)] 配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
-        os.Logger.ttsService.info("[\(activeProvider)] 凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))")
+        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
+        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))")
         
         guard !secretKey.isEmpty else {
-            os.Logger.ttsService.error("[\(activeProvider)] 未配置TTS Secret Key")
+            os.Logger.ttsService.error("[TTS] 模型\(activeProvider)，未配置TTS Secret Key")
             return nil
         }
         
@@ -669,7 +669,7 @@ class TTSServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ttsService.info("[\(activeProvider)] TTS服务初始化成功")
+        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，TTS服务初始化成功")
         return AliqwenTTSService(configuration: configuration)
     }
 }

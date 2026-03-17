@@ -2,6 +2,15 @@ import Foundation
 import UIKit
 import os.log
 
+// MARK: - 播放方向（翻页动画样式）
+/// 播放时的翻页动画方向
+enum AnimationStyle: String, Codable {
+    /// 从右到左（横向翻页，默认）
+    case rightToLeft
+    /// 从上到下（纵向翻页）
+    case topToBottom
+}
+
 // MARK: - 制作状态
 /// 会话记录的制作状态
 enum MakeStatus: String, Codable {
@@ -84,7 +93,17 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     // MARK: - 制作状态
     /// 制作状态：nil 或 .completed 表示已完成，.making 表示制作中（向后兼容旧数据）
     let makeStatus: MakeStatus?
-    
+
+    // MARK: - LLM分析结果
+    /// 绘本要点原文（LLM生成的要点），nil表示未生成或生成失败
+    let storyHighlights: String?
+    /// 是否存在虚拟页（由LLM要点生成）
+    let hasVirtualPage: Bool
+
+    // MARK: - 播放方向
+    /// 播放方向（翻页动画样式），默认横向翻页（从右到左）
+    let animationStyle: AnimationStyle
+
     // MARK: - 初始化
     init(
         id: String = UUID().uuidString,
@@ -103,7 +122,10 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         voiceSettings: VoiceSettings? = nil,
         avatarImageIndex: Int = 0,
         storageSize: Int64 = 0,
-        makeStatus: MakeStatus? = nil
+        makeStatus: MakeStatus? = nil,
+        storyHighlights: String? = nil,
+        hasVirtualPage: Bool = false,
+        animationStyle: AnimationStyle = .rightToLeft
     ) {
         self.id = id
         self.name = name
@@ -133,8 +155,11 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.avatarImageIndex = min(max(0, avatarImageIndex), images.count > 0 ? images.count - 1 : 0)
         self.storageSize = storageSize
         self.makeStatus = makeStatus
+        self.storyHighlights = storyHighlights
+        self.hasVirtualPage = hasVirtualPage
+        self.animationStyle = animationStyle
     }
-    
+
     // MARK: - Hashable（用于 navigationDestination(item:) 等，仅以 id 区分）
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -144,7 +169,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     }
     
     /// 按成员复制
-    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil) {
+    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -165,6 +190,9 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.avatarImageIndex = avatarImageIndex
         self.storageSize = storageSize
         self.makeStatus = makeStatus
+        self.storyHighlights = storyHighlights
+        self.hasVirtualPage = hasVirtualPage
+        self.animationStyle = animationStyle
     }
     
     // MARK: - Codable 自定义编码
@@ -193,8 +221,11 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         try container.encode(avatarImageIndex, forKey: .avatarImageIndex)
         try container.encode(storageSize, forKey: .storageSize)
         try container.encodeIfPresent(makeStatus, forKey: .makeStatus)
+        try container.encodeIfPresent(storyHighlights, forKey: .storyHighlights)
+        try container.encode(hasVirtualPage, forKey: .hasVirtualPage)
+        try container.encode(animationStyle, forKey: .animationStyle)
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -216,6 +247,9 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         case avatarImageIndex
         case storageSize
         case makeStatus
+        case storyHighlights
+        case hasVirtualPage
+        case animationStyle
     }
     
     // 自定义解码
@@ -242,11 +276,14 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         avatarImageIndex = min(max(0, rawAvatarIndex), max(0, totalImageCount - 1))
         storageSize = try container.decodeIfPresent(Int64.self, forKey: .storageSize) ?? 0
         makeStatus = try container.decodeIfPresent(MakeStatus.self, forKey: .makeStatus)
+        storyHighlights = try container.decodeIfPresent(String.self, forKey: .storyHighlights)
+        hasVirtualPage = try container.decodeIfPresent(Bool.self, forKey: .hasVirtualPage) ?? false
+        animationStyle = try container.decodeIfPresent(AnimationStyle.self, forKey: .animationStyle) ?? .rightToLeft
     }
     
     /// 返回带新 storageSize 的副本（用于保存后写回 record.json）
     func withStorageSize(_ size: Int64) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle)
     }
     
     // MARK: - 辅助方法
@@ -265,6 +302,40 @@ struct SessionRecord: Codable, Identifiable, Hashable {
             }
             return image
         }
+    }
+
+    /// 按需从Base64解码单张图片（用于播放时按需加载，避免全量解码）
+    /// - Parameters:
+    ///   - index: 图片索引
+    ///   - maxDimension: 最大边长（点），超过则等比缩小；nil 表示不缩小
+    /// - Returns: 图片，不存在或解码失败返回 nil
+    func getImage(at index: Int, maxDimension: CGFloat? = Constants.ImageDisplay.playbackFullScreenMaxDimension) -> UIImage? {
+        guard index >= 0, index < imageDataList.count else { return nil }
+        guard let data = Data(base64Encoded: imageDataList[index]) else { return nil }
+        // 使用 Image I/O 降采样
+        let maxPixel: Int?
+        if let maxDim = maxDimension, maxDim > 0 {
+            maxPixel = Int(maxDim * max(1, UIScreen.main.scale))
+        } else {
+            maxPixel = nil
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return UIImage(data: data) // 降采样失败则返回原图
+        }
+        if let pixel = maxPixel {
+            let options: [CFString: Any] = [
+                kCGImageSourceShouldCache: false,
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: pixel
+            ]
+            if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+                return UIImage(cgImage: cgImage)
+            }
+        }
+        // 无需降采样或降采样失败
+        guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
     
     /// 获取音频数据
@@ -322,7 +393,9 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
     let storageSize: Int64
     /// 制作状态：nil 或 .completed 表示已完成，.making 表示制作中（向后兼容旧数据）
     let makeStatus: MakeStatus?
-    
+    /// 播放方向（翻页动画样式），默认横向翻页（从右到左）
+    let animationStyle: AnimationStyle
+
     /// 是否正在制作中
     var isMaking: Bool { makeStatus == .making }
     
@@ -341,9 +414,10 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         self.avatarImageIndex = record.avatarImageIndex
         self.storageSize = record.storageSize
         self.makeStatus = record.makeStatus
+        self.animationStyle = record.animationStyle
     }
     
-    init(id: String, name: String, createdAt: Date, updatedAt: Date, totalImageCount: Int, validImageCount: Int, textLength: Int, audioDuration: TimeInterval, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil) {
+    init(id: String, name: String, createdAt: Date, updatedAt: Date, totalImageCount: Int, validImageCount: Int, textLength: Int, audioDuration: TimeInterval, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, animationStyle: AnimationStyle = .rightToLeft) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -355,16 +429,22 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         self.avatarImageIndex = avatarImageIndex
         self.storageSize = storageSize
         self.makeStatus = makeStatus
+        self.animationStyle = animationStyle
     }
     
     /// 返回带新 storageSize 的元数据副本（用于保存后写回 metadata.json）
     func withStorageSize(_ size: Int64) -> SessionRecordMetadata {
-        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus)
+        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, animationStyle: animationStyle)
     }
-    
+
     /// 返回带新 makeStatus 的元数据副本
     func withMakeStatus(_ status: MakeStatus?) -> SessionRecordMetadata {
-        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: status)
+        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: status, animationStyle: animationStyle)
+    }
+
+    /// 返回带新 animationStyle 的元数据副本
+    func withAnimationStyle(_ style: AnimationStyle) -> SessionRecordMetadata {
+        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, totalImageCount: totalImageCount, validImageCount: validImageCount, textLength: textLength, audioDuration: audioDuration, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: makeStatus, animationStyle: style)
     }
     
     // 为了兼容旧数据，提供自定义解码
@@ -381,8 +461,9 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         avatarImageIndex = try container.decodeIfPresent(Int.self, forKey: .avatarImageIndex) ?? 0
         storageSize = try container.decodeIfPresent(Int64.self, forKey: .storageSize) ?? 0
         makeStatus = try container.decodeIfPresent(MakeStatus.self, forKey: .makeStatus)
+        animationStyle = try container.decodeIfPresent(AnimationStyle.self, forKey: .animationStyle) ?? .rightToLeft
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -396,8 +477,9 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         try container.encode(avatarImageIndex, forKey: .avatarImageIndex)
         try container.encode(storageSize, forKey: .storageSize)
         try container.encodeIfPresent(makeStatus, forKey: .makeStatus)
+        try container.encode(animationStyle, forKey: .animationStyle)
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -410,6 +492,7 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         case avatarImageIndex
         case storageSize
         case makeStatus
+        case animationStyle
     }
     
     // Hashable 实现

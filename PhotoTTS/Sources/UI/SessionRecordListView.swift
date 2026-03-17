@@ -3,7 +3,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 // MARK: - 会话记录列表展示模式
-/// 标准：顶导 + 全部功能（播放、查看、编辑、删除、导入导出）
+/// 标准：顶导 + 查看、编辑、删除、导入导出（不含播放，当前无调用方显式使用）
 /// 嵌入：无顶导，仅播放、查看
 /// 管理：顶导 + 查看、编辑、删除（不允许播放）、导入导出
 enum SessionRecordListMode {
@@ -257,12 +257,20 @@ struct SessionRecordListView: View {
                             title: "选择记录 (\(selectedIDs.count))",
                             onSwipeBack: { },
                             leading: {
-                                // 左侧按钮：全选
-                                Button(action: {
-                                    selectedIDs = Set(allRecordIDs.filter { $0 != Constants.DefaultSession.id })
-                                }) {
-                                    Text("全选")
-                                        .font(Constants.Fonts.listAction)
+                                // 左侧按钮：全选/反选
+                                HStack(spacing: scaled(16)) {
+                                    Button(action: {
+                                        selectedIDs = Set(allRecordIDs.filter { $0 != Constants.DefaultSession.id })
+                                    }) {
+                                        Text("全选")
+                                            .font(Constants.Fonts.listAction)
+                                    }
+                                    Button(action: {
+                                        toggleSelection()
+                                    }) {
+                                        Text("反选")
+                                            .font(Constants.Fonts.listAction)
+                                    }
                                 }
                             },
                             trailing: {
@@ -355,8 +363,8 @@ struct SessionRecordListView: View {
             SessionRecordUnifiedView(
                 mode: .edit(
                     record,
-                    onSave: { newName, newAvatarIndex in
-                        updateSession(id: record.id, name: newName, avatarImageIndex: newAvatarIndex) {
+                    onSave: { newName, newAvatarIndex, newAnimationStyle in
+                        updateSession(id: record.id, name: newName, avatarImageIndex: newAvatarIndex, animationStyle: newAnimationStyle) {
                             sessionToEditRecord = nil
                         }
                     },
@@ -437,6 +445,8 @@ struct SessionRecordListView: View {
         let isDefault = metadata.isDefault
         let isMaking = metadata.isMaking
         
+        let canEnterSelectionMode = !isDefault && !isMaking && allowEditDelete && !isSelectionMode
+
         return SessionRecordRow(
             metadata: metadata,
             makeProgress: makeProgress,
@@ -460,7 +470,10 @@ struct SessionRecordListView: View {
                 } else {
                     selectedIDs.insert(metadata.id)
                 }
-            }
+            },
+            onLongPress: canEnterSelectionMode ? {
+                enterSelectionModeAndSelect(id: metadata.id)
+            } : nil
         )
     }
     
@@ -623,9 +636,9 @@ struct SessionRecordListView: View {
     }
     
     /// 更新会话记录
-    private func updateSession(id: String, name: String? = nil, avatarImageIndex: Int? = nil, completion: @escaping () -> Void = {}) {
+    private func updateSession(id: String, name: String? = nil, avatarImageIndex: Int? = nil, animationStyle: AnimationStyle? = nil, completion: @escaping () -> Void = {}) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let success = SessionRecordManager.shared.updateSession(id: id, name: name, avatarImageIndex: avatarImageIndex)
+            let success = SessionRecordManager.shared.updateSession(id: id, name: name, avatarImageIndex: avatarImageIndex, animationStyle: animationStyle)
             DispatchQueue.main.async {
                 if success {
                     loadPage()
@@ -682,6 +695,13 @@ struct SessionRecordListView: View {
         selectedIDs.removeAll()
         loadAllRecordIDs()
     }
+
+    // 长按进入多选模式并选中指定记录
+    private func enterSelectionModeAndSelect(id: String) {
+        guard id != Constants.DefaultSession.id else { return }
+        startExportSelectionMode()
+        selectedIDs.insert(id)
+    }
     
     // 加载所有记录 ID（用于全选功能）
     private func loadAllRecordIDs() {
@@ -691,6 +711,23 @@ struct SessionRecordListView: View {
                 self.allRecordIDs = allMetadata.map { $0.id }
             }
         }
+    }
+
+    // 反选：切换当前页所有非默认记录的选中状态
+    private func toggleSelection() {
+        let currentPageIDs = pagedMetadataList
+            .filter { $0.id != Constants.DefaultSession.id }
+            .map { $0.id }
+        let currentPageSet = Set(currentPageIDs)
+
+        // 当前页已选中的记录
+        let selectedInCurrentPage = selectedIDs.intersection(currentPageSet)
+        // 当前页未选中的记录
+        let unselectedInCurrentPage = currentPageSet.subtracting(selectedInCurrentPage)
+
+        // 移除当前页已选中的，添加当前页未选中的
+        selectedIDs.subtract(selectedInCurrentPage)
+        selectedIDs.formUnion(unselectedInCurrentPage)
     }
     
     // 导出选中的会话记录
@@ -759,7 +796,8 @@ struct SessionRecordRow: View {
     var isSelectionMode: Bool = false
     var isSelected: Bool = false
     var onToggleSelection: (() -> Void)? = nil
-    
+    var onLongPress: (() -> Void)? = nil
+
     @State private var avatarImage: UIImage? = nil
     @State private var loadingId: String? = nil
 
@@ -918,6 +956,10 @@ struct SessionRecordRow: View {
             guard isSelectionMode, !metadata.isDefault else { return }
             onToggleSelection?()
         }
+        .onLongPressGesture {
+            guard let onLongPress = onLongPress else { return }
+            onLongPress()
+        }
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {
@@ -929,9 +971,6 @@ struct SessionRecordRow: View {
             return "\(seconds)秒"
         }
     }
-    
-    /// 列表头像最大边长
-    private static let rowAvatarMaxDimension: CGFloat = 120
     
     /// 加载头像
     private func loadAvatarImage() {
@@ -948,8 +987,8 @@ struct SessionRecordRow: View {
                 return
             }
             // 回退：从原图按需生成，并写回 avatar.jpg 供下次直接命中
-            let fallback = SessionRecordManager.shared.loadImage(sessionId: sid, index: avatarIdx, maxDimension: Self.rowAvatarMaxDimension)
-                ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: Self.rowAvatarMaxDimension)
+            let fallback = SessionRecordManager.shared.loadImage(sessionId: sid, index: avatarIdx, maxDimension: Constants.ImageDisplay.listRowAvatarMaxDimension)
+                ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: Constants.ImageDisplay.listRowAvatarMaxDimension)
             if let img = fallback {
                 SessionRecordManager.shared.saveAvatarIfMissing(sessionId: sid, image: img)
             }

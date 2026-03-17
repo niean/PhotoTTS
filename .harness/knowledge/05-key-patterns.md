@@ -26,7 +26,7 @@ HomePageView 写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPick
 
 播放互斥：AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点（HomePageView、MakeView.togglePlayback、loadPendingSiriSession）打开前检查，为 true 时拒绝并记录日志；触发时设 true，onDismiss 设 false。
 
-手势：底层 Color 响应单击（overlay 显隐切换）、双击（播放/暂停切换）和滑动（暂停时切换图片），图片层 allowsHitTesting(false) 透传手势。滑动方向受 animationStyle 管控：rightToLeft 模式检测竖屏 height 轴（用户横屏左右滑），topToBottom 模式检测竖屏 width 轴（用户横屏上下滑）。DragGesture minimumDistance 使用 Constants.Gesture.swipeMinDistance。浮层 5s 无操作自动隐藏。
+手势：底层 Color 响应单击（overlay 显隐切换）、双击（播放/暂停切换）和滑动（暂停时切换图片），图片层 allowsHitTesting(false) 透传手势。滑动方向受 animationStyle 管控：rightToLeft 模式检测竖屏 height 轴（用户横屏左右滑），topToBottom 模式检测竖屏 width 轴（用户横屏上下滑）。DragGesture minimumDistance 使用 Constants.Gesture.swipeMinDistance。浮层 3s 无操作自动隐藏。
 
 翻页动画：通过 AnimationStyle 枚举（private，PlayView.swift 内）控制方向，支持两种模式（@State 会话级状态，默认 rightToLeft）。@State isForwardTransition 记录翻页方向（正向=index增大/反向=index减小），在所有 currentImageIndex 赋值点先设方向再更新 index。.transition 根据 (animationStyle, isForwardTransition) 二维组合动态选择插入/移除边缘：rightToLeft+正向 insertion .bottom、removal .top，反向则反转；topToBottom+正向 insertion .trailing、removal .leading，反向则反转。播放设置面板提供「动画样式」按钮切换。外层 .animation(.easeInOut(duration: 0.3), value: currentImageIndex) 驱动过渡。
 
