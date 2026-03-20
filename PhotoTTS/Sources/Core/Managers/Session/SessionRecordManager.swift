@@ -502,8 +502,8 @@ class SessionRecordManager {
             imageCount = Constants.EndPicts.verticalImageCount
         }
 
-        // 随机选取一张（索引从 1 开始，匹配文件名 h-1, h-2... 或 z-1, z-2...）
-        let randomIndex = Int.random(in: 1...imageCount)
+        // 随机选取一张（索引从 0 开始，匹配文件名 h-0, h-1... 或 z-0, z-1...）
+        let randomIndex = Int.random(in: 0..<imageCount)
         // 资源文件被扁平化复制到 Bundle 根目录，直接使用文件名
         let resourceName = "\(directoryName)-\(randomIndex)"
 
@@ -514,6 +514,172 @@ class SessionRecordManager {
         }
 
         // 使用 Image I/O 降采样加载
+        return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
+    }
+
+    // MARK: - 用户上传要点图片
+
+    /// 获取用户上传要点图片的根目录
+    private var userEndPictsDirectory: URL {
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsPath.appendingPathComponent(Constants.EndPicts.userUploadDirectoryName, isDirectory: true)
+    }
+
+    /// 获取指定方向的要点图片目录
+    private func userEndPictsDirectionDirectory(direction: String) -> URL {
+        return userEndPictsDirectory.appendingPathComponent(direction, isDirectory: true)
+    }
+
+    /// 确保用户上传要点图片目录存在
+    private func ensureUserEndPictsDirectoryExists(direction: String) -> URL {
+        let dir = userEndPictsDirectionDirectory(direction: direction)
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
+    /// 从合并池（系统内置 + 用户上传）随机加载要点图片
+    /// - Parameters:
+    ///   - animationStyle: 动画方向（横向/纵向）
+    ///   - maxDimension: 最大边长（点），超过则等比缩小
+    /// - Returns: 图片，加载失败返回 nil
+    func loadEndPict(animationStyle: AnimationStyle, maxDimension: CGFloat) -> UIImage? {
+        let directionName: String
+        let systemImageCount: Int
+        switch animationStyle {
+        case .rightToLeft:
+            directionName = Constants.EndPicts.horizontalDirectoryName
+            systemImageCount = Constants.EndPicts.horizontalImageCount
+        case .topToBottom:
+            directionName = Constants.EndPicts.verticalDirectoryName
+            systemImageCount = Constants.EndPicts.verticalImageCount
+        }
+
+        // 获取用户上传图片列表
+        let userImageURLs = getUserEndPictURLs(direction: directionName)
+        let totalCount = systemImageCount + userImageURLs.count
+
+        guard totalCount > 0 else {
+            logger.warning("要点图片池为空")
+            return nil
+        }
+
+        // 随机选取索引
+        let randomIndex = Int.random(in: 0..<totalCount)
+
+        if randomIndex < systemImageCount {
+            // 选中系统内置图片（索引从 0 开始，文件名从 0 开始）
+            let resourceName = "\(directionName)-\(randomIndex)"
+            guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
+                logger.warning("系统要点图片不存在: \(resourceName).jpg")
+                return nil
+            }
+            return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
+        } else {
+            // 选中用户上传图片
+            let userIndex = randomIndex - systemImageCount
+            guard userIndex < userImageURLs.count else {
+                logger.warning("用户要点图片索引越界")
+                return nil
+            }
+            return Self.downsampleImageFromFile(url: userImageURLs[userIndex], maxDimension: maxDimension)
+        }
+    }
+
+    /// 获取用户上传的要点图片 URL 列表
+    /// - Parameter direction: 方向标识（h/z）
+    /// - Returns: 图片 URL 数组
+    func getUserEndPictURLs(direction: String) -> [URL] {
+        let dir = userEndPictsDirectionDirectory(direction: direction)
+        guard fileManager.fileExists(atPath: dir.path),
+              let contents = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
+            return []
+        }
+        // 只返回 jpg 文件
+        return contents.filter { $0.pathExtension.lowercased() == "jpg" }.sorted { $0.path < $1.path }
+    }
+
+    /// 保存用户上传的要点图片
+    /// - Parameters:
+    ///   - image: 原始图片
+    ///   - direction: 方向标识（h/z）
+    /// - Returns: 保存成功返回 true
+    func saveUserEndPict(image: UIImage, direction: String) -> Bool {
+        let dir = ensureUserEndPictsDirectoryExists(direction: direction)
+
+        // 降采样到 2048px
+        let maxPixel = Int(Constants.EndPicts.uploadImageMaxPixel)
+        let downsampled = Self.downsampleImageToMaxPixel(image, maxPixelLength: maxPixel) ?? image
+
+        // 生成文件名：方向-时间戳（毫秒）.jpg，避免批量保存时文件名冲突
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let fileName = "\(direction)-\(timestamp).jpg"
+        let fileURL = dir.appendingPathComponent(fileName)
+
+        guard let jpegData = downsampled.jpegData(compressionQuality: 0.9) else {
+            logger.error("要点图片编码失败")
+            return false
+        }
+
+        do {
+            try jpegData.write(to: fileURL)
+            logger.info("保存用户要点图片成功: \(fileName)")
+            return true
+        } catch {
+            logger.error("保存用户要点图片失败: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// 删除用户上传的要点图片
+    /// - Parameter url: 图片 URL
+    /// - Returns: 删除成功返回 true
+    func deleteUserEndPict(url: URL) -> Bool {
+        do {
+            try fileManager.removeItem(at: url)
+            logger.info("删除用户要点图片成功: \(url.lastPathComponent)")
+            return true
+        } catch {
+            logger.error("删除用户要点图片失败: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// 获取要点图片数量统计
+    /// - Parameter direction: 方向标识（h/z）
+    /// - Returns: (系统内置数量, 用户上传数量)
+    func getEndPictCounts(direction: String) -> (system: Int, user: Int) {
+        let systemCount: Int
+        if direction == Constants.EndPicts.horizontalDirectoryName {
+            systemCount = Constants.EndPicts.horizontalImageCount
+        } else {
+            systemCount = Constants.EndPicts.verticalImageCount
+        }
+        let userCount = getUserEndPictURLs(direction: direction).count
+        return (systemCount, userCount)
+    }
+
+    /// 加载用户要点图片缩略图（用于管理页展示）
+    /// - Parameters:
+    ///   - url: 图片 URL
+    ///   - maxDimension: 最大边长，默认 96pt
+    /// - Returns: 缩略图
+    func loadUserEndPictThumbnail(url: URL, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
+        return Self.downsampleImageFromFile(url: url, maxDimension: maxDimension)
+    }
+
+    /// 加载系统内置要点图片缩略图（用于管理页展示）
+    /// - Parameters:
+    ///   - direction: 方向标识（h/z）
+    ///   - index: 图片索引（从 1 开始）
+    ///   - maxDimension: 最大边长，默认 96pt
+    /// - Returns: 缩略图
+    func loadSystemEndPictThumbnail(direction: String, index: Int, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
+        let resourceName = "\(direction)-\(index)"
+        guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
+            return nil
+        }
         return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
     }
 
@@ -1032,7 +1198,7 @@ class SessionRecordManager {
             return
         }
 
-        let result = fixAudioDurationForAllSessions()
+        _ = fixAudioDurationForAllSessions()
         UserDefaults.standard.set(true, forKey: key)
         logger.info("音频时长修复任务完成，标记已执行")
     }

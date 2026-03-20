@@ -11,7 +11,8 @@
 - 首页：HomePageView（HomePageView.swift）
 - 制作：MakeView（MakeView.swift）
 - 管理：SessionRecordListView（SessionRecordListView.swift，isRootTab=true，mode=.manage）
-- 我的：MeTabView（MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/设置/关于入口
+- 我的：MeTabView（MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/要点图片/设置/关于入口
+- 要点图片管理：EndPictManagementView（EndPictManagementView.swift），从我的 Tab 进入
 
 ## 全屏与相机
 

@@ -68,7 +68,10 @@ done
 
 # 如果没有指定设备，使用全部设备
 if [ ${#SELECTED_DEVICES[@]} -eq 0 ]; then
-    SELECTED_DEVICES=("${ALL_DEVICES[@]}")
+    for entry in "${ALL_DEVICES[@]}"; do
+        IFS='|' read -r label _ <<< "${entry}"
+        SELECTED_DEVICES+=("$label")
+    done
 fi
 
 # 过滤出要处理的设备

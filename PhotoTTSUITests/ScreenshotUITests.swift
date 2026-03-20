@@ -51,12 +51,12 @@ final class ScreenshotUITests: XCTestCase {
             captureScreenshot(named: "02_make_\(deviceName)")
         }
 
-        // 3. 消息页截图
-        let messageTabButton = app.tabBars.buttons["消息"]
-        if messageTabButton.waitForExistence(timeout: 3) {
-            messageTabButton.tap()
+        // 3. 管理页截图
+        let manageTabButton = app.tabBars.buttons["管理"]
+        if manageTabButton.waitForExistence(timeout: 3) {
+            manageTabButton.tap()
             sleep(2)  // 等待消息页加载完成
-            captureScreenshot(named: "03_message_\(deviceName)")
+            captureScreenshot(named: "03_manage_\(deviceName)")
         }
 
         // 4. 我的页截图

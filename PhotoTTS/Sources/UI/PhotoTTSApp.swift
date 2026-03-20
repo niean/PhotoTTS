@@ -267,7 +267,7 @@ struct MainTabView: View {
 
             MakeView(appState: appState)
                 .tabItem {
-                    Label("制作", systemImage: "book.badge.plus.fill")
+                    Label("制作", systemImage: "book.fill")
                 }
                 .tag(1)
 

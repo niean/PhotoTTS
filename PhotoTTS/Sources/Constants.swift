@@ -333,12 +333,18 @@ extension Constants {
         static let horizontalDirectoryName = "h"
         /// 纵向动画（topToBottom）对应的结束图目录名
         static let verticalDirectoryName = "z"
-        /// 横向目录图片数量
-        static let horizontalImageCount = 5
-        /// 纵向目录图片数量
-        static let verticalImageCount = 4
+        /// 横向目录图片数量（系统内置，h-0 ~ h-14）
+        static let horizontalImageCount = 15
+        /// 纵向目录图片数量（系统内置，z-0 ~ z-14）
+        static let verticalImageCount = 15
         /// Bundle 中 EndPicts 根目录名
         static let bundleDirectoryName = "EndPicts"
+        /// 用户上传要点图片存储目录（Documents/EndPicts/）
+        static let userUploadDirectoryName = "EndPicts"
+        /// 管理页缩略图最大边长（pt）
+        static let thumbnailMaxDimension: CGFloat = 96
+        /// 上传图片最大边长（像素）
+        static let uploadImageMaxPixel: CGFloat = 2048
     }
 
     // MARK: - 字体常量

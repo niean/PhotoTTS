@@ -1037,11 +1037,11 @@ private struct PlayerImageView: View {
     }
 
     private func loadIfNeeded() {
-        // 要点图片页：从 Bundle 加载 EndPicts 图片
+        // 要点图片页：从合并池加载 EndPicts 图片
         if isHighlightsPage {
             guard highlightsImage == nil else { return }
             DispatchQueue.global(qos: .userInitiated).async {
-                let loaded = SessionRecordManager.shared.loadEndPictFromBundle(
+                let loaded = SessionRecordManager.shared.loadEndPict(
                     animationStyle: animationStyle,
                     maxDimension: Self.maxDim
                 )

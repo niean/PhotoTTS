@@ -28,9 +28,17 @@ Documents/Sessions/{id}/
   audio.mp3       -- 独立音频
   avatar.jpg      -- 头像缩略图 最大 96pt
   README.txt
+
+Documents/EndPicts/
+  h/              -- 横向要点图片（用户上传）
+    h-{timestamp}.jpg ...
+  z/              -- 纵向要点图片（用户上传）
+    z-{timestamp}.jpg ...
 ```
 
 加载由 SessionRecordManager.loadSession 从文件重组。
+
+用户上传要点图片存储在 Documents/EndPicts/ 目录，与 Bundle 内系统内置图片合并后随机选取。上传时降采样至 2048px，播放时按 1024pt 加载。
 
 ## 会话历史（history.json）
 

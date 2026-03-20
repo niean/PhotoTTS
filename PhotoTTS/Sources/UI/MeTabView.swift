@@ -25,7 +25,7 @@ struct MeTabView: View {
                                 .clipShape(Circle())
                         } else {
                             Image(systemName: "person.circle.fill")
-                                .font(.system(size: avatarSize)) // 动态计算，保留视图私有
+                                .font(.system(size: avatarSize)) // 视图私有：头像占位图标，动态适配 avatarSize
                                 .foregroundColor(Color(.systemGray4))
                         }
                         VStack(alignment: .leading, spacing: 4) {
@@ -34,7 +34,7 @@ struct MeTabView: View {
                                     .font(Constants.Fonts.headline)
                                     .foregroundStyle(.primary)
                                 Image(systemName: "pencil")
-                                    .font(.system(size: 12)) // 编辑图标，视图私有
+                                    .font(.system(size: 12)) // 视图私有：编辑铅笔图标，固定 12pt 适配文字
                                     .foregroundStyle(.secondary)
                             }
                             .onTapGesture {
@@ -86,6 +86,12 @@ struct MeTabView: View {
 
                 // 设置
                 Section {
+                    NavigationLink {
+                        EndPictManagementView()
+                    } label: {
+                        Label("要点图片", systemImage: "photo.on.rectangle.angled")
+                    }
+
                     NavigationLink {
                         SettingsView()
                     } label: {

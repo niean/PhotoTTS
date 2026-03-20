@@ -7,7 +7,7 @@
 - SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/ocrDuration/llmDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus/storyHighlights/hasVirtualPage。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
 - storyHighlights：绘本要点（LLM生成的15-30字符摘要），可选字段，播放时作为虚拟页追加到ocrTextSegments末尾
 - hasVirtualPage：是否存在要点图片页（由storyHighlights生成），Bool类型，要点图片从EndPicts资源库随机选取
-- EndPicts：要点图片资源库，位于Bundle中，按动画方向分h（横向）和z（纵向）两组图片，播放至要点图片页时随机选取
+- EndPicts：要点图片资源库，包含系统内置（Bundle中）和用户上传（Documents/EndPicts/）两部分，按动画方向分h（横向）和z（纵向）两组；播放至要点图片页时从合并池随机选取
 - SessionRecordMetadata：SessionRecord 轻量摘要（不含图片/音频），字段：id/name/createdAt/updatedAt/totalImageCount/validImageCount/textLength/audioDuration/avatarImageIndex/storageSize。写入 metadata.json
 - SessionRecordManager：会话记录本地读写与列表管理，单例
 - ImageToSpeechCoordinator：协调批量图片 OCR+LLM+TTS 三阶段流程，输出进度与 AudioResponse/错误
