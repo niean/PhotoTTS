@@ -46,6 +46,7 @@ struct HomePageView: View {
 
                 // 会话记录
                 SessionRecordListView(
+                    appState: appState,
                     onLoadSession: { record in
                         guard !appState.isPlayViewActive else {
                             os.Logger.audioPlayer.warning("播放互斥: 已有播放中，拒绝首页触发播放 sessionId=\(record.id)")

@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import os.log
 
 // MARK: - 会话记录列表展示模式
 /// 标准：顶导 + 查看、编辑、删除、导入导出（不含播放，当前无调用方显式使用）
@@ -14,6 +15,8 @@ enum SessionRecordListMode {
 
 // MARK: - 会话记录列表视图
 struct SessionRecordListView: View {
+    // 跨Tab协调
+    @ObservedObject var appState: AppState
     // 后台制作进度观察
     @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
     // 分页数据状态
@@ -57,7 +60,6 @@ struct SessionRecordListView: View {
     var onListScrolled: ((Bool) -> Void)? = nil
 
     private var showTopNav: Bool { mode != .embedded }
-    private var allowPlayback: Bool { mode == .embedded }
     private var allowEditDelete: Bool { mode != .embedded }
     /// embedded 模式下搜索框默认隐藏在顶导上方，其他模式默认可见
     private var hideSearchBarByDefault: Bool { mode == .embedded }
@@ -348,6 +350,12 @@ struct SessionRecordListView: View {
         .navigationBarHidden(true) // 隐藏系统导航栏
         .onAppear {
             loadPage()
+            handlePendingEditRequest()
+        }
+        .onChange(of: appState.selectedTab) { _, newTab in
+            if newTab == 2 {
+                handlePendingEditRequest()
+            }
         }
         .onChange(of: searchText) {
             // 搜索防抖：0.3s
@@ -455,19 +463,22 @@ struct SessionRecordListView: View {
                   !task.isCompleted else { return nil }
             return task.progress
         }()
-        
+
         let isDefault = metadata.isDefault
         let isMaking = metadata.isMaking
-        
+
         let canEnterSelectionMode = !isDefault && !isMaking && allowEditDelete && !isSelectionMode
+
+        // 非 embedded 模式下是否允许左滑操作
+        let allowSwipeActions = mode != .embedded && !isSelectionMode && allowEditDelete
 
         return SessionRecordRow(
             metadata: metadata,
             makeProgress: makeProgress,
             mode: mode,
-            onLoad: (allowPlayback && !isMaking && !isSelectionMode) ? { loadSession(metadata.id) } : nil,
+            onLoad: (mode == .embedded && !isMaking && !isSelectionMode) ? { loadSession(metadata.id) } : nil,
             onLoadToMake: (!isDefault && mode == .manage && onLoadToMake != nil && !isSelectionMode) ? { onLoadToMake?(metadata.id) } : nil,
-            onView: (!isDefault && !isMaking && !isSelectionMode) ? {
+            onView: (!isMaking && !isSelectionMode) ? {
                 viewSessionDetail(metadata.id)
             } : nil,
             onEdit: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? { editSessionDetail(metadata.id) } : nil,
@@ -489,6 +500,34 @@ struct SessionRecordListView: View {
                 enterSelectionModeAndSelect(id: metadata.id)
             } : nil
         )
+        // 非 embedded 模式下添加左滑操作按钮（仅文字，方块相连）
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if allowSwipeActions {
+                if isMaking {
+                    // 制作中记录仅显示查看按钮
+                    Button("查看") {
+                        viewSessionDetail(metadata.id)
+                    }
+                    .tint(.blue)
+                } else if !isDefault {
+                    Button("删除", role: .destructive) {
+                        sessionToDelete = metadata
+                        showDeleteConfirmation = true
+                    }
+
+                    Button("制作") {
+                        onLoadToMake?(metadata.id)
+                    }
+                    .tint(.orange)
+                    .disabled(mode != .manage || onLoadToMake == nil)
+                    
+                    Button("编辑") {
+                        editSessionDetail(metadata.id)
+                    }
+                    .tint(.blue)
+                }
+            }
+        }
     }
     
     // 自动滚动到第一条记录，隐藏搜索栏
@@ -511,7 +550,7 @@ struct SessionRecordListView: View {
         let page = currentPage
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
-        
+
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
                 page: page,
@@ -523,13 +562,29 @@ struct SessionRecordListView: View {
                 self.pagedMetadataList = result.items
                 self.totalCount = result.totalCount
                 self.isLoading = false
-                
+
                 // 当前页为空但还有数据时（如删除了最后一页的最后一条），回退到上一页
                 if result.items.isEmpty && result.totalCount > 0 && self.currentPage > 1 {
                     self.currentPage -= 1
                     self.loadPage()
                 }
             }
+        }
+    }
+
+    /// 处理制作完成后跳转到编辑页的请求
+    private func handlePendingEditRequest() {
+        guard mode != .embedded else { return }
+        guard let recordId = appState.recordIdToEditInManageTab else { return }
+        // 立即消费标志位
+        appState.recordIdToEditInManageTab = nil
+
+        // 同步加载记录并立即打开编辑页，避免列表闪现
+        if let record = SessionRecordManager.shared.loadSession(id: recordId) {
+            self.sessionToEditRecord = record
+            os.Logger.sessionRecord.info("制作完成，跳转到编辑页: sessionId=\(recordId)")
+        } else {
+            os.Logger.sessionRecord.warning("制作完成跳转编辑页失败: 未找到会话 \(recordId)")
         }
     }
     
@@ -820,14 +875,9 @@ struct SessionRecordRow: View {
         mode == .embedded && onLoad != nil
     }
 
-    // 计算属性：是否展示编辑按钮
-    private var showEditButton: Bool {
-        mode != .embedded && onEdit != nil
-    }
-    
-    // 计算属性：是否展示更多 Menu
-    private var showMoreMenu: Bool {
-        mode != .embedded && !isSelectionMode
+    // 计算属性：是否展示更多按钮（非 embedded 模式，非默认记录，有导出回调）
+    private var showMoreButton: Bool {
+        mode != .embedded && !metadata.isDefault && onExport != nil
     }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
@@ -860,10 +910,6 @@ struct SessionRecordRow: View {
             .clipShape(RoundedRectangle(cornerRadius: scaled(8)))
             .onAppear {
                 loadAvatarImage()
-            }
-            .onDisappear {
-                avatarImage = nil
-                loadingId = nil
             }
             
             // 信息
@@ -905,11 +951,11 @@ struct SessionRecordRow: View {
             }
             
             Spacer()
-            
+
             // 操作按钮（多选模式下隐藏）
             if !isSelectionMode {
                 HStack(spacing: scaled(12)) {
-                    // 加载按钮（播放）
+                    // 播放按钮
                     if showPlayButton {
                         Button(action: onLoad!) {
                             Image(systemName: "play.circle")
@@ -918,39 +964,12 @@ struct SessionRecordRow: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    
-                    // 编辑按钮
-                    if showEditButton {
-                        Button(action: onEdit!) {
-                            Image(systemName: "pencil.circle")
-                                .font(Constants.Fonts.recordActionIcon)
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    // 更多按钮（查看/导出/制作/删除）
-                    if showMoreMenu {
+
+                    // 更多按钮（非 embedded 模式）
+                    if showMoreButton {
                         Menu {
-                            if let onView = onView {
-                                Button(action: onView) {
-                                    Label("查看", systemImage: "eye.circle")
-                                }
-                            }
-                            if let onExport = onExport {
-                                Button(action: onExport) {
-                                    Label("导出", systemImage: "square.and.arrow.up")
-                                }
-                            }
-                            if let onLoadToMake = onLoadToMake {
-                                Button(action: onLoadToMake) {
-                                    Label("制作", systemImage: "arrow.down.to.line.circle")
-                                }
-                            }
-                            if let onDelete = onDelete {
-                                Button(role: .destructive, action: onDelete) {
-                                    Label("删除", systemImage: "trash")
-                                }
+                            Button(action: onExport!) {
+                                Label("导出", systemImage: "square.and.arrow.up")
                             }
                         } label: {
                             Image(systemName: "ellipsis")
@@ -958,17 +977,27 @@ struct SessionRecordRow: View {
                                 .foregroundColor(.gray)
                                 .frame(width: scaled(24), height: scaled(24))
                         }
+                        .menuStyle(.borderlessButton)
+                        .buttonStyle(.plain)
                     }
                 }
             }
         }
         .padding(.horizontal, scaled(0))
         .frame(minWidth: scaled(40), minHeight: scaled(40))
-        // 多选模式下，点击行任意位置切换选中状态
+        // 点击行处理：多选模式切换选中；非 embedded 模式打开查看页
         .contentShape(Rectangle())
         .onTapGesture {
-            guard isSelectionMode, !metadata.isDefault else { return }
-            onToggleSelection?()
+            if isSelectionMode {
+                // 多选模式：切换选中状态
+                guard !metadata.isDefault else { return }
+                onToggleSelection?()
+            } else if mode != .embedded {
+                // 非 embedded 模式：单击打开查看页
+                if let onView = onView {
+                    onView()
+                }
+            }
         }
         .onLongPressGesture {
             guard let onLongPress = onLongPress else { return }

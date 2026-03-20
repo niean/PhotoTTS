@@ -82,8 +82,8 @@ struct SessionRecordUnifiedView: View {
             .padding(.top, Constants.Layout.topNavigationBarPadding)
             
             TopAndLeftSideNavigationBar(title: navigationTitle, onSwipeBack: { dismiss() }, leading: {
+                // 左侧返回按钮（编辑和查看模式统一）
                 Button(action: {
-                    if case .save(_, _, let onCancel) = mode { onCancel() }
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
@@ -93,10 +93,19 @@ struct SessionRecordUnifiedView: View {
                 }
             }, trailing: {
                 if isEditable {
-                    Button("保存") { performSave() }
-                        .disabled(sessionName.trimmingCharacters(in: .whitespaces).isEmpty || !isDatePrefixValid)
+                    // 编辑模式：右侧显示取消、保存两个按钮
+                    HStack(spacing: scaled(12)) {
+                        Button("取消") {
+                            dismiss()
+                        }
+                        Button("保存") { performSave() }
+                            .disabled(sessionName.trimmingCharacters(in: .whitespaces).isEmpty || !isDatePrefixValid)
+                    }
                 } else {
-                    EmptyView()
+                    // 查看模式：右侧显示关闭按钮
+                    Button("关闭") {
+                        dismiss()
+                    }
                 }
             })
         }

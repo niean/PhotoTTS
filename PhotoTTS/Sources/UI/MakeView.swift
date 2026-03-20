@@ -48,8 +48,6 @@ struct MakeView: View {
     @State private var processingOverlayDismissed = false
     /// 制作页 OCR+TTS 完成后用当前数据全屏播放
     @State private var currentSessionToPlay: SessionRecord? = nil
-    /// 制作完成后使用 recordId 播放（统一播放逻辑，支持要点图片）
-    @State private var currentSessionIdToPlay: String? = nil
     
     // 后台制作：当前观察的任务 sessionId
     @State private var observingTaskId: String? = nil
@@ -115,16 +113,10 @@ struct MakeView: View {
                 syncBackgroundTaskState()
             }
             .fullScreenCover(isPresented: Binding(
-                get: { currentSessionToPlay != nil || currentSessionIdToPlay != nil },
-                set: { if !$0 { currentSessionToPlay = nil; currentSessionIdToPlay = nil } }
+                get: { currentSessionToPlay != nil },
+                set: { if !$0 { currentSessionToPlay = nil } }
             )) {
-                if let sessionId = currentSessionIdToPlay {
-                    // 使用 recordId 播放（与首页播放保持一致，支持要点图片）
-                    PlayView(recordId: sessionId, onDismiss: {
-                        currentSessionIdToPlay = nil
-                        appState.isPlayViewActive = false
-                    })
-                } else if let record = currentSessionToPlay {
+                if let record = currentSessionToPlay {
                     PlayView(preloadedRecord: record, onDismiss: {
                         currentSessionToPlay = nil
                         appState.isPlayViewActive = false
@@ -655,17 +647,15 @@ struct MakeView: View {
                 let totalDuration = task.ocrDuration + task.llmDuration + task.ttsDuration
                 os.Logger.makeView.info("处理完成! OCR:\(String(format: "%.2f", task.ocrDuration))s, LLM:\(String(format: "%.2f", task.llmDuration))s, TTS:\(String(format: "%.2f", task.ttsDuration))s, 总:\(String(format: "%.2f", totalDuration))s, 文字:\(response.text.count)字符")
 
-                // 自动播放：使用 recordId 加载已保存记录，统一播放逻辑（支持要点图片）
-                if response.audioData != nil && appState.selectedTab == 1 {
-                    guard !appState.isPlayViewActive else {
-                        os.Logger.makeView.warning("播放互斥: 已有播放中，拒绝制作页自动播放")
-                        return
-                    }
-                    os.Logger.makeView.debug("开始自动播放，使用 recordId: \(taskId)")
-                    appState.isPlayViewActive = true
-                    currentSessionIdToPlay = taskId
-                } else if response.audioData != nil {
-                    os.Logger.makeView.info("后台制作完成，跳过自动播放")
+                // 制作完成后跳转到管理Tab编辑页
+                if response.audioData != nil {
+                    os.Logger.makeView.info("制作完成，跳转到管理Tab编辑页: sessionId=\(taskId)")
+                    // 设置标志位，触发管理Tab打开编辑页
+                    appState.recordIdToEditInManageTab = taskId
+                    // 切换到管理Tab
+                    appState.selectedTab = 2
+                    // 清空制作页状态
+                    clearAllState()
                 }
 
                 // 消费完成后移除任务

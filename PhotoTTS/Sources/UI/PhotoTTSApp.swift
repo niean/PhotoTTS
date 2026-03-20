@@ -55,6 +55,8 @@ class AppState: ObservableObject {
     @Published var makeTaskIdToReconnect: String? = nil
     /// 播放互斥：当前是否有 PlayView 处于活跃状态，任意时刻只允许一个记录播放
     @Published var isPlayViewActive: Bool = false
+    /// 制作完成后跳转到管理Tab编辑页的记录ID，SessionRecordListView 消费后置 nil
+    @Published var recordIdToEditInManageTab: String? = nil
     init() {}
 }
 
@@ -266,6 +268,7 @@ struct MainTabView: View {
 
             NavigationStack {
                 SessionRecordListView(
+                    appState: appState,
                     onLoadSession: { _ in },
                     onLoadToMake: { id in
                         appState.sessionIdToLoadIntoMake = id

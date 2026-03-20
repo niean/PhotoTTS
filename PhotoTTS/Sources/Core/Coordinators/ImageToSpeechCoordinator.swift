@@ -206,7 +206,19 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 }
 
                 // 调用LLM分析（失败不阻断主流程）
-                if let llmService = llmService {
+                // 图片少于5张时跳过LLM分析
+                if images.count < Constants.LLM.minImageCountForAnalysis {
+                    os.Logger.coordinator.info("LLM分析跳过：图片数量 \(images.count) 少于 \(Constants.LLM.minImageCountForAnalysis)")
+                    await MainActor.run {
+                        progressHandler(ProcessingProgress(
+                            stage: .llm,
+                            currentStep: 70,
+                            totalSteps: 100,
+                            message: "LLM分析: 跳过（图片少于5张）",
+                            percentage: 70.0
+                        ))
+                    }
+                } else if let llmService = llmService {
                     do {
                         llmResult = try await llmService.analyzeStory(ocrText: combinedText)
 

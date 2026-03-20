@@ -321,6 +321,12 @@ extension Constants {
     /// 草稿会话默认名称后缀（前缀为日期格式）
     static let draftSessionNameSuffix = "未命名"
 
+    // MARK: - LLM配置
+    struct LLM {
+        /// 触发LLM绘本分析的最小图片数量
+        static let minImageCountForAnalysis = 5
+    }
+
     // MARK: - 要点图片配置（EndPicts）
     struct EndPicts {
         /// 横向动画（rightToLeft）对应的结束图目录名
