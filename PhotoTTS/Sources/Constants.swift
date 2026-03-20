@@ -48,7 +48,7 @@ extension Constants {
     // MARK: - 布局常量
     struct Layout {
         static let defaultMargin: CGFloat = 10
-        static let topNavigationBarPadding: CGFloat = 55
+        static let topNavigationBarPadding: CGFloat = 45
     }
 
     // MARK: - 会话详情

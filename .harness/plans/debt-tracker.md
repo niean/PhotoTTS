@@ -11,6 +11,7 @@
 | DEBT002 | 编码约定-compressionQuality: 1.0等图片压缩质量值硬编码，应集中到Constants.swift | low | plan-250319-playback-direction | 2026-03-19 | open |
 | DEBT003 | 编码约定-文件路径字符串"metadata.json"/"record.json"/"Sessions"等散落在20+处硬编码，应集中定义为常量 | low | plan-250319-playback-direction | 2026-03-19 | open |
 | DEBT005 | 图片处理-getImages()使用UIImage(data:)全尺寸解码，未经Image I/O降采样，应标记废弃或改用SessionRecordManager.loadImage | medium | plan-250319-playback-direction | 2026-03-19 | open |
+| DEBT006 | 编码约定-PhotoTTSApp.swift第158行`2.0`（Siri启动延迟秒数）硬编码为魔法值，未收归Constants.swift | low | plan-260320-remove-message-tab | 2026-03-20 | open |
 
 ---
 

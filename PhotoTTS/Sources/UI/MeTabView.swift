@@ -50,31 +50,48 @@ struct MeTabView: View {
                     .listRowInsets(EdgeInsets(top: topPadding, leading: horizontalPadding, bottom: topPadding, trailing: horizontalPadding))
                     .listRowBackground(Color(.systemGroupedBackground))
                 }
-                
-                // 记录管理
+
+                // 历史记录
                 Section {
                     NavigationLink {
-                        SessionRecordListView(
-                            onLoadSession: { _ in },
-                            onLoadToMake: { id in
-                                appState.sessionIdToLoadIntoMake = id
-                                appState.selectedTab = 1
-                            },
-                            mode: .manage
-                        )
+                        PlayHistoryViewWithBar()
                     } label: {
-                        Label("记录管理", systemImage: "book.fill")
+                        Label("播放历史", systemImage: "clock.arrow.circlepath")
+                    }
+                    NavigationLink {
+                        MakeHistoryViewWithBar()
+                    } label: {
+                        Label("制作历史", systemImage: "bookmark.circle")
                     }
                 }
-                
-                // 菜单
+
+                // 调试工具
+                Section {
+                    NavigationLink {
+                        RealTimeMonitorView()
+                    } label: {
+                        Label("实时监控", systemImage: "gauge.medium")
+                    }
+                    NavigationLink {
+                        DebugLogView()
+                    } label: {
+                        Label("调试日志", systemImage: "ladybug")
+                    }
+                    NavigationLink {
+                        ChangeLogsView()
+                    } label: {
+                        Label("更新记录", systemImage: "doc.text")
+                    }
+                }
+
+                // 设置
                 Section {
                     NavigationLink {
                         SettingsView()
                     } label: {
                         Label("设置", systemImage: "gearshape.fill")
                     }
-                    
+
                     NavigationLink {
                         IntroPagePushView(appState: appState)
                     } label: {

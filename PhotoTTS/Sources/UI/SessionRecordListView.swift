@@ -52,11 +52,15 @@ struct SessionRecordListView: View {
     var onLoadToMake: ((String) -> Void)? = nil
     /// 展示模式
     var mode: SessionRecordListMode = .standard
+    /// 是否作为Tab首页（无返回按钮、无滑动返回手势）
+    var isRootTab: Bool = false
     var onListScrolled: ((Bool) -> Void)? = nil
-    
+
     private var showTopNav: Bool { mode != .embedded }
     private var allowPlayback: Bool { mode == .embedded }
     private var allowEditDelete: Bool { mode != .embedded }
+    /// embedded 模式下搜索框默认隐藏在顶导上方，其他模式默认可见
+    private var hideSearchBarByDefault: Bool { mode == .embedded }
     
     @Environment(\.dismiss) var dismiss
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -177,7 +181,7 @@ struct SessionRecordListView: View {
                     } else {
                         ScrollViewReader { scrollProxy in
                         List {
-                            // 搜索栏（随列表滚动，默认隐藏在可视区域上方）
+                            // 搜索栏（embedded 模式默认隐藏在顶导上方，其他模式默认可见）
                             searchBar
                                 .frame(minHeight: Constants.SearchBar.rowMinHeight)
                                 .listRowInsets(EdgeInsets(
@@ -240,7 +244,10 @@ struct SessionRecordListView: View {
                         }
                         .listStyle(.plain)
                         .onAppear {
-                            scrollToHideSearchBar(proxy: scrollProxy)
+                            // embedded 模式下自动滚动隐藏搜索栏，其他模式保持可见
+                            if hideSearchBarByDefault {
+                                scrollToHideSearchBar(proxy: scrollProxy)
+                            }
                         }
                         } // ScrollViewReader
                     }
@@ -299,14 +306,21 @@ struct SessionRecordListView: View {
                         )
                     } else {
                         // 正常模式下的导航栏
-                        TopAndLeftSideNavigationBar(title: "会话记录", onSwipeBack: { dismiss() }, leading: {
-                            Button(action: { dismiss() }) {
-                                Image(systemName: "chevron.left")
-                                    .font(Constants.Fonts.navAction)
-                                    .frame(width: scaled(20), height: scaled(20))
-                                    .foregroundStyle(.primary)
-                            }
-                        }, trailing: {
+                        TopAndLeftSideNavigationBar(
+                            title: isRootTab ? "管理" : "会话记录",
+                            onSwipeBack: isRootTab ? nil : { dismiss() },
+                            leading: {
+                                if isRootTab {
+                                    EmptyView()
+                                } else {
+                                    Button(action: { dismiss() }) {
+                                        Image(systemName: "chevron.left")
+                                            .font(Constants.Fonts.navAction)
+                                            .frame(width: scaled(20), height: scaled(20))
+                                            .foregroundStyle(.primary)
+                                    }
+                                }
+                            }, trailing: {
                             Menu {
                                 Button(action: { showImportPicker = true }) {
                                     Label("导入", systemImage: "square.and.arrow.down")

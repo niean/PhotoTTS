@@ -10,8 +10,8 @@
 
 - 首页：HomePageView（HomePageView.swift）
 - 制作：MakeView（MakeView.swift）
-- 消息：MessageTabView（MessageTabView.swift），含实时监控/播放历史/制作历史/调试日志/更新记录入口
-- 我的：MeTabView（MeTabView.swift）
+- 管理：SessionRecordListView（SessionRecordListView.swift，isRootTab=true，mode=.manage）
+- 我的：MeTabView（MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/设置/关于入口
 
 ## 全屏与相机
 

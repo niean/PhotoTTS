@@ -243,10 +243,10 @@ struct PhotoTTSApp: App {
     }
 }
 
-// MARK: - 底导：四个功能簇（首页、制作、消息、我的）
+// MARK: - 底导：四个功能簇（首页、制作、管理、我的）
 struct MainTabView: View {
     @ObservedObject var appState: AppState
-    
+
     var body: some View {
         TabView(selection: $appState.selectedTab) {
             NavigationStack {
@@ -254,23 +254,33 @@ struct MainTabView: View {
             }
             .id(appState.tab0ResetId)
             .tabItem {
-                Label("首页", systemImage: "house")
+                Label("首页", systemImage: "play.house")
             }
             .tag(0)
-            
+
             MakeView(appState: appState)
                 .tabItem {
-                    Label("制作", systemImage: "book")
+                    Label("制作", systemImage: "book.badge.plus.fill")
                 }
                 .tag(1)
-            
-            MessageTabView()
-                .id(appState.tab2ResetId)
-                .tabItem {
-                    Label("消息", systemImage: "message.fill")
-                }
-                .tag(2)
-            
+
+            NavigationStack {
+                SessionRecordListView(
+                    onLoadSession: { _ in },
+                    onLoadToMake: { id in
+                        appState.sessionIdToLoadIntoMake = id
+                        appState.selectedTab = 1
+                    },
+                    mode: .manage,
+                    isRootTab: true
+                )
+            }
+            .id(appState.tab2ResetId)
+            .tabItem {
+                Label("管理", systemImage: "books.vertical.circle")
+            }
+            .tag(2)
+
             MeTabView(appState: appState)
                 .id(appState.tab3ResetId)
                 .tabItem {

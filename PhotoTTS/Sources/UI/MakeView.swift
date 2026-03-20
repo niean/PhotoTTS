@@ -830,7 +830,7 @@ struct PhotoProcessingView: View {
         let bottomTabHeight: CGFloat
         init(geometry: GeometryProxy) {
             screenWidth = geometry.size.width
-            deltaScreenContentWidth = 16
+            deltaScreenContentWidth = 0 // 16=>0
             contentWidth = screenWidth - deltaScreenContentWidth
             thumbSize = Constants.DeviceScale.adaptiveSize(iPhone: 55)
             thumbMargin = 5
@@ -859,8 +859,6 @@ struct PhotoProcessingView: View {
                         )
                     }
                 }
-
-                Spacer()
             }
             .frame(maxWidth: layout.screenWidth)
             .padding(.top, Constants.Layout.topNavigationBarPadding)
@@ -937,7 +935,6 @@ struct PhotoProcessingView: View {
                 }
                 .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaHeight)
 
-                // 
                 HStack(spacing: 5) {
                     // 识别按钮
                     Button(action: {
@@ -1104,8 +1101,8 @@ struct PhotoProcessingView: View {
         }
         .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaTotalHeight)
         .background(
-                RoundedRectangle(cornerRadius: 12)
-                .fill(Color.blue.opacity(0.1))
+                RoundedRectangle(cornerRadius: 0)
+                .fill(Color.white.opacity(1))
             )
     }
     
@@ -1159,16 +1156,16 @@ struct PhotoProcessingView: View {
                             if isProcessing {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(Constants.Fonts.makeImageRemoveIcon)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.gray)
                             } else {
                                 // 关闭按钮：保持原样式
                                 Image(systemName: "xmark.circle.fill")
                                     .font(Constants.Fonts.makeImageDeleteIcon)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.gray)
                             }
                         }
                         .contentShape(Rectangle())
-                        .padding(12)
+                        .padding(16)
                     }
                     Spacer()
                 }
@@ -1176,7 +1173,7 @@ struct PhotoProcessingView: View {
         }
         .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaTotalHeight)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 0)
                 .fill(Color.white.opacity(0.5))
         )
         .allowsHitTesting(true)
