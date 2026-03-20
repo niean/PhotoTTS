@@ -1,6 +1,7 @@
 import Foundation
 import os.log
 import UIKit
+import AVFoundation
 
 // MARK: - TTS服务协议
 protocol TTSServiceProtocol {
@@ -173,10 +174,11 @@ class TTSService: TTSServiceProtocol {
                     
                     if contentType.contains("audio/") {
                         self.logInfo("\(providerTag) 收到音频数据，大小: \(data.count) 字节")
+                        let duration = Self.getAudioDuration(from: data)
                         let audioResponse = AudioResponse(
                             audioData: data,
                             format: self.configuration.encoding,
-                            duration: Double(data.count) / 16000.0
+                            duration: duration
                         )
                         completion(.success(audioResponse))
                         return
@@ -190,10 +192,11 @@ class TTSService: TTSServiceProtocol {
                     if let audioBase64 = json?["audio"] as? String,
                        let audioData = Data(base64Encoded: audioBase64) {
                         self.logInfo("\(providerTag) 成功解析Base64音频数据，大小: \(audioData.count) 字节")
+                        let duration = Self.getAudioDuration(from: audioData)
                         let audioResponse = AudioResponse(
                             audioData: audioData,
                             format: self.configuration.encoding,
-                            duration: Double(audioData.count) / 16000.0
+                            duration: duration
                         )
                         completion(.success(audioResponse))
                         return
@@ -202,10 +205,11 @@ class TTSService: TTSServiceProtocol {
                     if let audioBase64 = json?["data"] as? String,
                        let audioData = Data(base64Encoded: audioBase64) {
                         self.logInfo("\(providerTag) 成功解析data字段中的音频数据，大小: \(audioData.count) 字节")
+                        let duration = Self.getAudioDuration(from: audioData)
                         let audioResponse = AudioResponse(
                             audioData: audioData,
                             format: self.configuration.encoding,
-                            duration: Double(audioData.count) / 16000.0
+                            duration: duration
                         )
                         completion(.success(audioResponse))
                         return
@@ -215,10 +219,11 @@ class TTSService: TTSServiceProtocol {
                        let audioBase64 = result["audio"] as? String,
                        let audioData = Data(base64Encoded: audioBase64) {
                         self.logInfo("\(providerTag) 成功解析result中的音频数据，大小: \(audioData.count) 字节")
+                        let duration = Self.getAudioDuration(from: audioData)
                         let audioResponse = AudioResponse(
                             audioData: audioData,
                             format: self.configuration.encoding,
-                            duration: Double(audioData.count) / 16000.0
+                            duration: duration
                         )
                         completion(.success(audioResponse))
                         return
@@ -234,10 +239,11 @@ class TTSService: TTSServiceProtocol {
                     
                     if data.count > 0 && (isAudioContentType || isAudioMagicBytes) {
                         self.logInfo("\(providerTag) 收到二进制音频数据，大小: \(data.count) 字节，Content-Type: \(contentType)")
+                        let duration = Self.getAudioDuration(from: data)
                         let audioResponse = AudioResponse(
                             audioData: data,
                             format: self.configuration.encoding,
-                            duration: Double(data.count) / 16000.0
+                            duration: duration
                         )
                         completion(.success(audioResponse))
                         return
@@ -263,7 +269,23 @@ class TTSService: TTSServiceProtocol {
         if data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 { return true }
         return false
     }
-    
+
+    // MARK: - 音频时长计算
+    /// 使用 AVAudioPlayer 从音频数据中获取正确时长
+    /// - Parameter data: 音频数据（支持 MP3/WAV 等格式）
+    /// - Returns: 音频时长（秒），失败返回 0
+    private static func getAudioDuration(from data: Data) -> TimeInterval {
+        guard !data.isEmpty else { return 0 }
+        do {
+            let player = try AVAudioPlayer(data: data)
+            let duration = player.duration
+            return duration > 0 ? duration : 0
+        } catch {
+            os.Logger.ttsService.warning("音频时长计算失败: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
     // MARK: - 日志方法
     private func logInfo(_ message: String) {
         os.Logger.ttsService.info("\(message)")
@@ -476,10 +498,11 @@ class AliqwenTTSService: TTSServiceProtocol {
             if let audioBase64 = audio["data"] as? String, !audioBase64.isEmpty,
                let audioData = Data(base64Encoded: audioBase64) {
                 logInfo("\(providerTag) 成功解析base64音频数据，大小: \(audioData.count) 字节")
+                let duration = Self.getAudioDuration(from: audioData)
                 let audioResponse = AudioResponse(
                     audioData: audioData,
                     format: "wav",
-                    duration: Double(audioData.count) / 16000.0
+                    duration: duration
                 )
                 completion(.success(audioResponse))
                 return
@@ -531,15 +554,30 @@ class AliqwenTTSService: TTSServiceProtocol {
             }
             
             self.logInfo("\(providerTag) 音频下载成功，大小: \(audioData.count) 字节，格式: \(format)")
+            let duration = Self.getAudioDuration(from: audioData)
             let audioResponse = AudioResponse(
                 audioData: audioData,
                 format: format,
-                duration: Double(audioData.count) / 16000.0
+                duration: duration
             )
             completion(.success(audioResponse))
         }.resume()
     }
-    
+
+    // MARK: - 音频时长计算
+    /// 使用 AVAudioPlayer 从音频数据中获取正确时长
+    private static func getAudioDuration(from data: Data) -> TimeInterval {
+        guard !data.isEmpty else { return 0 }
+        do {
+            let player = try AVAudioPlayer(data: data)
+            let duration = player.duration
+            return duration > 0 ? duration : 0
+        } catch {
+            os.Logger.ttsService.warning("音频时长计算失败: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
     // MARK: - 日志方法
     private func logInfo(_ message: String) {
         os.Logger.ttsService.info("\(message)")

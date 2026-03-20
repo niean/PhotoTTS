@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import ImageIO
+import AVFoundation
 import os.log
 
 // MARK: - 会话记录管理器
@@ -1019,7 +1020,175 @@ class SessionRecordManager {
             try? mutableURL.setResourceValues(resourceValues)
         }
     }
-    
+
+    // MARK: - 修复音频时长
+
+    /// 修复所有会话记录的音频时长（一次性任务，仅在未执行过时运行）
+    /// 使用 UserDefaults 标记避免重复执行
+    func fixAudioDurationForAllSessionsIfNeeded() {
+        let key = "PhotoTTS.AudioDurationFixCompleted"
+        guard !UserDefaults.standard.bool(forKey: key) else {
+            logger.info("音频时长修复已执行过，跳过")
+            return
+        }
+
+        let result = fixAudioDurationForAllSessions()
+        UserDefaults.standard.set(true, forKey: key)
+        logger.info("音频时长修复任务完成，标记已执行")
+    }
+
+    /// 修复所有会话记录的音频时长（一次性任务）
+    /// 遍历所有会话目录，读取音频文件，使用 AVAudioPlayer 计算正确时长，更新 metadata.json 和 record.json
+    /// - Returns: 修复结果（成功数、跳过数、失败数）
+    @discardableResult
+    func fixAudioDurationForAllSessions() -> (fixed: Int, skipped: Int, failed: Int) {
+        logger.info("开始修复所有会话记录的音频时长...")
+        var fixed = 0, skipped = 0, failed = 0
+
+        // 获取所有会话目录
+        guard let sessionDirs = try? fileManager.contentsOfDirectory(
+            at: sessionsDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            logger.warning("无法读取会话目录")
+            return (0, 0, 1)
+        }
+
+        for sessionDir in sessionDirs {
+            let sessionId = sessionDir.lastPathComponent
+
+            // 跳过内置默认会话
+            if sessionId == Constants.DefaultSession.id {
+                skipped += 1
+                continue
+            }
+
+            let result = fixAudioDuration(sessionId: sessionId)
+            switch result {
+            case .fixed:
+                fixed += 1
+            case .skipped:
+                skipped += 1
+            case .failed:
+                failed += 1
+            }
+        }
+
+        // 刷新缓存
+        invalidateMetadataCache()
+
+        logger.info("音频时长修复完成: 成功=\(fixed), 跳过=\(skipped), 失败=\(failed)")
+        return (fixed, skipped, failed)
+    }
+
+    /// 修复单个会话的音频时长
+    /// - Parameter sessionId: 会话ID
+    /// - Returns: 修复结果
+    @discardableResult
+    func fixAudioDuration(sessionId: String) -> FixResult {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+        let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+
+        // 检查目录和文件是否存在
+        guard fileManager.fileExists(atPath: sessionDir.path) else {
+            logger.warning("会话目录不存在: \(sessionId)")
+            return .skipped
+        }
+
+        // 读取现有 record.json 获取音频格式
+        guard let recordData = try? Data(contentsOf: recordURL),
+              var record = try? JSONDecoder().decode(SessionRecord.self, from: recordData) else {
+            logger.warning("无法读取 record.json: \(sessionId)")
+            return .failed
+        }
+
+        // 构建音频文件路径
+        let audioFormat = record.audioFormat.isEmpty ? "mp3" : record.audioFormat
+        let audioURL = sessionDir.appendingPathComponent("audio.\(audioFormat)")
+
+        guard fileManager.fileExists(atPath: audioURL.path) else {
+            logger.info("音频文件不存在，跳过: \(sessionId)")
+            return .skipped
+        }
+
+        // 使用 AVAudioPlayer 计算正确时长
+        let correctDuration = Self.getAudioDuration(from: audioURL)
+
+        guard correctDuration > 0 else {
+            logger.warning("无法获取音频时长: \(sessionId)")
+            return .failed
+        }
+
+        // 检查是否需要修复（差异超过 1 秒）
+        let currentDuration = record.audioDuration
+        guard abs(currentDuration - correctDuration) > 1.0 else {
+            return .skipped
+        }
+
+        // 更新 record.json
+        record = SessionRecord(
+            id: record.id,
+            name: record.name,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+            imageDataList: record.imageDataList,
+            ocrText: record.ocrText,
+            ocrTextSegments: record.ocrTextSegments,
+            audioDataBase64: record.audioDataBase64,
+            audioFormat: record.audioFormat,
+            audioDuration: correctDuration,
+            ocrDuration: record.ocrDuration,
+            ttsDuration: record.ttsDuration,
+            validImageCount: record.validImageCount,
+            totalImageCount: record.totalImageCount,
+            textLength: record.textLength,
+            audioSize: record.audioSize,
+            voiceSettings: record.voiceSettings,
+            avatarImageIndex: record.avatarImageIndex,
+            storageSize: record.storageSize,
+            makeStatus: record.makeStatus,
+            storyHighlights: record.storyHighlights,
+            hasVirtualPage: record.hasVirtualPage,
+            animationStyle: record.animationStyle
+        )
+
+        do {
+            let updatedRecordData = try JSONEncoder().encode(record)
+            try updatedRecordData.write(to: recordURL)
+
+            // 更新 metadata.json
+            let metadata = SessionRecordMetadata(from: record)
+            let metadataData = try JSONEncoder().encode(metadata)
+            try metadataData.write(to: metadataURL)
+
+            logger.info("修复音频时长: \(sessionId), 旧值=\(String(format: "%.1f", currentDuration))s, 新值=\(String(format: "%.1f", correctDuration))s")
+            return .fixed
+        } catch {
+            logger.error("写入文件失败: \(sessionId), \(error.localizedDescription)")
+            return .failed
+        }
+    }
+
+    /// 从音频文件计算时长
+    /// - Parameter url: 音频文件 URL
+    /// - Returns: 音频时长（秒），失败返回 0
+    private static func getAudioDuration(from url: URL) -> TimeInterval {
+        guard let player = try? AVAudioPlayer(contentsOf: url) else {
+            return 0
+        }
+        let duration = player.duration
+        return duration > 0 ? duration : 0
+    }
+
+    /// 修复结果枚举
+    enum FixResult {
+        case fixed
+        case skipped
+        case failed
+    }
+
     // MARK: - 导出会话记录
 
     /// 导出单条会话记录到指定目录

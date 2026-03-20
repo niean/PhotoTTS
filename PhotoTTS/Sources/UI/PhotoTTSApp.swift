@@ -87,6 +87,11 @@ struct PhotoTTSApp: App {
         DispatchQueue.global(qos: .utility).async {
             MakeHistoryManager.shared.backfillMakeEventsIfNeeded()
         }
+
+        // 一次性修复任务：修正存量记录的音频时长（使用错误公式计算的旧数据）
+        DispatchQueue.global(qos: .utility).async {
+            SessionRecordManager.shared.fixAudioDurationForAllSessionsIfNeeded()
+        }
         
         // Siri App Shortcuts 注册由 scenePhase == .active 统一处理，
         // 首次启动和每次回到前台都会触发，无需在 init() 中重复注册
