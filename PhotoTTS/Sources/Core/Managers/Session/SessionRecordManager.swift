@@ -539,7 +539,99 @@ class SessionRecordManager {
         return dir
     }
 
-    /// 从合并池（系统内置 + 用户上传）随机加载要点图片
+    // MARK: - 要点图片轮询状态管理
+
+    /// 轮询队列状态（存储到 UserDefaults）
+    private struct EndPictRoundRobinState: Codable {
+        /// 当前轮次的已选索引队列（按顺序取出）
+        var queue: [Int]
+        /// 生成队列时的图片总数（用于检测池变化）
+        var totalCount: Int
+        /// 版本号（用于兼容性）
+        var version: Int
+    }
+
+    /// 获取指定方向的轮询状态 UserDefaults key
+    private func roundRobinKey(direction: String) -> String {
+        direction == Constants.EndPicts.horizontalDirectoryName
+            ? Constants.UserDefaultsKeys.endPictRoundRobinH
+            : Constants.UserDefaultsKeys.endPictRoundRobinZ
+    }
+
+    /// 加载轮询状态
+    private func loadRoundRobinState(direction: String) -> EndPictRoundRobinState? {
+        let key = roundRobinKey(direction: direction)
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let state = try? JSONDecoder().decode(EndPictRoundRobinState.self, from: data) else {
+            return nil
+        }
+        return state
+    }
+
+    /// 保存轮询状态
+    private func saveRoundRobinState(direction: String, state: EndPictRoundRobinState) {
+        let key = roundRobinKey(direction: direction)
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    /// 重置轮询队列（图片池变化时调用）
+    private func resetRoundRobinQueue(direction: String, totalCount: Int) {
+        var queue = Array(0..<totalCount)
+        // Fisher-Yates 洗牌
+        for i in stride(from: queue.count - 1, through: 1, by: -1) {
+            let j = Int.random(in: 0...i)
+            queue.swapAt(i, j)
+        }
+        let state = EndPictRoundRobinState(
+            queue: queue,
+            totalCount: totalCount,
+            version: Constants.EndPicts.roundRobinVersion
+        )
+        saveRoundRobinState(direction: direction, state: state)
+        logger.info("要点图片轮询队列重置: direction=\(direction), count=\(totalCount)")
+    }
+
+    /// 图片池变化后重置轮询队列（计算新总数并重置）
+    private func resetRoundRobinQueueAfterChange(direction: String) {
+        let systemCount: Int
+        if direction == Constants.EndPicts.horizontalDirectoryName {
+            systemCount = Constants.EndPicts.horizontalImageCount
+        } else {
+            systemCount = Constants.EndPicts.verticalImageCount
+        }
+        let userCount = getUserEndPictURLs(direction: direction).count
+        let totalCount = systemCount + userCount
+        resetRoundRobinQueue(direction: direction, totalCount: totalCount)
+    }
+
+    /// 从轮询队列中取出下一个索引，队列为空或无效时重新生成
+    private func getNextRoundRobinIndex(direction: String, totalCount: Int) -> Int {
+        // 池为空，返回无效索引
+        guard totalCount > 0 else { return -1 }
+
+        // 加载现有状态
+        var state = loadRoundRobinState(direction: direction)
+
+        // 需要重新生成的情况：无状态、总数变化、队列为空
+        if state == nil || state!.totalCount != totalCount || state!.queue.isEmpty {
+            resetRoundRobinQueue(direction: direction, totalCount: totalCount)
+            state = loadRoundRobinState(direction: direction)
+        }
+
+        guard var validState = state, !validState.queue.isEmpty else {
+            // 兜底：纯随机
+            return Int.random(in: 0..<totalCount)
+        }
+
+        // 取出队首
+        let index = validState.queue.removeFirst()
+        saveRoundRobinState(direction: direction, state: validState)
+        logger.debug("要点图片轮询: direction=\(direction), index=\(index), remaining=\(validState.queue.count)")
+        return index
+    }
+
+    /// 从合并池（系统内置 + 用户上传）按轮询机制加载要点图片
     /// - Parameters:
     ///   - animationStyle: 动画方向（横向/纵向）
     ///   - maxDimension: 最大边长（点），超过则等比缩小
@@ -565,25 +657,32 @@ class SessionRecordManager {
             return nil
         }
 
-        // 随机选取索引
-        let randomIndex = Int.random(in: 0..<totalCount)
+        // 从轮询队列获取索引
+        let selectedIndex = getNextRoundRobinIndex(direction: directionName, totalCount: totalCount)
+        guard selectedIndex >= 0 && selectedIndex < totalCount else {
+            logger.warning("要点图片索引无效: \(selectedIndex)")
+            return nil
+        }
 
-        if randomIndex < systemImageCount {
+        if selectedIndex < systemImageCount {
             // 选中系统内置图片（索引从 0 开始，文件名从 0 开始）
-            let resourceName = "\(directionName)-\(randomIndex)"
+            let resourceName = "\(directionName)-\(selectedIndex)"
             guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
                 logger.warning("系统要点图片不存在: \(resourceName).jpg")
                 return nil
             }
+            logger.info("播放要点图片: \(resourceName).jpg (系统内置)")
             return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
         } else {
             // 选中用户上传图片
-            let userIndex = randomIndex - systemImageCount
+            let userIndex = selectedIndex - systemImageCount
             guard userIndex < userImageURLs.count else {
                 logger.warning("用户要点图片索引越界")
                 return nil
             }
-            return Self.downsampleImageFromFile(url: userImageURLs[userIndex], maxDimension: maxDimension)
+            let imageURL = userImageURLs[userIndex]
+            logger.info("播放要点图片: \(imageURL.lastPathComponent) (用户上传)")
+            return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
         }
     }
 
@@ -625,6 +724,8 @@ class SessionRecordManager {
         do {
             try jpegData.write(to: fileURL)
             logger.info("保存用户要点图片成功: \(fileName)")
+            // 图片池变化，重置轮询队列
+            resetRoundRobinQueueAfterChange(direction: direction)
             return true
         } catch {
             logger.error("保存用户要点图片失败: \(error.localizedDescription)")
@@ -637,8 +738,12 @@ class SessionRecordManager {
     /// - Returns: 删除成功返回 true
     func deleteUserEndPict(url: URL) -> Bool {
         do {
+            // 从 URL 提取方向（父目录名）
+            let direction = url.deletingLastPathComponent().lastPathComponent
             try fileManager.removeItem(at: url)
             logger.info("删除用户要点图片成功: \(url.lastPathComponent)")
+            // 图片池变化，重置轮询队列
+            resetRoundRobinQueueAfterChange(direction: direction)
             return true
         } catch {
             logger.error("删除用户要点图片失败: \(error.localizedDescription)")

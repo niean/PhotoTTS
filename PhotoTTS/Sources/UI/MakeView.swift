@@ -139,6 +139,7 @@ struct MakeView: View {
                         }
                         openedPickerFromHome = false
                         showPhotoPicker = false
+                        photoPickerSelectedImages.removeAll()
                     },
                     onCancel: {
                         if openedPickerFromHome {
@@ -146,6 +147,7 @@ struct MakeView: View {
                         }
                         openedPickerFromHome = false
                         showPhotoPicker = false
+                        photoPickerSelectedImages.removeAll()
                     }
                 )
             }

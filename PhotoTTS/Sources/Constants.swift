@@ -256,6 +256,10 @@ extension Constants {
         static let autoCleanupEnabled = "auto_cleanup_enabled"
         static let siriPendingSessionId = "siriPendingPlaySessionId"
         static let landscapeTipDismissed = "landscape_tip_dismissed"
+        // 要点图片轮询队列（横向）
+        static let endPictRoundRobinH = "end_pict_round_robin_h"
+        // 要点图片轮询队列（纵向）
+        static let endPictRoundRobinZ = "end_pict_round_robin_z"
     }
     
     // MARK: - 通知名
@@ -324,7 +328,7 @@ extension Constants {
     // MARK: - LLM配置
     struct LLM {
         /// 触发LLM绘本分析的最小图片数量
-        static let minImageCountForAnalysis = 5
+        static let minImageCountForAnalysis = 2
     }
 
     // MARK: - 要点图片配置（EndPicts）
@@ -345,6 +349,8 @@ extension Constants {
         static let thumbnailMaxDimension: CGFloat = 96
         /// 上传图片最大边长（像素）
         static let uploadImageMaxPixel: CGFloat = 2048
+        /// 轮询状态版本号，用于检测图片池变化后重置队列
+        static let roundRobinVersion = 1
     }
 
     // MARK: - 字体常量
