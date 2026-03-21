@@ -73,7 +73,7 @@ struct MakeView: View {
                 if newKind == nil, oldKind == .camera {
                     let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
                     selectedImages = appState.cameraOverlayImages.map { SessionRecordManager.downsampleImageToMaxPixel($0, maxPixelLength: maxP) ?? $0 }
-                    currentImageIndex = max(0, selectedImages.count - 1)
+                    currentImageIndex = 0
                     onImagesChanged()
                     if openedCameraFromHome {
                         openedCameraFromHome = false
