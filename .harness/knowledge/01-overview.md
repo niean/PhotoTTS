@@ -6,7 +6,7 @@ PhotoTTS（拍照阅读）：iOS 应用，拍照/选图经 OCR（多 Provider：
 
 ## 技术栈
 
-Swift 5.0+，iOS 18.6+，MVVM+Coordinator，SwiftUI 为主（相机用 UIKit/AVFoundation），URLSession+async/await，音频 AVFoundation。配置：config_local.json（sys/ocr/tts 三节），SettingsManager 优先读 Documents 目录，不存在时回退 Bundle；设置页可编辑并写入 Documents/config_local.json。
+Swift 5.0+，iOS 18.1+，MVVM+Coordinator，SwiftUI 为主（相机用 UIKit/AVFoundation），URLSession+async/await，音频 AVFoundation。配置：config_local.json（sys/ocr/tts 三节），SettingsManager 优先读 Documents 目录，不存在时回退 Bundle；设置页可编辑并写入 Documents/config_local.json。
 
 ## 入口与根状态
 

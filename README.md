@@ -32,7 +32,7 @@ PhotoTTS 是一款面向 3-10 岁儿童的绘本听读 iOS 应用。拍照或选
 
 ### 环境要求
 
-- iOS 18.6+
+- iOS 18.1+
 - macOS 12.0+
 - Xcode 15.0+
 
@@ -79,7 +79,7 @@ PhotoTTS/
 ## 技术规格
 
 - 开发语言：Swift 5.0+
-- 最低支持版本：iOS 18.6+
+- 最低支持版本：iOS 18.1+
 - 架构模式：MVVM + Coordinator
 - UI框架：SwiftUI
 - 网络框架：URLSession + async/await

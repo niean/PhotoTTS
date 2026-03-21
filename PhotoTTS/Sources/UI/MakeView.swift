@@ -456,7 +456,7 @@ struct MakeView: View {
                 let capped = SessionRecordManager.downsampleImageToMaxPixel(newImage, maxPixelLength: maxP) ?? newImage
                 selectedImages.append(capped)
                 onImagesChanged()
-                currentImageIndex = selectedImages.count - 1
+                currentImageIndex = 0
                 capturedImage = nil
             }
         }
