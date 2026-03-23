@@ -22,7 +22,9 @@ HomePageView 写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPick
 
 控制层（PlayerControlLayer）：所有操作控件悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left（横屏 bottom-left）：播放/暂停按钮 + 进度条（PlayerProgressBar，含时间显示、分割点标记、可拖动滑块）。用户横屏 top-right（横屏 top-right）：退出按钮 + "播完本集"定时关闭开关（autoStopEnabled，默认开启 = 播完自动退出）。
 
-关闭：onDismiss 回调（onDisappear 中也调用）；正常播放结束时 PlayHistoryManager 记录，autoStopEnabled 时自动退出。
+连播队列：PlayView 接受 queueRecordIds 参数（默认空数组），由 HomePageView 通过 SessionRecordManager.buildSameDateQueue 构建（从当前记录开始，收集同日期已完成记录）。播放结束后（autoStopEnabled 且队列有下一条时）调 advanceToNextRecord：显示过渡页面（下一条名称 + ProgressView，至少 Constants.Playback.transitionMinDisplayDuration 秒），后台预加载下一条记录，完成后切换并自动播放。跨天记录不纳入队列，最后一条播完 stopAndDismiss。PlayerControlLayer 新增 showNextButton/onNextRecord 参数，显示"下一个"按钮。Siri 和 MakeView 不传队列（默认单条播放）。
+
+关闭：onDismiss 回调（onDisappear 中也调用）；正常播放结束时 PlayHistoryManager 记录，autoStopEnabled 时检查队列决定连播或退出。
 
 播放互斥：AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点（HomePageView、MakeView.togglePlayback、loadPendingSiriSession）打开前检查，为 true 时拒绝并记录日志；触发时设 true，onDismiss 设 false。
 

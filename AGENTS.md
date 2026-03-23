@@ -286,6 +286,7 @@ spec 是一次性产物，服务于当前任务的设计确认和实现。实现
 ```
 AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
+  README.md            -- Harness 工程模板说明
   agents/              -- Agent 角色模板（Orchestrator、Analyst、Coder、Reviewer）
   skills/              -- Skill 定义（迭代功能、构建验证、全局工作流等）
     harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板）

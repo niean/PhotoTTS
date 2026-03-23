@@ -34,7 +34,7 @@ description: 人工指令触发全部治理
 
 ### Step 4 -- 回填产品文档
 - Agent: Orchestrator 调度，委托 Skill: 回填产品文档（单 Agent）
-- 执行 `.harness/skills/backfill-prd.md`
+- 执行 `.harness/skills/harness-ops/backfill-prd.md`
 - 摘要：`[Step 4 回填产品文档] baseline 更新N处，sense 更新M处`
 
 ### Step 5 -- 巡检报告

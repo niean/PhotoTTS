@@ -52,14 +52,11 @@ description: 人工下发功能需求或修改代码时使用
 - 扫描违规或验收不通过时回到 Phase 4 修复
 
 必须执行的步骤：
-1. Step 1 代码扫描：5 个维度 subagent 并行扫描，每个维度独立输出结论
-2. Step 2 验收标准检查：对照 spec 验收标准逐项验证，输出每项通过/不通过
+1. Step 1 构建验证：执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），全量构建 + 全量测试，确认零警告零错误
+2. Step 2 代码扫描：5 个维度 subagent 并行扫描，每个维度独立输出结论
+3. Step 3 验收标准检查：对照 spec 验收标准逐项验证，输出每项通过/不通过
 
-不在本 Phase 执行（已在 Phase 4 TDD 中覆盖）：
-- 构建验证（TDD 每步已执行 build）
-- 测试验证（TDD 每步已执行 test）
-
-检查点：`[Phase 5 结果验收] 扫描: N维度/M违规, 验收标准: K项通过`
+检查点：`[Phase 5 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 验收标准: K项通过`
 
 ## Phase 6: 知识回填
 - Agent: Orchestrator

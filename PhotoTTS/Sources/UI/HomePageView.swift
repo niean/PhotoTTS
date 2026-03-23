@@ -4,6 +4,7 @@ import os.log
 /// 首页子页面播放用
 private struct PlayFromHomeItem: Identifiable, Hashable {
     let id: String
+    let queueRecordIds: [String]  // 连播队列（含自身）
 }
 
 // MARK: - 首页
@@ -53,7 +54,10 @@ struct HomePageView: View {
                             return
                         }
                         appState.isPlayViewActive = true
-                        sessionToPlayFromHome = PlayFromHomeItem(id: record.id)
+                        // 构建同日期连播队列
+                        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "HomePageView.连播队列")
+                        let queue = SessionRecordManager.buildSameDateQueue(from: record.id, in: allMetadata)
+                        sessionToPlayFromHome = PlayFromHomeItem(id: record.id, queueRecordIds: queue)
                     },
                     mode: .embedded,
                     onListScrolled: { isListScrolled = $0 }
@@ -65,7 +69,7 @@ struct HomePageView: View {
             TopAndLeftSideNavigationBar(title: "首页")
         }
         .fullScreenCover(item: $sessionToPlayFromHome) { item in
-            PlayView(recordId: item.id, onDismiss: {
+            PlayView(recordId: item.id, queueRecordIds: item.queueRecordIds, onDismiss: {
                 sessionToPlayFromHome = nil
                 appState.isPlayViewActive = false
             })

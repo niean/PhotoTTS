@@ -32,14 +32,13 @@ Layer 1  .harness/agents/（Agent 角色定义 -- "谁来做"）
 Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |
             |-- iterate-feature.md    引用 agents/analyst.md、coder.md、reviewer.md
-            |-- iterate-other.md
             |-- harness-ops/
             |   |-- governance-code.md    引用 agents/coder.md、reviewer.md，调度 skills/subskills/
             |   |-- governance-capability.md  读取 AGENTS.md 注册表 + agents/、skills/（含 subskills/）
             |   |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
             |   |-- extract-harness-tpl.md 读取全部 .harness/ 文件
+            |   |-- backfill-prd.md       读取 prd/ 三个产品文档
             |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
-            |-- backfill-prd.md       读取 prd/ 三个产品文档
             |-- verify-build.md       独立（仅含构建命令）
             |-- summarize-task.md     独立（仅含报告模板）
             |
@@ -58,11 +57,13 @@ Layer 3  .harness/skills/subskills/（Subskill 任务模板 -- "做什么"）
             |-- guides/01-harness-ops.md          项目维护手册，人工维护
             |-- guides/02-harness-dev.md          开发流程，人工维护
             |
-辅助层   .harness/plans/（AI 自主管理的执行计划）
+辅助层   .harness/specs/（设计文档） + .harness/plans/（执行计划）
             |
-            |-- active/                当前活跃计划（原则上 1 个文件）
-            |-- completed/             已完成计划归档
-            |-- debt-tracker.md        技术债追踪
+            |-- specs/active/          当前活跃 spec（原则上 1 个文件）
+            |-- specs/completed/       已完成 spec 归档
+            |-- plans/active/          当前活跃计划（原则上 1 个文件）
+            |-- plans/completed/       已完成计划归档
+            |-- plans/debt-tracker.md  技术债追踪
 ```
 
 ## 知识库设计哲学

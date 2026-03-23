@@ -27,9 +27,14 @@ private enum DragMode {
 struct PlayView: View {
     var recordId: String? = nil
     var preloadedRecord: SessionRecord? = nil
+    var queueRecordIds: [String] = []  // 连播队列（含自身）
     let onDismiss: () -> Void
 
     @State private var record: SessionRecord?
+    // 连播状态
+    @State private var currentQueueIndex: Int = 0
+    @State private var isTransitioning: Bool = false
+    @State private var nextRecordName: String = ""
     /// 仅当从制作页传入的 preloadedRecord 时为 true
     @State private var recordIsFromPreload = false
     @State private var isLoading = true
@@ -47,8 +52,8 @@ struct PlayView: View {
     @State private var preloadedImageDataList: [String]? = nil
     @State private var isOverlayVisible = false
     @State private var overlayAutoHideTimer: Timer?
-    /// "播完本集"定时关闭，默认开启（播完自动退出，与原行为一致）
-    @State private var autoStopEnabled = true
+    /// "同日连播"开关，默认开启（队列有下一条时自动连播）
+    @State private var continuousPlayEnabled = true
     /// 护眼模式：开启时使用护眼绿背景，关闭时使用黑色背景
     @State private var eyeProtectionEnabled = true
     /// 撑满全屏：开启时图片 .fit 拉伸填满可用空间（现有行为），关闭时以原尺寸展示（不放大，仅缩小以适屏）
@@ -298,7 +303,7 @@ struct PlayView: View {
                     animationStyle: animationStyle,
                     isDefaultSession: record.id == Constants.DefaultSession.id
                 )
-                .id(currentImageIndex)
+                .id("\(record.id)_\(currentImageIndex)")
                 .transition(.asymmetric(
                     insertion: .move(edge: {
                         switch (animationStyle, isForwardTransition) {
@@ -323,7 +328,7 @@ struct PlayView: View {
                 if isOverlayVisible {
                     PlayerControlLayer(
                         isPlaying: isPlaying,
-                        autoStopEnabled: autoStopEnabled,
+                        continuousPlayEnabled: continuousPlayEnabled,
                         showProgressBar: audioPlayer != nil,
                         isPlayEnabled: record.getAudioData() != nil,
                         playbackProgress: playbackProgress,
@@ -335,7 +340,7 @@ struct PlayView: View {
                         fillScreenEnabled: fillScreenEnabled,
                         animationStyle: $animationStyle,
                         onTogglePlayback: { togglePlayback() },
-                        onToggleAutoStop: { autoStopEnabled.toggle() },
+                        onToggleContinuousPlay: { continuousPlayEnabled.toggle() },
                         onToggleEyeProtection: { eyeProtectionEnabled.toggle() },
                         onToggleFillScreen: { fillScreenEnabled.toggle() },
                         onToggleAnimationStyle: {
@@ -344,7 +349,17 @@ struct PlayView: View {
                         onDismiss: { stopAndDismiss() },
                         onHideOverlay: { isOverlayVisible = false },
                         onSeek: { seekToRatio($0) },
-                        onInteraction: { startOverlayAutoHideTimer() }
+                        onInteraction: { startOverlayAutoHideTimer() },
+                        showNextButton: currentQueueIndex + 1 < queueRecordIds.count,
+                        onNextRecord: {
+                            // 停止当前播放，切换到下一条
+                            audioPlayer?.stop()
+                            playbackTimer?.invalidate()
+                            playbackTimer = nil
+                            isPlaying = false
+                            PlayHistoryManager.shared.recordPlay(sessionId: record.id, name: record.name, playedAt: Date())
+                            advanceToNextRecord()
+                        }
                     )
                     .frame(width: geometry.size.height, height: geometry.size.width)
                     .rotationEffect(.degrees(90))
@@ -364,11 +379,29 @@ struct PlayView: View {
                     .allowsHitTesting(false)
                     .transition(.opacity)
                 }
+
+                // 连播过渡页面（横屏布局，旋转 +90° 适配横屏观看）
+                if isTransitioning {
+                    ZStack {
+                        Color(.systemBackground).opacity(0.95)
+                        VStack(spacing: 16) {
+                            Text("\(currentQueueIndex + 2)/\(queueRecordIds.count)：\(nextRecordName)")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.primary)
+                            ProgressView()
+                        }
+                    }
+                    .frame(width: geometry.size.height, height: geometry.size.width)
+                    .rotationEffect(.degrees(90))
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .transition(.opacity)
+                }
             }
         }
         .ignoresSafeArea(.all)
         .statusBarHidden(true)
         .animation(.easeInOut(duration: 0.3), value: currentImageIndex)
+        .animation(.easeInOut(duration: 0.3), value: isTransitioning)
         .onAppear {
             if isOverlayVisible { startOverlayAutoHideTimer() }
             if !recordIsFromPreload {
@@ -515,13 +548,79 @@ struct PlayView: View {
         if let r = record {
             PlayHistoryManager.shared.recordPlay(sessionId: r.id, name: r.name, playedAt: Date())
         }
-        if autoStopEnabled {
-            // 播完本集：自动退出（默认行为）
+        if !continuousPlayEnabled {
+            // 关闭"同日连播"：当前记录播完即退出，不继续连播
             stopAndDismiss()
+        } else if currentQueueIndex + 1 < queueRecordIds.count {
+            // 开启"同日连播"且队列有下一条：自动连播
+            advanceToNextRecord()
         } else {
-            // 不自动退出：停留在最后一帧
+            // 开启"同日连播"但队列已播完：停留在最后一帧
             audioPlayer = nil
             audioPlayerDelegate = nil
+        }
+    }
+
+    // MARK: - 连播切换
+
+    /// 切换到队列中的下一条记录
+    private func advanceToNextRecord() {
+        let nextIndex = currentQueueIndex + 1
+        guard nextIndex < queueRecordIds.count else {
+            stopAndDismiss()
+            return
+        }
+
+        let nextId = queueRecordIds[nextIndex]
+
+        // 获取下一条记录名称用于过渡页面
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "PlayView.连播过渡")
+        nextRecordName = allMetadata.first(where: { $0.id == nextId })?.name ?? ""
+
+        isTransitioning = true
+        stopAudio()
+
+        // 预加载下一条记录
+        let transitionStart = Date()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let nextRecord = SessionRecordManager.shared.loadSession(id: nextId)
+
+            DispatchQueue.main.async {
+                guard isTransitioning else { return }
+
+                guard let nextRecord = nextRecord else {
+                    // 加载失败，跳过尝试下一条
+                    os.Logger.audioPlayer.warning("连播: 跳过加载失败的记录 id=\(nextId)")
+                    currentQueueIndex = nextIndex
+                    isTransitioning = false
+                    advanceToNextRecord()
+                    return
+                }
+
+                // 确保过渡页面至少显示 5 秒
+                let elapsed = Date().timeIntervalSince(transitionStart)
+                let remainingDelay = max(0, Constants.Playback.transitionMinDisplayDuration - elapsed)
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + remainingDelay) {
+                    guard isTransitioning else { return }
+
+                    // 切换到新记录
+                    currentQueueIndex = nextIndex
+                    record = nextRecord
+                    recordIsFromPreload = false
+                    preloadedImages = nil
+                    preloadedImageDataList = nil
+                    textSegmentRanges = computeTextSegmentRanges(nextRecord.ocrTextSegments)
+                    animationStyle = nextRecord.animationStyle
+                    currentImageIndex = 0
+                    playbackProgress = 0.0
+                    isTransitioning = false
+
+                    if nextRecord.getAudioData() != nil {
+                        startPlayback()
+                    }
+                }
+            }
         }
     }
 
@@ -536,6 +635,7 @@ struct PlayView: View {
     }
 
     private func stopAndDismiss() {
+        isTransitioning = false
         stopAudio()
         onDismiss()
     }
@@ -717,7 +817,7 @@ struct PlayView: View {
 /// 横屏 top-right -> 竖屏 bottom-right -> 用户横屏 top-right。HStack 内左→右顺序在用户横屏视角下保持不变。
 private struct PlayerControlLayer: View {
     let isPlaying: Bool
-    let autoStopEnabled: Bool
+    let continuousPlayEnabled: Bool
     let showProgressBar: Bool
     let isPlayEnabled: Bool
     let playbackProgress: Double
@@ -729,7 +829,7 @@ private struct PlayerControlLayer: View {
     let fillScreenEnabled: Bool
     @Binding var animationStyle: AnimationStyle
     let onTogglePlayback: () -> Void
-    let onToggleAutoStop: () -> Void
+    let onToggleContinuousPlay: () -> Void
     let onToggleEyeProtection: () -> Void
     let onToggleFillScreen: () -> Void
     let onToggleAnimationStyle: () -> Void
@@ -737,6 +837,8 @@ private struct PlayerControlLayer: View {
     let onHideOverlay: () -> Void
     let onSeek: (Double) -> Void
     let onInteraction: () -> Void
+    var showNextButton: Bool = false
+    var onNextRecord: () -> Void = {}
 
     @State private var isSettingsPanelVisible = false
     private var playButtonSize: CGFloat { scaled(25) }
@@ -789,6 +891,19 @@ private struct PlayerControlLayer: View {
                             .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                     }
                     .disabled(!isPlayEnabled)
+
+                    // 下一个按钮（连播队列中有下一条时显示）
+                    if showNextButton {
+                        Button(action: {
+                            onInteraction()
+                            onNextRecord()
+                        }) {
+                            Image(systemName: "forward.end.fill")
+                                .font(Constants.Fonts.playMainIcon)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+                        }
+                    }
                 }
             }
             .padding(.bottom, 30)
@@ -882,22 +997,22 @@ private struct PlayerControlLayer: View {
                             .frame(height: 0.5)
                             .padding(.horizontal, scaled(14))
 
-                        // 播完本集 Toggle 行
+                        // 同日连播 Toggle 行
                         HStack {
-                            Text("播完本集")
+                            Text("同日连播")
                                 .font(Constants.Fonts.playNextLabel)
                                 .foregroundColor(.white)
                             Spacer()
-                            Button(action: { onToggleAutoStop(); onInteraction() }) {
+                            Button(action: { onToggleContinuousPlay(); onInteraction() }) {
                                 RoundedRectangle(cornerRadius: scaled(12))
-                                    .fill(autoStopEnabled ? Color.green : Color.gray.opacity(0.4))
+                                    .fill(continuousPlayEnabled ? Color.green : Color.gray.opacity(0.4))
                                     .frame(width: scaled(40), height: scaled(24))
                                     .overlay(
                                         Circle()
                                             .fill(Color.white)
                                             .frame(width: scaled(20), height: scaled(20))
-                                            .offset(x: autoStopEnabled ? scaled(8) : -scaled(8))
-                                            .animation(.easeInOut(duration: 0.15), value: autoStopEnabled)
+                                            .offset(x: continuousPlayEnabled ? scaled(8) : -scaled(8))
+                                            .animation(.easeInOut(duration: 0.15), value: continuousPlayEnabled)
                                     )
                             }
                         }

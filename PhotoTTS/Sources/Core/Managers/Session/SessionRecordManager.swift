@@ -2060,6 +2060,30 @@ class SessionRecordManager {
             logger.warning("更新会话ID失败: \(error.localizedDescription)")
         }
     }
+    // MARK: - 连播队列
+
+    /// 从指定记录开始，收集同日期的后续已完成记录 ID 列表（遇到跨天记录即停止）
+    static func buildSameDateQueue(from startId: String, in metadataList: [SessionRecordMetadata]) -> [String] {
+        guard let startIndex = metadataList.firstIndex(where: { $0.id == startId }) else {
+            return []
+        }
+
+        let startDate = metadataList[startIndex].createdAt
+        var queue: [String] = []
+
+        for i in startIndex..<metadataList.count {
+            let metadata = metadataList[i]
+            guard Calendar.current.isDate(metadata.createdAt, inSameDayAs: startDate) else {
+                break
+            }
+            // makeStatus == nil 表示旧数据（已完成），makeStatus == .completed 表示已完成
+            if metadata.makeStatus == nil || metadata.makeStatus == .completed {
+                queue.append(metadata.id)
+            }
+        }
+
+        return queue
+    }
 }
 
 // MARK: - 导出数据结构

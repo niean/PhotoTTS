@@ -222,6 +222,8 @@ extension Constants {
         static let segmentDotSize: CGFloat = 6
         /// 进度条已播放填充色
         static let progressBarFillColor = Color(red: 0.4, green: 0.85, blue: 0.55)
+        /// 连播过渡页面最短显示时长（秒）
+        static let transitionMinDisplayDuration: TimeInterval = 3
     }
     
     // MARK: - 钥匙串键值
