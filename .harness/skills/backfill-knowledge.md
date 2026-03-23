@@ -1,3 +1,8 @@
+---
+name: backfill-knowledge
+description: 人工指令触发知识库回填
+---
+
 # Skill: 回填知识库
 
 触发：人工指令。对比实际代码与知识库文档，修正过时描述并同步 AGENTS.md。

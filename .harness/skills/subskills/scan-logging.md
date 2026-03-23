@@ -1,3 +1,8 @@
+---
+name: scan-logging
+description: Reviewer 或治理代码时扫描日志规范
+---
+
 # Subskill: 扫描日志规范
 
 ## 任务

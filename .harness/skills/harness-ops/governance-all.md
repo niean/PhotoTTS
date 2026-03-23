@@ -1,3 +1,8 @@
+---
+name: governance-all
+description: 人工指令触发全部治理
+---
+
 # Skill: 治理全部
 
 触发：人工指令。编排多个治理 Skill 按顺序执行。
@@ -14,12 +19,12 @@
 
 ### Step 1 -- 治理代码
 - Agent: Orchestrator 调度，委托 Skill: 治理代码（多 Agent 编排）
-- 执行 `.harness/skills/governance-code.md`
+- 执行 `.harness/skills/harness-ops/governance-code.md`
 - 摘要：`[Step 1 治理代码] 扫描N项违规，已修复M项，清理K个废弃项`
 
 ### Step 2 -- 治理技能
 - Agent: Orchestrator 调度，委托 Skill: 治理技能（多 Agent 编排）
-- 执行 `.harness/skills/governance-capability.md`
+- 执行 `.harness/skills/harness-ops/governance-capability.md`
 - 摘要：`[Step 2 治理技能] 修复N项，新增K个能力`
 
 ### Step 3 -- 回填知识库

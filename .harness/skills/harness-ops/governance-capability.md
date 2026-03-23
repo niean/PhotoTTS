@@ -1,3 +1,8 @@
+---
+name: governance-capability
+description: 人工指令触发技能治理
+---
+
 # Skill: 治理技能
 
 触发：人工指令，或由 Skill: 治理全部 Step 2 调用。对 .harness/agents/、skills/（含 subskills/）进行扫描与提取。

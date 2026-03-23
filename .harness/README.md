@@ -33,14 +33,15 @@ Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |
             |-- iterate-feature.md    引用 agents/analyst.md、coder.md、reviewer.md
             |-- iterate-other.md
-            |-- governance-code.md    引用 agents/coder.md、reviewer.md，调度 skills/subskills/
-            |-- governance-capability.md  读取 AGENTS.md 注册表 + agents/、skills/（含 subskills/）
-            |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
+            |-- harness-ops/
+            |   |-- governance-code.md    引用 agents/coder.md、reviewer.md，调度 skills/subskills/
+            |   |-- governance-capability.md  读取 AGENTS.md 注册表 + agents/、skills/（含 subskills/）
+            |   |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
+            |   |-- extract-harness-tpl.md 读取全部 .harness/ 文件
             |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
             |-- backfill-prd.md       读取 prd/ 三个产品文档
             |-- verify-build.md       独立（仅含构建命令）
             |-- summarize-task.md     独立（仅含报告模板）
-            |-- extract-harness-tpl.md 读取全部 .harness/ 文件
             |
 Layer 3  .harness/skills/subskills/（Subskill 任务模板 -- "做什么"）
             |

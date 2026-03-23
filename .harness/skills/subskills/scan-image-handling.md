@@ -1,3 +1,8 @@
+---
+name: scan-image-handling
+description: Reviewer 或治理代码时扫描图片处理
+---
+
 # Subskill: 扫描图片处理规范
 
 ## 任务

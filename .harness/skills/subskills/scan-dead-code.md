@@ -1,3 +1,8 @@
+---
+name: scan-dead-code
+description: 治理代码时扫描废弃代码
+---
+
 # Subskill: 扫描废弃代码
 
 ## 任务

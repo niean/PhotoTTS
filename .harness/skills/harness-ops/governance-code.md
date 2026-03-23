@@ -1,3 +1,8 @@
+---
+name: governance-code
+description: 人工指令触发代码治理
+---
+
 # Skill: 治理代码
 
 触发：人工指令。对项目代码进行完整质量治理。

@@ -1,3 +1,8 @@
+---
+name: extract-harness-tpl
+description: 人工指令触发 Harness 模板提取
+---
+
 # Skill: 提取Harness模板
 
 触发：人工指令。从当前 Harness 工程蒸馏出项目无关的通用模板。

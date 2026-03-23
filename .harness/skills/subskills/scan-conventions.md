@@ -1,3 +1,8 @@
+---
+name: scan-conventions
+description: Reviewer 或治理代码时扫描编码约定
+---
+
 # Subskill: 扫描编码约定
 
 ## 任务

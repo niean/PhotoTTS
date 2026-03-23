@@ -1,3 +1,8 @@
+---
+name: scan-architecture
+description: Reviewer 或治理代码时扫描架构边界
+---
+
 # Subskill: 扫描架构边界
 
 ## 任务

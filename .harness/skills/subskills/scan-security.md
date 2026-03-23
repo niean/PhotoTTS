@@ -1,3 +1,8 @@
+---
+name: scan-security
+description: Reviewer 或治理代码时扫描安全规范
+---
+
 # Subskill: 扫描安全规范
 
 ## 任务
