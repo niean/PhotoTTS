@@ -90,5 +90,8 @@ buildServer.json
 ehthumbs.db
 Thumbs.db
 
+# Agents
+docs/superpowers/
+
 # PhotoTTS
 locals/

@@ -1605,8 +1605,9 @@ class SessionRecordManager {
             // 创建导出说明文件
             var sessionNameList = ""
             if !exportedSessions.isEmpty {
-                sessionNameList = "\n\n会话列表（按展示顺序）：\n"
-                for (index, session) in exportedSessions.enumerated() {
+                let sortedSessions = exportedSessions.sorted { $0.name > $1.name }
+                sessionNameList = "\n\n会话列表（按名称倒序）：\n"
+                for (index, session) in sortedSessions.enumerated() {
                     sessionNameList += "\(index + 1). \(session.name)\n"
                 }
             }
