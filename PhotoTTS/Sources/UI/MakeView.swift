@@ -23,7 +23,8 @@ struct MakeView: View {
     @State private var ocrDuration: TimeInterval = 0.0
     @State private var llmDuration: TimeInterval = 0.0
     @State private var ttsDuration: TimeInterval = 0.0
-    
+    @State private var intermediateResults: IntermediateResults?
+
     // 批量处理相关状态
     @State private var selectedImages: [UIImage] = []
     @State private var currentImageIndex: Int = 0
@@ -386,6 +387,7 @@ struct MakeView: View {
             playbackProgress: 0,
             ocrDuration: ocrDuration,
             ttsDuration: ttsDuration,
+            intermediateResults: intermediateResults,
             allowChangeOperations: true,
             onTogglePlayback: { togglePlayback() },
             onProcessOCRTTS: {
@@ -501,10 +503,13 @@ struct MakeView: View {
         isProcessing = false
         processingProgress = 0.0
         currentOperation = ""
-        ocrDuration = 0.0 
+        ocrDuration = 0.0
         ttsDuration = 0.0
         ocrStartTime = nil
         ttsStartTime = nil
+
+        // 清理中间结果
+        intermediateResults = nil
     }
 
     /// 图片列表发生变化时调用，清空 OCR/音频等衍生状态（增删改顺序都会触发）
@@ -629,6 +634,9 @@ struct MakeView: View {
         ocrDuration = task.ocrDuration
         llmDuration = task.llmDuration
         ttsDuration = task.ttsDuration
+
+        // 同步中间结果
+        intermediateResults = task.intermediateResults
 
         if task.isCompleted {
             isProcessing = false
@@ -789,6 +797,7 @@ struct PhotoProcessingView: View {
     let playbackProgress: Double
     let ocrDuration: TimeInterval
     let ttsDuration: TimeInterval
+    let intermediateResults: IntermediateResults?
     /// 是否允许变更操作（识别、删除、保存、拍照、缩略图顺序/删除）
     let allowChangeOperations: Bool
     let onTogglePlayback: () -> Void
@@ -1112,7 +1121,8 @@ struct PhotoProcessingView: View {
                     ProcessingStatusView(
                         processingProgress: processingProgress,
                         currentOperation: currentOperation,
-                        bottomPadding: layout.thumbBarHeight
+                        bottomPadding: layout.thumbBarHeight,
+                        intermediateResults: intermediateResults
                     )
                 } else if let err = error {
                     ErrorView(error: err)
@@ -1166,7 +1176,7 @@ struct PhotoProcessingView: View {
         .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaTotalHeight)
         .background(
             RoundedRectangle(cornerRadius: 0)
-                .fill(Color.white.opacity(0.5))
+                .fill(Color.white.opacity(0.75))
         )
         .allowsHitTesting(true)
         .clipped()
@@ -1179,24 +1189,102 @@ struct ProcessingStatusView: View {
     let processingProgress: Float
     let currentOperation: String
     let bottomPadding: CGFloat  // 底部偏移，避免遮盖缩略图
-    
+    let intermediateResults: IntermediateResults?  // 新增
+
     var body: some View {
         GeometryReader { geometry in
             let contentWidth = max(200, geometry.size.width - 16)
-            VStack(spacing: 16) {
-                ProgressView(value: processingProgress)
-                    .progressViewStyle(LinearProgressViewStyle())
-                    .frame(maxWidth: contentWidth - 68)
-                
-                Text("整体\(Int(processingProgress * 100))%，\(currentOperation)")
-                    .font(Constants.Fonts.body)
-                    .foregroundColor(.blue)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+            VStack(spacing: 0) {
+                // 顶部：进度条和状态（固定位置，避开右上角按钮）
+                VStack(spacing: 20) {
+                    ProgressView(value: processingProgress)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(maxWidth: contentWidth - 68)
+
+                    Text("整体\(Int(processingProgress * 100))%，\(currentOperation)")
+                        .font(Constants.Fonts.body)
+                        .foregroundColor(.blue)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+                .padding(.top, 60)  // 顶部留出空间避开取消/关闭按钮
+                .padding(.bottom, 8)
+
+                // 底部：阶段结果展示
+                if let results: IntermediateResults = intermediateResults {
+                    IntermediateResultsView(results: results)
+                        .padding(.bottom, bottomPadding)
+                }
+
+                Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, bottomPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+}
+
+// MARK: - 中间结果视图
+struct IntermediateResultsView: View {
+    let results: IntermediateResults
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Spacer()
+
+                // OCR 结果区
+                if !results.ocrTexts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("OCR 识别结果")
+                            .font(Constants.Fonts.headline)
+                            .foregroundColor(.secondary)
+
+                        ForEach(0..<results.ocrTexts.count, id: \.self) { index in
+                            let text = results.ocrTexts[index]
+                            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let displayText = trimmed.isEmpty ? "(识别失败)" : trimmed
+
+                            Text("[图\(index + 1)] \(displayText)")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                Spacer()
+
+                // LLM 结果区
+                let storyName = results.llmStoryName ?? ""
+                let highlights: String = results.llmHighlights ?? ""
+                if !storyName.isEmpty || !highlights.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("绘本分析")
+                            .font(Constants.Fonts.headline)
+                            .foregroundColor(.secondary)
+
+                        if !storyName.isEmpty {
+                            Text("故事名: \(storyName)")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if !highlights.isEmpty {
+                            Text("要点: \(highlights)")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 8)
+        }
+        .frame(minHeight: 200)
     }
 }
 

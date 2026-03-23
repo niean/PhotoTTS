@@ -3,6 +3,14 @@ import UIKit
 import Combine
 import os.log
 
+// MARK: - 中间结果
+struct IntermediateResults {
+    var ocrTexts: [String] = []
+    var validImageCount: Int = 0
+    var llmStoryName: String?
+    var llmHighlights: String?
+}
+
 // MARK: - 后台制作任务
 /// 单个后台制作任务，持有独立的 Coordinator 实例
 class MakeTask: ObservableObject, Identifiable {
@@ -27,6 +35,8 @@ class MakeTask: ObservableObject, Identifiable {
     @Published var ocrText: String = ""
     /// 音频数据
     @Published var audioData: Data? = nil
+    /// 中间结果（OCR文本、LLM摘要等）
+    @Published var intermediateResults: IntermediateResults?
 
     /// OCR 耗时
     var ocrDuration: TimeInterval = 0
@@ -85,6 +95,25 @@ class MakeTask: ObservableObject, Identifiable {
         // 计算 TTS 耗时（更新中）
         if processingProgress.stage == .tts, let start = ttsStartTime {
             ttsDuration = Date().timeIntervalSince(start)
+        }
+
+        // 同步阶段结果
+        if let stageResults = processingProgress.stageResults {
+            if self.intermediateResults == nil {
+                self.intermediateResults = IntermediateResults()
+            }
+            if let ocrTexts = stageResults.ocrTexts {
+                self.intermediateResults?.ocrTexts = ocrTexts
+            }
+            if let validCount = stageResults.validImageCount {
+                self.intermediateResults?.validImageCount = validCount
+            }
+            if let storyName = stageResults.llmStoryName {
+                self.intermediateResults?.llmStoryName = storyName
+            }
+            if let highlights = stageResults.llmHighlights {
+                self.intermediateResults?.llmHighlights = highlights
+            }
         }
     }
 

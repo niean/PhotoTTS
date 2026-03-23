@@ -35,6 +35,14 @@ protocol ImageToSpeechCoordinatorProtocol {
     func cancelProcessing()
 }
 
+// MARK: - 阶段结果
+struct StageResults {
+    let ocrTexts: [String]?           // OCR阶段完成后的文本数组
+    let validImageCount: Int?         // 有效图片数
+    let llmStoryName: String?         // LLM阶段完成后的故事名
+    let llmHighlights: String?        // LLM阶段完成后的要点
+}
+
 // MARK: - 处理进度
 struct ProcessingProgress {
     let stage: ProcessingStage
@@ -42,7 +50,10 @@ struct ProcessingProgress {
     let totalSteps: Int
     let percentage: Double
     let message: String
-    
+
+    // 阶段结果
+    let stageResults: StageResults?
+
     enum ProcessingStage {
         case ocr
         case llm      // LLM分析阶段
@@ -50,21 +61,23 @@ struct ProcessingProgress {
         case completed
         case failed
     }
-    
-    init(stage: ProcessingStage, currentStep: Int, totalSteps: Int, message: String) {
+
+    init(stage: ProcessingStage, currentStep: Int, totalSteps: Int, message: String, stageResults: StageResults? = nil) {
         self.stage = stage
         self.currentStep = currentStep
         self.totalSteps = totalSteps
         self.message = message
         self.percentage = Double(currentStep) / Double(totalSteps) * 100.0
+        self.stageResults = stageResults
     }
-    
-    init(stage: ProcessingStage, currentStep: Int, totalSteps: Int, message: String, percentage: Double) {
+
+    init(stage: ProcessingStage, currentStep: Int, totalSteps: Int, message: String, percentage: Double, stageResults: StageResults? = nil) {
         self.stage = stage
         self.currentStep = currentStep
         self.totalSteps = totalSteps
         self.message = message
         self.percentage = percentage
+        self.stageResults = stageResults
     }
 }
 
@@ -176,17 +189,23 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 let recognizedTexts = try await performConcurrentOCR(images: images, progressHandler: progressHandler)
 
                 // 步骤2: 拼接文字
+                let (combinedText, validImageCount) = try combineOCRResults(recognizedTexts)
+
                 await MainActor.run {
                     progressHandler(ProcessingProgress(
                         stage: .ocr,
                         currentStep: 50,
                         totalSteps: 100,
                         message: "OCR识别进度: 完成",
-                        percentage: 50.0
+                        percentage: 50.0,
+                        stageResults: StageResults(
+                            ocrTexts: recognizedTexts,
+                            validImageCount: validImageCount,
+                            llmStoryName: nil,
+                            llmHighlights: nil
+                        )
                     ))
                 }
-
-                let (combinedText, validImageCount) = try combineOCRResults(recognizedTexts)
 
                 // 步骤3: LLM分析 (50~70%)
                 var llmResult: LLMStoryAnalysisResult?
@@ -233,13 +252,21 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             }
                         }
 
+                        let capturedStoryName = llmResult?.storyName
+                        let capturedHighlights = storyHighlights
                         await MainActor.run {
                             progressHandler(ProcessingProgress(
                                 stage: .llm,
                                 currentStep: 70,
                                 totalSteps: 100,
                                 message: "LLM分析: 完成",
-                                percentage: 70.0
+                                percentage: 70.0,
+                                stageResults: StageResults(
+                                    ocrTexts: recognizedTexts,
+                                    validImageCount: validImageCount,
+                                    llmStoryName: capturedStoryName,
+                                    llmHighlights: capturedHighlights
+                                )
                             ))
                         }
                     } catch {
