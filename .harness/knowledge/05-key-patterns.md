@@ -2,9 +2,9 @@
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
 
-## 模式一：首页->制作跨 Tab 协调
+## 模式一：管理页->制作跨 Tab 协调
 
-HomePageView 写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear），设 selectedTab=1。MakeView 在 .onAppear 和 .onChange(of: selectedTab) 中同时检测并消费（立即置 false）。用户取消且本次从首页发起时自动回 tab0。
+SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear），设 selectedTab=1。MakeView 在 .onAppear 和 .onChange(of: selectedTab) 中同时检测并消费（立即置 false）。用户取消且本次从管理页发起时自动回 tab2。
 
 陷阱：不能只在 onAppear 消费，Tab 切换时 onAppear 不一定触发（视图可能已存在），必须同时监听 onChange。
 
@@ -18,7 +18,7 @@ HomePageView 写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPick
 - recordId：已保存记录，后台加载，按需 loadImage（PlayerImageView），禁止 getImages() 全量加载
 - preloadedRecord：未保存制作中记录，图片已在内存，使用 getImages()
 
-图片切换：三种方式。(1) 播放中由音频进度自动驱动（updateCurrentImageIndex 基于 textSegmentRanges 映射）；(2) 暂停后拖动进度条手动跳转（seekToRatio -> snap 到最近分割点）；(3) 暂停后滑动手势切换（DragGesture on 底层 Color，方向受 animationStyle 管控，切换后 seekToRatio 同步音频位置）。
+图片切换：三种方式。(1) 播放中由音频进度自动驱动（updateCurrentImageIndex 基于 textSegmentRanges 映射）；(2) 播放中或暂停后均可拖动进度条手动跳转（seekToRatio -> snap 到最近分割点，拖拽后维持原播放状态）；(3) 暂停后滑动手势切换（DragGesture on 底层 Color，方向受 animationStyle 管控，切换后 seekToRatio 同步音频位置）。
 
 控制层（PlayerControlLayer）：所有操作控件悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left（横屏 bottom-left）：播放/暂停按钮 + 进度条（PlayerProgressBar，含时间显示、分割点标记、可拖动滑块）。用户横屏 top-right（横屏 top-right）：退出按钮 + "播完本集"定时关闭开关（autoStopEnabled，默认开启 = 播完自动退出）。
 
@@ -28,7 +28,7 @@ HomePageView 写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPick
 
 播放互斥：AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点（HomePageView、MakeView.togglePlayback、loadPendingSiriSession）打开前检查，为 true 时拒绝并记录日志；触发时设 true，onDismiss 设 false。
 
-手势：底层 Color 响应单击（overlay 显隐切换）、双击（播放/暂停切换）和滑动（暂停时切换图片），图片层 allowsHitTesting(false) 透传手势。滑动方向受 animationStyle 管控：rightToLeft 模式检测竖屏 height 轴（用户横屏左右滑），topToBottom 模式检测竖屏 width 轴（用户横屏上下滑）。DragGesture minimumDistance 使用 Constants.Gesture.swipeMinDistance。浮层 3s 无操作自动隐藏。
+手势分层隔离：底层 Color 使用 `.simultaneousGesture(DragGesture)` 响应滑动（翻页/音量/亮度），`.onTapGesture` 响应单击（overlay 显隐切换）和双击（播放/暂停切换）。图片层 allowsHitTesting(false) 透传手势。控制层可见时通过两层隔离防止底层手势干扰进度条：(1) 底层拖拽 guard `!isOverlayVisible` 禁止控制层可见时底层拖拽；(2) 控制层 wrapper 添加 `.contentShape(Rectangle())` + `.onTapGesture` 使整个区域可点击，阻止触摸穿透到底层。滑动方向受 animationStyle 管控：rightToLeft 模式检测竖屏 height 轴（用户横屏左右滑），topToBottom 模式检测竖屏 width 轴（用户横屏上下滑）。DragGesture minimumDistance 使用 Constants.Gesture.swipeMinDistance。浮层 3s 无操作自动隐藏。
 
 翻页动画：通过 AnimationStyle 枚举（private，PlayView.swift 内）控制方向，支持两种模式（@State 会话级状态，默认 rightToLeft）。@State isForwardTransition 记录翻页方向（正向=index增大/反向=index减小），在所有 currentImageIndex 赋值点先设方向再更新 index。.transition 根据 (animationStyle, isForwardTransition) 二维组合动态选择插入/移除边缘：rightToLeft+正向 insertion .bottom、removal .top，反向则反转；topToBottom+正向 insertion .trailing、removal .leading，反向则反转。播放设置面板提供「动画样式」按钮切换。外层 .animation(.easeInOut(duration: 0.3), value: currentImageIndex) 驱动过渡。
 

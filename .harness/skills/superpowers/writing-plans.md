@@ -147,20 +147,20 @@ After writing the complete plan:
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+After saving the plan, AI auto-selects execution approach based on task complexity (no user confirmation needed):
 
-**"Plan complete and saved to `.harness/plans/active/<filename>.md`. Two execution options:**
+**Auto-selection criteria:**
+- **Inline Execution** — plan has ≤ 3 tasks, or all tasks modify the same module/file group
+- **Subagent-Driven** — plan has > 3 tasks, or tasks span multiple independent modules
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+If the user explicitly specifies an execution approach in their request, use that instead of auto-selecting.
 
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+Announce the decision: **"Plan saved to `.harness/plans/active/<filename>.md`. Using [Inline Execution / Subagent-Driven] based on [reason]."**
 
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
+**Subagent-Driven:**
 - **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/subagent-driven-development.md
 - Fresh subagent per task + two-stage review
 
-**If Inline Execution chosen:**
+**Inline Execution:**
 - **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/executing-plans.md
 - Batch execution with checkpoints for review

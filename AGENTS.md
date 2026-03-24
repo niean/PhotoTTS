@@ -61,6 +61,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - 禁止跳过任何 Phase，禁止简化、改编、拆分或合并 Phase
 - 禁止跳过`Phase 门禁[GATE]`（见下方 GATE 规则）
 - 禁止跳过、简化、改动 Phase的消息输出格式
+- 禁止主动调起 superpowers 插件（形如 `superpowers:skill-x`）；仅在用户明确指令时才可调用
 
 
 ### Phase 门禁（GATE）规则（不可压缩）
@@ -236,9 +237,9 @@ PhotoTTSUITests/       -- UI 测试
 
 ```bash
 # 构建（模拟器，arch=arm64 消除 destination 匹配歧义）
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' build
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' build
 # 单元测试
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 16,arch=arm64' test
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
 # API 配置（首次）
 cp PhotoTTS/Resources/config_example.json locals/config_local.json
 ```

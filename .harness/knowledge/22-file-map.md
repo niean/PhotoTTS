@@ -8,7 +8,7 @@
 
 ## 底导各 Tab
 
-- 首页：HomePageView（HomePageView.swift）
+- 首页：HomePageView（HomePageView.swift，双列卡片网格，含 SessionRecordCard）
 - 制作：MakeView（MakeView.swift）
 - 管理：SessionRecordListView（SessionRecordListView.swift，isRootTab=true，mode=.manage）
 - 我的：MeTabView（MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/要点图片/设置/关于入口

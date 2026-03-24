@@ -92,6 +92,7 @@ Thumbs.db
 
 # Agents
 docs/superpowers/
+.superpowers/
 
 # PhotoTTS
 locals/

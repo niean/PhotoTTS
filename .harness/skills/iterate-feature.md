@@ -33,12 +33,12 @@ description: 人工下发功能需求或修改代码时使用
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认 spec；若 Phase 2 在当前回复中刚输出，说明 GATE 被违反，必须停止
 - 读取 `.harness/skills/superpowers/writing-plans.md`，按其流程执行到 "Plan Review Loop" 后终止；"Execution Handoff" 由本 Phase 自行执行（见"流程控制覆盖"节）
 - plan 落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > Plan 文件模板）
-- plan 落盘后，向用户提供执行方式选择（Subagent-Driven / Inline Execution），用户选择后进入 Phase 4
+- plan 落盘后，确定执行方式（Subagent-Driven / Inline Execution）后进入 Phase 4：若用户在输入指令中明确指定了执行方式则遵从；否则 AI 按任务类型自主决策，简单任务使用 Inline Execution、复杂任务使用 Subagent-Driven，无需人工确认
 
 检查点：`[Phase 3 计划制定] tasks: N 个, steps: M 步, 执行方式: subagent/inline`
 
 ## Phase 4: 代码实现
-- 按用户在 Phase 3 选择的执行方式，读取对应的 superpowers 文件并按其流程执行：
+- 按 Phase 3 确定的执行方式，读取对应的 superpowers 文件并按其流程执行：
   - Subagent-Driven: `.harness/skills/superpowers/subagent-driven-development.md`
   - Inline Execution: `.harness/skills/superpowers/executing-plans.md`
 - 按 plan 逐 task 实现，不含 git commit
@@ -106,7 +106,7 @@ superpowers 各 skill 之间有自动流转（brainstorming -> writing-plans -> 
 |--------------------------|---------|---------|
 | brainstorming step 8-9（User reviews spec + invoke writing-plans） | brainstorming.md Checklist & Process Flow | 由 Phase 2 `[GATE]` 统一接管用户确认，Phase 3 自行读取 writing-plans.md |
 | brainstorming "User Review Gate"（spec 写完后让用户 review） | brainstorming.md After the Design | 由 Phase 2 `[GATE]` 统一接管 |
-| brainstorming "Visual Companion"（浏览器服务） | brainstorming.md Visual Companion | 跳过，使用纯文本交互 |
+| brainstorming "Visual Companion"（浏览器服务） | brainstorming.md Visual Companion | 按 brainstorming.md 原流程执行，脚本路径 `.harness/skills/superpowers/brainstorming/scripts/` |
 | writing-plans "Execution Handoff"（plan 完成后弹出执行方式选择） | writing-plans.md Execution Handoff | 由 Phase 3 负责向用户提供执行方式选择 |
 | subagent-driven-development "Never start on main/master" | subagent-driven-development.md Red Flags | 允许在当前分支（含 main）工作，git 操作由用户自行管理 |
 
