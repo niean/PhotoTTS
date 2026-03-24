@@ -31,11 +31,11 @@ description: 人工指令触发技能治理
 - 读取 AGENTS.md 注册表 + .harness/agents/、skills/（含 subskills/）全部文件
 
 ### Step 2 -- 扫描与修复
-- Agent: Reviewer（扫描） -> 用户确认 -> Coder（修复）
+- Agent: Reviewer（扫描） -> 用户确认 -> Orchestrator（修复）
 - 检查：注册表与实际文件不一致、格式不规范、闲置 Agent/Subskill、引用不存在的实体、目录枚举不同步、引用方向违反 AGENTS.md 规则（反向引用上层、使用绝对路径）
 
 ### Step 3 -- 提取新能力
-- Agent: Analyst（识别） -> 用户确认 -> Coder（生成）
+- Agent: Orchestrator（识别） -> 用户确认 -> Orchestrator（生成）
 - 回顾 `git log --oneline -20`，识别 Agent/Skill/Subskill 候选（职责拆分、可复用流程、可并行化检查）
 
 ### Step 4 -- 输出摘要

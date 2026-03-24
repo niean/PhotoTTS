@@ -60,8 +60,8 @@ digraph process {
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use .harness/skills/superpowers-ref/finishing-a-development-branch.md" [shape=box style=filled fillcolor=lightgreen];
+    "[FINAL_REVIEW_STEP]" [shape=box label="[FINAL_REVIEW_STEP]\nDispatch final code reviewer\n(skip if caller manages review externally)"];
+    "Use .harness/skills/superpowers/finishing-a-development-branch.md" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
@@ -79,8 +79,8 @@ digraph process {
     "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use .harness/skills/superpowers-ref/finishing-a-development-branch.md";
+    "More tasks remain?" -> "[FINAL_REVIEW_STEP]" [label="no"];
+    "[FINAL_REVIEW_STEP]" -> "Use .harness/skills/superpowers/finishing-a-development-branch.md";
 }
 ```
 
@@ -119,12 +119,9 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent
-<!-- not migrated: implementer-prompt.md -->
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
-<!-- not migrated: spec-reviewer-prompt.md -->
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
-<!-- not migrated: code-quality-reviewer-prompt.md -->
+- `./subagent-driven-development/implementer-prompt.md` - Dispatch implementer subagent
+- `./subagent-driven-development/spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
+- `./subagent-driven-development/code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
 ## Example Workflow
 
@@ -196,7 +193,7 @@ Code reviewer: ✅ Approved
 ...
 
 [After all tasks]
-[Dispatch final code-reviewer]
+[FINAL_REVIEW_STEP: Dispatch final code-reviewer OR skip if caller manages review externally]
 Final reviewer: All requirements met, ready to merge
 
 Done!
@@ -268,13 +265,13 @@ Done!
 ## Integration
 
 **Required workflow skills:**
-- **.harness/skills/superpowers-ref/using-git-worktrees.md** - REQUIRED: Set up isolated workspace before starting
-- **.harness/skills/superpowers-ref/writing-plans.md** - Creates the plan this skill executes
-- **.harness/skills/superpowers-ref/requesting-code-review.md** - Code review template for reviewer subagents
-- **.harness/skills/superpowers-ref/finishing-a-development-branch.md** - Complete development after all tasks
+- **.harness/skills/superpowers/using-git-worktrees.md** - REQUIRED: Set up isolated workspace before starting
+- **.harness/skills/superpowers/writing-plans.md** - Creates the plan this skill executes
+- **.harness/skills/superpowers/requesting-code-review.md** - Code review template for reviewer subagents
+- **.harness/skills/superpowers/finishing-a-development-branch.md** - Complete development after all tasks
 
 **Subagents should use:**
-- **.harness/skills/superpowers-ref/test-driven-development.md** - Subagents follow TDD for each task
+- **.harness/skills/superpowers/test-driven-development.md** - Subagents follow TDD for each task
 
 **Alternative workflow:**
-- **.harness/skills/superpowers-ref/executing-plans.md** - Use for parallel session instead of same-session execution
+- **.harness/skills/superpowers/executing-plans.md** - Use for parallel session instead of same-session execution

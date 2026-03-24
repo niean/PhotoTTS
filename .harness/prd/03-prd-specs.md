@@ -85,7 +85,7 @@
     - 流程：实现计划，是否改名为 计划制定？=> 改
     - 流程：任务总结，意图识别改名为需求描述？=> 改
     - 流程：需求确认，针对的是specs、而不是plans，计划制定需要[GATE]吗？=> 需要
-    - 其它：当前的.harness/superpowers-ref，是否依赖 cc安装superpowers插件？=> 不依赖
+    - 其它：当前的.harness/superpowers，是否依赖 cc安装superpowers插件？=> 不依赖
 
 
 [待办]

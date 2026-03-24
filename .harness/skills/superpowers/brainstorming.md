@@ -117,11 +117,53 @@ digraph brainstorming {
 <!-- not migrated: elements-of-style skill -->
 - Commit the design document to git
 
+**Spec document template:**
+
+```markdown
+# {Feature Name} Design Spec
+
+- 创建时间: YYYY-MM-DD HH:MM
+- 状态: active | completed
+- 任务来源: {用户需求简述}
+
+## Goal
+{一句话描述要构建什么}
+
+## Architecture
+{2-3 句话描述整体方案}
+
+## Components
+{按模块/组件拆解，每个组件描述职责、接口、依赖}
+
+### {Component 1}
+- 职责: {what it does}
+- 接口: {how to use it}
+- 依赖: {what it depends on}
+
+## Data Flow
+{数据如何在组件间流转}
+
+## Data Model（涉及数据结构变更时）
+{新增/修改的数据结构}
+
+## UI Design（涉及界面变更时）
+{页面布局、交互流程、状态展示}
+
+## Error Handling
+{错误场景及处理策略}
+
+## Constraints
+{性能约束、兼容性、迁移策略}
+
+## Acceptance Criteria
+- [ ] 标准 1
+- [ ] 标准 2
+```
+
 **Spec Review Loop:**
 After writing the spec document:
 
-1. Dispatch spec-document-reviewer subagent (see spec-document-reviewer-prompt.md)
-<!-- not migrated: spec-document-reviewer-prompt.md -->
+1. Dispatch spec-document-reviewer subagent (see `./brainstorming/spec-document-reviewer-prompt.md`)
 2. If Issues Found: fix, re-dispatch, repeat until Approved
 3. If loop exceeds 3 iterations, surface to human for guidance
 
@@ -163,5 +205,4 @@ A browser-based companion for showing mockups, diagrams, and visual options duri
 A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — use the browser.
 
 If they agree to the companion, read the detailed guide before proceeding:
-`skills/brainstorming/visual-companion.md`
-<!-- not migrated: visual-companion.md -->
+`./brainstorming/visual-companion.md`

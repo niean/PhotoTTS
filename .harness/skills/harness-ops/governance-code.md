@@ -30,8 +30,8 @@ description: 人工指令触发代码治理
 - 通过 ask_followup_question 向用户展示违规清单，等待确认
 
 ## Phase 4: 修复
-- Agent: Coder
-- 读取 `.harness/agents/coder.md`，按确认清单修复
+- Agent: Orchestrator（主 Agent 直接修复）
+- 按确认清单修复，遵守 AGENTS.md 代码生成规范
 - 同步更新 22-file-map.md（如有文件删除）
 
 检查点：`[Phase 4 修复] 修复N项, 删除M个废弃项, 更新file-map: 是/否`

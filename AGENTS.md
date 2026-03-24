@@ -12,9 +12,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 | Agent | 运行形态 | 模板文件 | 职责 |
 |-------|---------|---------|------|
-| Orchestrator | 主 Agent | .harness/agents/orchestrator.md | 任务路由、流程编排、上下文管理 |
-| Analyst | subagent（只读） | .harness/agents/analyst.md | 需求理解、结构化 spec 输出 |
-| Coder | 主 Agent（实现阶段） | .harness/agents/coder.md | 代码实现 |
+| Orchestrator | 主 Agent | .harness/agents/orchestrator.md | 任务路由、流程编排、上下文管理、代码实现 |
 | Reviewer | subagent + 主 Agent | .harness/agents/reviewer.md | 代码扫描、构建验证、验收 |
 
 ## Skills（可复用操作）
@@ -70,7 +68,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
 - `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
-- 当前 GATE 点：迭代功能 Phase 3 -> Phase 4
+- 当前 GATE 点：迭代功能 Phase 2 -> Phase 3
 
 ### 引用外部步骤的执行约束（不可压缩）
 
@@ -159,102 +157,23 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 
 命名：`spec-{YYMMDD}-{desc}.md`（YYMMDD 为创建日期）。
 
-触发条件：用户在 PRD-Specs 中显式要求（如"约束：plan中请先给出PRD设计"），或 Analyst 判定影响 3+ 模块/涉及新模块创建时建议产出。小型需求可省略 spec，直接创建 plan。
+触发条件：用户在 PRD-Specs 中显式要求（如"约束：plan中请先给出PRD设计"），或影响 3+ 模块/涉及新模块创建时建议产出。小型需求可省略 spec，直接创建 plan。
 
 spec 是一次性产物，服务于当前任务的设计确认和实现。实现完成后，持久性架构知识通过 Phase 5 知识回填写入 knowledge/。
 
-模板：
-
-```markdown
-# {Feature Name} Design Spec
-
-- 创建时间: YYYY-MM-DD HH:MM
-- 状态: active | completed
-- 任务来源: {用户需求简述}
-
-## Goal
-{一句话描述要构建什么}
-
-## Architecture
-{2-3 句话描述整体方案}
-
-## Components
-{按模块/组件拆解，每个组件描述职责、接口、依赖}
-
-### {Component 1}
-- 职责: {what it does}
-- 接口: {how to use it}
-- 依赖: {what it depends on}
-
-## Data Flow
-{数据如何在组件间流转}
-
-## Data Model（涉及数据结构变更时）
-{新增/修改的数据结构}
-
-## UI Design（涉及界面变更时）
-{页面布局、交互流程、状态展示}
-
-## Error Handling
-{错误场景及处理策略}
-
-## Constraints
-{性能约束、兼容性、迁移策略}
-
-## Acceptance Criteria
-- [ ] 标准 1
-- [ ] 标准 2
-```
+模板：权威定义见 `.harness/skills/superpowers/brainstorming.md` 中的 Spec document template 节。关键要素：
+- Header：创建时间、状态、任务来源、Goal、Architecture
+- Body：Components（职责/接口/依赖）、Data Flow、Data Model、UI Design、Error Handling、Constraints
+- Footer：Acceptance Criteria（可验证的验收条件）
 
 ### Plan 文件（实现计划）
 
 命名：`plan-{YYMMDD}-{desc}.md`（YYMMDD 为创建日期），每个窗口使用独立计划文件，同一窗口内第 2+ 次迭代复用同一计划文件。
 
-模板：
-
-```markdown
-# {Feature Name} Implementation Plan
-
-- 创建时间: YYYY-MM-DD HH:MM
-- 状态: active | completed
-- 关联 spec: .harness/specs/active/spec-{YYMMDD}-{desc}.md
-
-**Goal:** {一句话}
-
-**Architecture:** {2-3 句话}
-
----
-
-## File Structure
-
-{列出将创建或修改的文件及其职责}
-
-- Create: `exact/path/to/file.swift`
-- Modify: `exact/path/to/existing.swift`
-- Test: `PhotoTTSTests/exact/path/to/test.swift`
-
----
-
-### Task N: {Component Name}
-
-**Files:**
-- Create: `exact/path/to/file.swift`
-- Test: `PhotoTTSTests/path/to/test.swift`
-
-- [ ] **Step 1: Write the failing test**
-- [ ] **Step 2: Run test to verify it fails**
-- [ ] **Step 3: Write minimal implementation**
-- [ ] **Step 4: Run test to verify it passes (build zero warnings)**
-
----
-
-## 变更记录
-| 时间 | 变更内容 |
-|------|---------|
-
-## 发现的技术债
-- {描述} -> 已记录到 debt-tracker.md #{ID}
-```
+模板：权威定义见 `.harness/skills/superpowers/writing-plans.md` 中的 Plan Document Header / Task Structure / Plan Document Footer 三节。关键要素：
+- Header：创建时间、状态、关联 spec、Goal、Architecture、Tech Stack
+- Task：File Structure + 逐 task TDD 步骤（failing test -> verify fail -> implement -> verify pass）
+- Footer：变更记录表 + 发现的技术债（引用 debt-tracker.md ID）
 
 ### 生命周期
 
@@ -291,7 +210,7 @@ AGENTS.md              -- AI 知识库入口（本文件）
   skills/              -- Skill 定义（迭代功能、构建验证、全局工作流等）
     harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板）
     subskills/         -- Subskill 扫描模板
-    superpowers-ref/   -- superpowers 方法论技能参考（开发方法论，英文原版适配）
+    superpowers/   -- superpowers 方法论技能（开发方法论，本地适配版）
   specs/               -- 设计文档（WHAT：需求、架构、设计决策）
     active/            -- 当前活跃 spec（原则上只有 1 个文件）
     completed/         -- 已完成 spec 归档

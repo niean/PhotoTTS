@@ -6,7 +6,7 @@
 
 ## 输入
 
-- 变更文件列表（Coder 检查点摘要）
+- 变更文件列表（Phase 4 检查点摘要）
 - spec 中的 test_criteria 和 constraints
 
 ## 验收流程

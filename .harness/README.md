@@ -25,15 +25,16 @@ Layer 0  AGENTS.md（顶层入口、注册表、规则摘要）
 Layer 1  .harness/agents/（Agent 角色定义 -- "谁来做"）
             |
             |-- orchestrator.md  读取 AGENTS.md，引用 iterate-feature.md、reviewer.md
-            |-- analyst.md       读取 AGENTS.md，读取 prd/、knowledge/
-            |-- coder.md         读取 AGENTS.md，按需读取 knowledge/03、05
             |-- reviewer.md      引用 skills/subskills/scan-*.md（调度扫描）
             |
 Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |
-            |-- iterate-feature.md    引用 agents/analyst.md、coder.md、reviewer.md
+            |-- iterate-feature.md    引用 agents/orchestrator.md、reviewer.md
+            |                        Phase 2 引用 superpowers/brainstorming.md
+            |                        Phase 3 引用 superpowers/writing-plans.md
+            |                        Phase 4 引用 superpowers/executing-plans.md 或 subagent-driven-development.md
             |-- harness-ops/
-            |   |-- governance-code.md    引用 agents/coder.md、reviewer.md，调度 skills/subskills/
+            |   |-- governance-code.md    引用 agents/reviewer.md，调度 skills/subskills/
             |   |-- governance-capability.md  读取 AGENTS.md 注册表 + agents/、skills/（含 subskills/）
             |   |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
             |   |-- extract-harness-tpl.md 读取全部 .harness/ 文件
@@ -41,6 +42,27 @@ Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
             |-- verify-build.md       独立（仅含构建命令）
             |-- summarize-task.md     独立（仅含报告模板）
+            |-- superpowers/     superpowers 方法论技能参考（开发方法论，英文原版适配）
+            |   |-- brainstorming.md              需求探索与设计（iterate-feature Phase 2 调用）
+            |   |   |-- brainstorming/spec-document-reviewer-prompt.md   spec 文档审查模板
+            |   |   |-- brainstorming/visual-companion.md                可视化脑暴指南
+            |   |-- writing-plans.md              计划制定（iterate-feature Phase 3 调用）
+            |   |   |-- writing-plans/plan-document-reviewer-prompt.md   plan 文档审查模板
+            |   |-- executing-plans.md            串行实现（iterate-feature Phase 4 备选）
+            |   |-- subagent-driven-development.md  subagent 串行实现 + 双阶段审查（iterate-feature Phase 4 备选）
+            |   |   |-- subagent-driven-development/implementer-prompt.md      实现者 subagent 模板
+            |   |   |-- subagent-driven-development/spec-reviewer-prompt.md    spec 合规审查模板
+            |   |   |-- subagent-driven-development/code-quality-reviewer-prompt.md  代码质量审查模板
+            |   |-- test-driven-development.md    TDD 方法论（被 subagent-driven-development 间接引用）
+            |   |-- finishing-a-development-branch.md  分支收尾（被 executing-plans、subagent-driven-development 间接引用）
+            |   |-- using-git-worktrees.md        工作树隔离（被 executing-plans、subagent-driven-development 间接引用）
+            |   |-- requesting-code-review.md     请求代码审查（被 subagent-driven-development 间接引用）
+            |   |-- verification-before-completion.md  完成前验证（被 systematic-debugging 间接引用）
+            |   |-- systematic-debugging.md       系统化调试（独立技能，未被主流程调用）
+            |   |-- writing-skills.md             技能编写（独立技能，未被主流程调用）
+            |   |-- dispatching-parallel-agents.md  并行 agent 调度（独立技能，未被主流程调用）
+            |   |-- receiving-code-review.md      接收代码审查（独立技能，未被主流程调用）
+            |   |-- using-superpowers.md          superpowers 入口（CC 插件自动加载）
             |
 Layer 3  .harness/skills/subskills/（Subskill 任务模板 -- "做什么"）
             |
@@ -80,6 +102,7 @@ knowledge/ 按"知识用途"而非"功能领域"组织，编号分段体现两�
 
 | 版本 | 日期 | 更新内容 |
 |-----|------|---------|
+| v0.6.0 | 2026-03-24 | 融合superpowers开发流程，补全BrainStorm、TDD |
 | v0.5.0 | 2026-03-18 | 兼容CC环境 |
 | v0.4.0 | 2026-03-17 | 增加Design能力(复用Plan) |
 | v0.3.0 | 2026-03-14 | 增加Plan管理 |

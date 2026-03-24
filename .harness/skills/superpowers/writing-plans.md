@@ -49,7 +49,11 @@ This structure informs the task decomposition. Each task should produce self-con
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use .harness/skills/superpowers-ref/subagent-driven-development.md (recommended) or .harness/skills/superpowers-ref/executing-plans.md to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+- 创建时间: YYYY-MM-DD HH:MM
+- 状态: active | completed
+- 关联 spec: .harness/specs/active/spec-{YYMMDD}-{desc}.md
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use .harness/skills/superpowers/subagent-driven-development.md (recommended) or .harness/skills/superpowers/executing-plans.md to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -59,6 +63,23 @@ This structure informs the task decomposition. Each task should produce self-con
 
 ---
 ```
+
+## Plan Document Footer
+
+**Every plan MUST end with these sections:**
+
+```markdown
+---
+
+## 变更记录
+| 时间 | 变更内容 |
+|------|---------|
+
+## 发现的技术债
+- {描述} -> 已记录到 debt-tracker.md #{ID}
+```
+
+任务执行中更新 plan 检查清单状态，记录变更到变更记录表。新发现技术债时必须立即写入 `debt-tracker.md`（获得 ID），然后在计划文件中引用该 ID。
 
 ## Task Structure
 
@@ -114,8 +135,7 @@ git commit -m "feat: add specific feature"
 
 After writing the complete plan:
 
-1. Dispatch a single plan-document-reviewer subagent (see plan-document-reviewer-prompt.md) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
-<!-- not migrated: plan-document-reviewer-prompt.md -->
+1. Dispatch a single plan-document-reviewer subagent (see `./writing-plans/plan-document-reviewer-prompt.md`) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
    - Provide: path to the plan document, path to spec document
 2. If ❌ Issues Found: fix the issues, re-dispatch reviewer for the whole plan
 3. If ✅ Approved: proceed to execution handoff
@@ -138,9 +158,9 @@ After saving the plan, offer execution choice:
 **Which approach?"**
 
 **If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers-ref/subagent-driven-development.md
+- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/subagent-driven-development.md
 - Fresh subagent per task + two-stage review
 
 **If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers-ref/executing-plans.md
+- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/executing-plans.md
 - Batch execution with checkpoints for review

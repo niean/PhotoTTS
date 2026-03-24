@@ -177,7 +177,7 @@ You MUST complete each phase before proceeding to the next.
    - Automated test if possible
    - One-off test script if no framework
    - MUST have before fixing
-   - Use the `.harness/skills/superpowers-ref/test-driven-development.md` skill for writing proper failing tests
+   - Use the `.harness/skills/superpowers/test-driven-development.md` skill for writing proper failing tests
 
 2. **Implement Single Fix**
    - Address the root cause identified
@@ -288,8 +288,8 @@ These techniques are part of systematic debugging and available in this director
 <!-- not migrated: condition-based-waiting.md -->
 
 **Related skills:**
-- **.harness/skills/superpowers-ref/test-driven-development.md** - For creating failing test case (Phase 4, Step 1)
-- **.harness/skills/superpowers-ref/verification-before-completion.md** - Verify fix worked before claiming success
+- **.harness/skills/superpowers/test-driven-development.md** - For creating failing test case (Phase 4, Step 1)
+- **.harness/skills/superpowers/verification-before-completion.md** - Verify fix worked before claiming success
 
 ## Real-World Impact
 
