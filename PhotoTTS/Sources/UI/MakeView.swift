@@ -41,8 +41,8 @@ struct MakeView: View {
     @State private var showSaveSessionDialog = false
     @State private var showPhotoPicker = false
     @State private var photoPickerSelectedImages: [UIImage] = []
-    @State private var openedCameraFromHome = false   // 从首页发起的拍照，关闭相机时若仍无图则回首页
-    @State private var openedPickerFromHome = false  // 从首页发起的选图，取消或未选则回首页
+    @State private var openedCameraFromHome = false   // 从管理页发起的拍照，关闭相机时若仍无图则回管理页
+    @State private var openedPickerFromHome = false  // 从管理页发起的选图，取消或未选则回管理页
     @State private var isSavingSession = false  // 保存会话记录时的加载状态
     
     // 状态弹出层：失败时持续展示直至用户点击关闭
@@ -79,7 +79,7 @@ struct MakeView: View {
                     if openedCameraFromHome {
                         openedCameraFromHome = false
                         if selectedImages.isEmpty {
-                            appState.selectedTab = 0
+                            appState.selectedTab = 2
                         }
                     }
                 }
@@ -136,7 +136,7 @@ struct MakeView: View {
                             currentImageIndex = 0
                             onImagesChanged()
                         } else if openedPickerFromHome {
-                            appState.selectedTab = 0
+                            appState.selectedTab = 2
                         }
                         openedPickerFromHome = false
                         showPhotoPicker = false
@@ -144,7 +144,7 @@ struct MakeView: View {
                     },
                     onCancel: {
                         if openedPickerFromHome {
-                            appState.selectedTab = 0
+                            appState.selectedTab = 2
                         }
                         openedPickerFromHome = false
                         showPhotoPicker = false

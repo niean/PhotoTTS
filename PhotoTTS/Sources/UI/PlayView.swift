@@ -199,6 +199,8 @@ struct PlayView: View {
                         .simultaneousGesture(
                             DragGesture(minimumDistance: Constants.Gesture.gestureMinDragDistance)
                                 .onChanged { value in
+                                    // 控制层可见时禁止底层拖拽，避免与进度条手势冲突
+                                    guard !isOverlayVisible else { return }
                                     // 首次超过阈值时确定手势模式
                                     if dragMode == .undecided {
                                         let absW = abs(value.translation.width)
@@ -245,6 +247,12 @@ struct PlayView: View {
                                     }
                                 }
                                 .onEnded { value in
+                                    // 控制层可见时禁止底层拖拽，避免与进度条手势冲突
+                                    guard !isOverlayVisible else {
+                                        dragMode = .undecided
+                                        activeControlType = nil
+                                        return
+                                    }
                                     let prevMode = dragMode
                                     dragMode = .undecided
                                     activeControlType = nil
@@ -335,7 +343,7 @@ struct PlayView: View {
                         currentAudioTime: currentAudioTime,
                         totalAudioDuration: totalAudioDuration,
                         segmentRatios: segmentRatios,
-                        isDraggable: !isPlaying,
+                        isDraggable: true,
                         eyeProtectionEnabled: eyeProtectionEnabled,
                         fillScreenEnabled: fillScreenEnabled,
                         animationStyle: $animationStyle,
@@ -351,6 +359,8 @@ struct PlayView: View {
                         onSeek: { seekToRatio($0) },
                         onInteraction: { startOverlayAutoHideTimer() },
                         showNextButton: currentQueueIndex + 1 < queueRecordIds.count,
+                        currentQueueIndex: currentQueueIndex,
+                        totalQueueCount: queueRecordIds.count,
                         onNextRecord: {
                             // 停止当前播放，切换到下一条
                             audioPlayer?.stop()
@@ -364,6 +374,17 @@ struct PlayView: View {
                     .frame(width: geometry.size.height, height: geometry.size.width)
                     .rotationEffect(.degrees(90))
                     .frame(width: geometry.size.width, height: geometry.size.height)
+                    // 手势隔离：整个控制层区域拦截触摸，防止穿透到底层触发翻页/单击
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        guard audioPlayer != nil else { return }
+                        togglePlayback()
+                        if isOverlayVisible { startOverlayAutoHideTimer() }
+                    }
+                    .onTapGesture {
+                        isOverlayVisible.toggle()
+                        if isOverlayVisible { startOverlayAutoHideTimer() }
+                    }
                 }
 
                 // 控制条（横屏顶部，+90°旋转到横屏坐标系）
@@ -555,9 +576,8 @@ struct PlayView: View {
             // 开启"同日连播"且队列有下一条：自动连播
             advanceToNextRecord()
         } else {
-            // 开启"同日连播"但队列已播完：停留在最后一帧
-            audioPlayer = nil
-            audioPlayerDelegate = nil
+            // 开启"同日连播"但队列已播完：自动退出播放器
+            stopAndDismiss()
         }
     }
 
@@ -838,6 +858,8 @@ private struct PlayerControlLayer: View {
     let onSeek: (Double) -> Void
     let onInteraction: () -> Void
     var showNextButton: Bool = false
+    var currentQueueIndex: Int = 0
+    var totalQueueCount: Int = 1
     var onNextRecord: () -> Void = {}
 
     @State private var isSettingsPanelVisible = false
@@ -903,6 +925,12 @@ private struct PlayerControlLayer: View {
                                 .foregroundColor(.white)
                                 .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                         }
+
+                        // 连播进度
+                        Text(" (\(currentQueueIndex + 1)/\(totalQueueCount))")
+                            .font(Constants.Fonts.playQueueProgress)
+                            .foregroundColor(.white.opacity(0.5))
+                            .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                     }
                 }
             }
@@ -1289,7 +1317,7 @@ private struct PlayerProgressBar: View {
             .frame(height: thumbSz)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .gesture(
+            .highPriorityGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         guard isDraggable else { return }

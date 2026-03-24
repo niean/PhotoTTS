@@ -188,6 +188,28 @@ extension Constants {
     struct Pagination {
         /// 记录列表每页条数
         static let pageSize = 20
+        /// 翻页控件固定高度
+        static let controlHeight: CGFloat = 44
+    }
+
+    // MARK: - 首页卡片布局
+    struct HomeCard {
+        /// 卡片圆角
+        static let cornerRadius: CGFloat = 14
+        /// 网格间距
+        static let gridSpacing: CGFloat = 12
+        /// 网格水平内边距
+        static let gridHorizontalPadding: CGFloat = 14
+        /// 封面区域固定高度
+        static let coverHeight: CGFloat = 120
+        /// 名称栏垂直内边距
+        static let titleVerticalPadding: CGFloat = 8
+        /// 名称栏水平内边距
+        static let titleHorizontalPadding: CGFloat = 10
+        /// 封面 avatar 加载最大边长
+        static let coverAvatarMaxDimension: CGFloat = 300
+        /// 制作中蒙层透明度
+        static let makingOverlayOpacity: Double = 0.45
     }
     
     // MARK: - 监控配置
@@ -411,8 +433,16 @@ extension Constants {
         static var makeStartIcon: Font { .system(size: s(25), weight: .semibold) }
         /// PlayView 播放按钮: 28pt bold
         static var playMainIcon: Font { .system(size: s(28), weight: .bold) }
+        /// PlayView 连播进度: 22pt regular
+        static var playQueueProgress: Font { .system(size: s(22), weight: .regular) }
         /// 横拍提示箭头: 30pt medium
         static var tipArrowIcon: Font { .system(size: s(30), weight: .medium) }
+        /// 首页卡片名称: 14pt regular
+        static var homeCardTitle: Font { .system(size: s(14), weight: .regular) }
+        /// 首页卡片制作进度: 13pt semibold
+        static var homeCardProgress: Font { .system(size: s(13), weight: .semibold) }
+        /// 首页卡片封面占位图标: 30pt
+        static var homeCardPlaceholderIcon: Font { .system(size: s(30)) }
         /// 首页图标: 32pt
         static var homeIcon: Font { .system(size: s(32)) }
         /// 搜索空状态图标: 36pt
