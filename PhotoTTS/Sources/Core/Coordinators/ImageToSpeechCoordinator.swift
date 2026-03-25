@@ -516,9 +516,9 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 allResults.append(contentsOf: sortedBatchResults)
             }
             
-            // 更新进度 (0-70%)
+            // 更新进度 (0-50%)
             let completedImages = allResults.count
-            let progress = Double(completedImages) / Double(totalImages) * 0.7
+            let progress = Double(completedImages) / Double(totalImages) * 0.5
             await MainActor.run {
                 progressHandler(ProcessingProgress(
                     stage: .ocr,

@@ -186,8 +186,10 @@ extension Constants {
     
     // MARK: - 分页配置
     struct Pagination {
-        /// 记录列表每页条数
-        static let pageSize = 20
+        /// 记录列表每页条数（iPad 30，iPhone 20）
+        static var pageSize: Int {
+            UIDevice.current.userInterfaceIdiom == .pad ? 30 : 20
+        }
         /// 翻页控件固定高度
         static let controlHeight: CGFloat = 44
     }
@@ -213,7 +215,7 @@ extension Constants {
         /// iPhone 卡片列数
         static let iPhoneColumns: Int = 2
         /// iPad 卡片列数
-        static let iPadColumns: Int = 4
+        static let iPadColumns: Int = 3
     }
     
     // MARK: - 监控配置
