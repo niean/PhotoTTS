@@ -3,6 +3,8 @@
 ## 约束
 本文仅供自然人使用，未经人工确认、禁止AI修改。
 
+## 目标
+无人值守AFK。AI自主运行，人类参与最小化；unmanned，AFK(Away From Keyboard)
 
 ## 项目初始化
 
@@ -27,7 +29,8 @@
     - 执行 `回填知识库`，更新对象 `.harness/knowledge/ 文档库` + `AGENTS.md`
     - 执行 `回填产品文档`，更新对象 `.harness/prd/02-prd-baseline.md` + `01-prd-sense.md`
 
-建议：不同任务，使用不同Chat窗口；差异甚大的任务，避免复用窗口。因为，上下文污染影响Coding效果
+- 建议：授予AI Chat自主执行命令的权限，消除低级别的人工确认
+- 建议：不同任务，使用不同Chat窗口；差异甚大的任务，避免复用窗口。因为，上下文污染影响Coding效果
 
 ## 全自动开发（尚未就绪）
 1. 定义需求。更新到 `03-prd-specs.md`

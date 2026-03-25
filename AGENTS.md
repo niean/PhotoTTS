@@ -52,7 +52,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 任务开始时首先进行 任务分类和Skill路由（新 Task 或同一 Task 内的第 2+ 次迭代均需分类），必须立即执行以下步骤，禁止跳过：
 
-1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-3。否则：功能需求或修改代码 -> `Skill: 迭代功能`，其它任务按需路由到已注册 Skill 或直接执行
+1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-3。否则：功能需求或修改代码（含Bug修复） -> `Skill: 迭代功能`，其它任务按需路由到已注册 Skill 或直接执行
 2. 读取 Skill 定义：立即读取对应的 Skill 文件（如 `.harness/skills/iterate-feature.md`）
 3. 遵循 Skill 流程：按 Skill 文件定义的 Phase 顺序执行；特别强调，`[GATE]` 标记的 Phase 必须在消息框展示意图、等待人工确认，否则禁止执行后续 Phase
 
@@ -236,10 +236,12 @@ PhotoTTSUITests/       -- UI 测试
 ## 构建与测试
 
 ```bash
-# 构建（模拟器，arch=arm64 消除 destination 匹配歧义）
+# 构建（模拟器，arch=arm64 消除 destination 匹配歧义；iPhone + iPad 各一次）
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' build
-# 单元测试
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPad (A16),arch=arm64' build
+# 单元测试（iPhone + iPad 各一次）
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPad (A16),arch=arm64' test
 # API 配置（首次）
 cp PhotoTTS/Resources/config_example.json locals/config_local.json
 ```

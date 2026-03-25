@@ -210,6 +210,10 @@ extension Constants {
         static let coverAvatarMaxDimension: CGFloat = 300
         /// 制作中蒙层透明度
         static let makingOverlayOpacity: Double = 0.45
+        /// iPhone 卡片列数
+        static let iPhoneColumns: Int = 2
+        /// iPad 卡片列数
+        static let iPadColumns: Int = 4
     }
     
     // MARK: - 监控配置

@@ -19,15 +19,13 @@ struct HomePageView: View {
     @State private var isLoading = true
     @State private var searchText: String = ""
 
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
 
     /// iPhone 2 列, iPad 4 列
     private var columns: [GridItem] {
-        let count = horizontalSizeClass == .regular ? 4 : 2
+        let count = UIDevice.current.userInterfaceIdiom == .pad ? Constants.HomeCard.iPadColumns : Constants.HomeCard.iPhoneColumns
         return Array(repeating: GridItem(.flexible(), spacing: scaled(Constants.HomeCard.gridSpacing)), count: count)
     }
 
