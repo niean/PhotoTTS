@@ -31,6 +31,11 @@
 
 - BackgroundMakeManager（MakeTask）：Core/Managers/BackgroundMake/BackgroundMakeManager.swift
 
+## 设备传输
+
+- PeerTransferManager（MultipeerConnectivity 设备间直传）：Core/Managers/PeerTransfer/PeerTransferManager.swift
+- DeviceTransferView（发送方 UI）：Sources/UI/DeviceTransferView.swift
+
 ## OCR 与 TTS
 
 - ImageToSpeechCoordinator：Core/Coordinators/ImageToSpeechCoordinator.swift

@@ -49,6 +49,10 @@ struct SessionRecordListView: View {
     @State private var isSelectionMode: Bool = false
     @State private var selectedIDs: Set<String> = []
     @State private var allRecordIDs: [String] = []  // 所有记录的 ID 列表（用于全选）
+
+    // 设备传输
+    @State private var showDeviceTransfer = false
+    @State private var deviceTransferIDs: [String] = []
     
     let onLoadSession: (SessionRecord) -> Void
     var onLoadToMake: ((String) -> Void)? = nil
@@ -265,7 +269,7 @@ struct SessionRecordListView: View {
                     if isSelectionMode {
                         // 多选模式下的操作栏
                         TopAndLeftSideNavigationBar(
-                            title: "选择记录 (\(selectedIDs.count))",
+                            title: "选中 (\(selectedIDs.count))",
                             onSwipeBack: { },
                             leading: {
                                 // 左侧按钮：全选/反选
@@ -286,6 +290,18 @@ struct SessionRecordListView: View {
                             },
                             trailing: {
                                 HStack(spacing: scaled(12)) {
+                                    // 设备传输按钮（有选中时可用）
+                                    Button(action: {
+                                        if !selectedIDs.isEmpty {
+                                            deviceTransferIDs = Array(selectedIDs)
+                                            showDeviceTransfer = true
+                                        }
+                                    }) {
+                                        Text("传输")
+                                            .font(Constants.Fonts.listAction)
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+
                                     // 导出按钮（有选中时可用）
                                     Button(action: {
                                         if !selectedIDs.isEmpty {
@@ -296,7 +312,7 @@ struct SessionRecordListView: View {
                                             .font(Constants.Fonts.listAction)
                                     }
                                     .disabled(selectedIDs.isEmpty)
-                                    
+
                                     // 取消按钮
                                     Button(action: {
                                         isSelectionMode = false
@@ -335,6 +351,16 @@ struct SessionRecordListView: View {
                                 }
                                 .disabled(totalCount == 0)
                                 Divider()
+                                Button(action: {
+                                    let allMeta = SessionRecordManager.shared.getAllSessionMetadata()
+                                    let allIDs = allMeta.filter { !$0.isDefault }.map { $0.id }
+                                    deviceTransferIDs = allIDs
+                                    showDeviceTransfer = true
+                                }) {
+                                    Label("传输", systemImage: "antenna.radiowaves.left.and.right")
+                                }
+                                .disabled(totalCount == 0)
+                                Divider()
                                 Button(role: .destructive, action: { showClearConfirmation = true }) {
                                     Label("清空", systemImage: "trash")
                                 }
@@ -353,6 +379,9 @@ struct SessionRecordListView: View {
         .onAppear {
             loadPage()
             handlePendingEditRequest()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
+            loadPage()
         }
         .onChange(of: appState.selectedTab) { _, newTab in
             if newTab == 2 {
@@ -422,6 +451,9 @@ struct SessionRecordListView: View {
                     try? FileManager.default.removeItem(at: item.url)
                 }
         }
+        .navigationDestination(isPresented: $showDeviceTransfer) {
+            DeviceTransferView(sessionIDs: deviceTransferIDs)
+        }
         .overlay {
             if isImporting {
                 CustomZStack {
@@ -482,6 +514,10 @@ struct SessionRecordListView: View {
             } : nil,
             onEdit: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? { editSessionDetail(metadata.id) } : nil,
             onExport: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? { exportOneSession(id: metadata.id) } : nil,
+            onDeviceTransfer: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? {
+                deviceTransferIDs = [metadata.id]
+                showDeviceTransfer = true
+            } : nil,
             onDelete: (!isDefault && allowEditDelete && !isSelectionMode) ? {
                 sessionToDelete = metadata
                 showDeleteConfirmation = true
@@ -871,6 +907,7 @@ struct SessionRecordRow: View {
     let onView: (() -> Void)?
     let onEdit: (() -> Void)?
     let onExport: (() -> Void)?
+    let onDeviceTransfer: (() -> Void)?
     let onDelete: (() -> Void)?
     
     // 多选模式参数
@@ -982,6 +1019,11 @@ struct SessionRecordRow: View {
                         Menu {
                             Button(action: onExport!) {
                                 Label("导出", systemImage: "square.and.arrow.up")
+                            }
+                            if let onDeviceTransfer {
+                                Button(action: onDeviceTransfer) {
+                                    Label("传输", systemImage: "antenna.radiowaves.left.and.right")
+                                }
                             }
                         } label: {
                             Image(systemName: "ellipsis")

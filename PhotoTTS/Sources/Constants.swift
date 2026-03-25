@@ -100,6 +100,14 @@ extension Constants {
         static let retryDelay: TimeInterval = 1.0
     }
     
+    // MARK: - 传输
+    struct PeerTransfer {
+        static let serviceType = "phototts-xfer"
+        static let browsingTimeout: TimeInterval = 30
+        static let transferTimeout: TimeInterval = 300
+        static let zipTempPrefix = "peer_transfer_"
+    }
+
     // MARK: - 缓存配置扩展
     struct Cache {
         static let maxCacheSize: Int64 = 100 * 1024 * 1024 // 100MB
@@ -296,6 +304,7 @@ extension Constants {
     struct NotificationNames {
         static let updateImageCount = NSNotification.Name("UpdateImageCount")
         static let configUpdated = NSNotification.Name("ConfigUpdated")
+        static let sessionsDidImport = NSNotification.Name("SessionsDidImport")
         /// 远程播放控制命令（MPRemoteCommandCenter -> PlayView），userInfo["action"]: "play"/"pause"/"toggle"
         static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")
     }

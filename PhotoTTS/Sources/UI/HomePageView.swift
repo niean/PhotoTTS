@@ -131,6 +131,9 @@ struct HomePageView: View {
         }
         .navigationBarHidden(true)
         .onAppear { loadPage() }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
+            loadPage()
+        }
         .onChange(of: searchText) {
             // 清空时自动刷新回原列表
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
