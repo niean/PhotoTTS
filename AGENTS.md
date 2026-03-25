@@ -207,9 +207,9 @@ spec 是一次性产物，服务于当前任务的设计确认和实现。实现
 AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
   README.md            -- Harness 工程模板说明
-  agents/              -- Agent 角色模板（Orchestrator、Analyst、Coder、Reviewer）
-  skills/              -- Skill 定义（迭代功能、构建验证、全局工作流等）
-    harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板）
+  agents/              -- Agent 角色模板（Orchestrator、Reviewer）
+  skills/              -- Skill 定义（迭代功能、回填知识库、构建验证、总结任务）
+    harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板、回填产品文档）
     subskills/         -- Subskill 扫描模板
     superpowers/   -- superpowers 方法论技能（开发方法论，本地适配版）
   specs/               -- 设计文档（WHAT：需求、架构、设计决策）
@@ -228,7 +228,7 @@ PhotoTTS/
     Core/              -- Coordinators、Handlers、Intents、Managers
     Models/            -- 数据模型
   Resources/           -- 配置、素材（打包到 App Bundle）
-locals/                -- 本地敏感配置（不打包到 App Bundle）
+locals/                -- 本地敏感配置
 PhotoTTSTests/         -- 单元测试
 PhotoTTSUITests/       -- UI 测试
 ```

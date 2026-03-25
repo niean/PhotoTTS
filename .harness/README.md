@@ -4,7 +4,7 @@
 
 ## 约束
 
-本模板通过 `IDE:vscode+cline` + `LLM:claude-opus-4.6`调教，可能使用了专有函数、方法等，如遇问题请自行修正
+本模板通过 `IDE:vscode+claude-code` + `LLM:claude-opus-4-6`调教，可能使用了专有函数、方法等，如遇问题请自行修正
 
 ## 项目初始化
 

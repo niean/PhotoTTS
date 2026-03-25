@@ -17,10 +17,13 @@ description: 人工指令触发 Harness 模板提取
 
 ## 步骤
 
-### Step 1 -- 确认输出目录
+### Step 1 -- 更新Harness文档
+检查Harness知识库，包括 入口文件AGENTS.md/CLAUDE.md、知识库目录.harness/下的所有文档，修复错误、过时的描述。如遇AI只读的文档，让用户确认后再修改
+
+### Step 2 -- 确认输出目录
 默认目录：./locals/harness_tpl/
 
-### Step 2 -- 分批蒸馏写入
+### Step 3 -- 分批蒸馏写入
 分 8 组：CLAUDE.md / AGENTS.md+README / agents/ / guides/ / skills/（含 subskills/） / plans/（含 active/、completed/、debt-tracker.md） / knowledge/ / prd/
 
 蒸馏规则：
@@ -33,11 +36,11 @@ description: 人工指令触发 Harness 模板提取
 7. Plans 保留目录结构；特例：debt-tracker.md 也需要蒸馏为模板
 8. 禁用 emoji/加粗/斜体
 
-### Step 3 -- 清理多余文件
+### Step 4 -- 清理多余文件
 比对目标目录，排除 .git/LICENSE 等，多余文件经确认后删除。
 
-### Step 4 -- 验证
+### Step 5 -- 验证
 搜索项目专属关键词确认零泄露。
 
-### Step 5 -- 输出报告
+### Step 6 -- 输出报告
 文件清单、验证结果、占位符汇总。
