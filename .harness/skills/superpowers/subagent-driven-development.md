@@ -48,7 +48,7 @@ digraph process {
         "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
+        "Implementer subagent implements, tests, self-reviews" [shape=box];
         "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
         "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
         "Implementer subagent fixes spec gaps" [shape=box];
@@ -60,15 +60,14 @@ digraph process {
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "More tasks remain?" [shape=diamond];
-    "[FINAL_REVIEW_STEP]" [shape=box label="[FINAL_REVIEW_STEP]\nDispatch final code reviewer\n(skip if caller manages review externally)"];
-    "Use .harness/skills/superpowers/finishing-a-development-branch.md" [shape=box style=filled fillcolor=lightgreen];
+    "Announce completion" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
+    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, self-reviews" [label="no"];
+    "Implementer subagent implements, tests, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
     "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
     "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
     "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
@@ -79,8 +78,7 @@ digraph process {
     "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "[FINAL_REVIEW_STEP]" [label="no"];
-    "[FINAL_REVIEW_STEP]" -> "Use .harness/skills/superpowers/finishing-a-development-branch.md";
+    "More tasks remain?" -> "Announce completion" [label="no"];
 }
 ```
 
@@ -146,7 +144,6 @@ Implementer: "Got it. Implementing now..."
   - Implemented install-hook command
   - Added tests, 5/5 passing
   - Self-review: Found I missed --force flag, added it
-  - Committed
 
 [Dispatch spec compliance reviewer]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
@@ -166,7 +163,6 @@ Implementer:
   - Added verify/repair modes
   - 8/8 tests passing
   - Self-review: All good
-  - Committed
 
 [Dispatch spec compliance reviewer]
 Spec reviewer: ❌ Issues:
@@ -193,8 +189,6 @@ Code reviewer: ✅ Approved
 ...
 
 [After all tasks]
-[FINAL_REVIEW_STEP: Dispatch final code-reviewer OR skip if caller manages review externally]
-Final reviewer: All requirements met, ready to merge
 
 Done!
 ```
@@ -234,7 +228,6 @@ Done!
 ## Red Flags
 
 **Never:**
-- Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
@@ -264,11 +257,9 @@ Done!
 
 ## Integration
 
-**Required workflow skills:**
-- **.harness/skills/superpowers/using-git-worktrees.md** - REQUIRED: Set up isolated workspace before starting
+**Related skills:**
 - **.harness/skills/superpowers/writing-plans.md** - Creates the plan this skill executes
 - **.harness/skills/superpowers/requesting-code-review.md** - Code review template for reviewer subagents
-- **.harness/skills/superpowers/finishing-a-development-branch.md** - Complete development after all tasks
 
 **Subagents should use:**
 - **.harness/skills/superpowers/test-driven-development.md** - Subagents follow TDD for each task

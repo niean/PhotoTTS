@@ -7,13 +7,11 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD.
 
 Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
-
-**Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
 **Save plans to:** `.harness/plans/active/plan-{YYMMDD}-{desc}.md`
 - (User preferences for plan location override this default)
@@ -40,7 +38,6 @@ This structure informs the task decomposition. Each task should produce self-con
 - "Run it to make sure it fails" - step
 - "Implement the minimal code to make the test pass" - step
 - "Run the tests and make sure they pass" - step
-- "Commit" - step
 
 ## Plan Document Header
 
@@ -115,13 +112,6 @@ def function(input):
 
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
 ````
 
 ## Remember
@@ -129,7 +119,7 @@ git commit -m "feat: add specific feature"
 - Complete code in plan (not "add validation")
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
-- DRY, YAGNI, TDD, frequent commits
+- DRY, YAGNI, TDD
 
 ## Plan Review Loop
 
@@ -138,29 +128,9 @@ After writing the complete plan:
 1. Dispatch a single plan-document-reviewer subagent (see `./writing-plans/plan-document-reviewer-prompt.md`) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
    - Provide: path to the plan document, path to spec document
 2. If ❌ Issues Found: fix the issues, re-dispatch reviewer for the whole plan
-3. If ✅ Approved: proceed to execution handoff
+3. If ✅ Approved: plan is ready
 
 **Review loop guidance:**
 - Same agent that wrote the plan fixes it (preserves context)
 - If loop exceeds 3 iterations, surface to human for guidance
 - Reviewers are advisory — explain disagreements if you believe feedback is incorrect
-
-## Execution Handoff
-
-After saving the plan, AI auto-selects execution approach based on task complexity (no user confirmation needed):
-
-**Auto-selection criteria:**
-- **Inline Execution** — plan has ≤ 3 tasks, or all tasks modify the same module/file group
-- **Subagent-Driven** — plan has > 3 tasks, or tasks span multiple independent modules
-
-If the user explicitly specifies an execution approach in their request, use that instead of auto-selecting.
-
-Announce the decision: **"Plan saved to `.harness/plans/active/<filename>.md`. Using [Inline Execution / Subagent-Driven] based on [reason]."**
-
-**Subagent-Driven:**
-- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/subagent-driven-development.md
-- Fresh subagent per task + two-stage review
-
-**Inline Execution:**
-- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/executing-plans.md
-- Batch execution with checkpoints for review

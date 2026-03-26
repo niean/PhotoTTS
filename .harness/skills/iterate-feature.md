@@ -75,43 +75,6 @@ description: 人工下发功能需求或修改代码时使用
 
 ---
 
-## superpowers 行为覆盖
-
-本 Skill 调用 superpowers 方法论（brainstorming、writing-plans、executing-plans/subagent-driven-development），但以下 superpowers 指令在本 Skill 中不执行。AI 读取 superpowers 文件时，遇到下列行为一律跳过。
-
-### git 工作流覆盖
-
-全部 Phase 均不执行 git 操作，由用户在任务完成后自行决定提交时机。
-
-| 被跳过的 superpowers 指令 | 来源文件 | 替代行为 |
-|--------------------------|---------|---------|
-| using-git-worktrees（创建隔离分支） | executing-plans Integration, subagent-driven-development Integration | 在当前分支工作 |
-| brainstorming spec commit（"Commit the design document to git"） | brainstorming.md After the Design | spec 落盘但不 commit |
-| writing-plans worktree 前置（"should be run in a dedicated worktree"） | writing-plans.md Context | 忽略，在当前分支工作 |
-| plan 模板中的 Step 5: Commit 及 "frequent commits" | writing-plans.md Task Structure, Remember | 生成 plan 时省略 commit 步骤 |
-| implementer subagent commit（prompt 模板 `[COMMIT_STEP]`） | implementer-prompt.md Your Job | 派发时移除该步骤 |
-| finishing-a-development-branch | executing-plans Step 3, subagent-driven-development 末尾 | 收尾由 Phase 5-7 接管 |
-
-### review 工作流覆盖
-
-| 被覆盖的 superpowers 指令 | 来源文件 | 替代行为 |
-|--------------------------|---------|---------|
-| `[FINAL_REVIEW_STEP]` 全量 final code reviewer | subagent-driven-development 末尾 | 默认跳过，由 Phase 5 五维度扫描接管；识别到该指令后可选择执行 |
-
-### 流程控制覆盖
-
-superpowers 各 skill 之间有自动流转（brainstorming -> writing-plans -> executing），本 Skill 通过 Phase 边界截断这些流转，由 iterate-feature 自行控制阶段衔接。
-
-| 被跳过的 superpowers 指令 | 来源文件 | 替代行为 |
-|--------------------------|---------|---------|
-| brainstorming step 8-9（User reviews spec + invoke writing-plans） | brainstorming.md Checklist & Process Flow | 由 Phase 2 `[GATE]` 统一接管用户确认，Phase 3 自行读取 writing-plans.md |
-| brainstorming "User Review Gate"（spec 写完后让用户 review） | brainstorming.md After the Design | 由 Phase 2 `[GATE]` 统一接管 |
-| brainstorming "Visual Companion"（浏览器服务） | brainstorming.md Visual Companion | 按 brainstorming.md 原流程执行，脚本路径 `.harness/skills/superpowers/brainstorming/scripts/` |
-| writing-plans "Execution Handoff"（plan 完成后弹出执行方式选择） | writing-plans.md Execution Handoff | 由 Phase 3 负责向用户提供执行方式选择 |
-| subagent-driven-development "Never start on main/master" | subagent-driven-development.md Red Flags | 允许在当前分支（含 main）工作，git 操作由用户自行管理 |
-
----
-
 ## 上下文管理
 
 1. Phase 2 brainstorming 在主 Agent 上下文中执行（逐一提问需要对话交互）

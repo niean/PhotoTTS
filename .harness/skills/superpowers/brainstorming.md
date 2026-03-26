@@ -27,8 +27,6 @@ You MUST create a task for each of these items and complete them in order:
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Write design doc** — after user selects approach, directly write spec to `.harness/specs/active/spec-{YYMMDD}-{desc}.md` (no intermediate design approval needed)
 6. **Spec review loop** — dispatch spec-document-reviewer subagent with precisely crafted review context (never your session history); fix issues and re-dispatch until approved (max 3 iterations, then surface to human)
-7. **User reviews written spec** — ask user to review the spec file before proceeding
-8. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
 ## Process Flow
 
@@ -42,8 +40,7 @@ digraph brainstorming {
     "Write design doc" [shape=box];
     "Spec review loop" [shape=box];
     "Spec review passed?" [shape=diamond];
-    "User reviews spec?" [shape=diamond];
-    "Invoke writing-plans skill" [shape=doublecircle];
+    "Spec written" [shape=doublecircle];
 
     "Explore project context" -> "Visual questions ahead?";
     "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
@@ -54,13 +51,11 @@ digraph brainstorming {
     "Write design doc" -> "Spec review loop";
     "Spec review loop" -> "Spec review passed?";
     "Spec review passed?" -> "Spec review loop" [label="issues found,\nfix and re-dispatch"];
-    "Spec review passed?" -> "User reviews spec?" [label="approved"];
-    "User reviews spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
+    "Spec review passed?" -> "Spec written" [label="approved"];
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
+**The terminal state is spec written and reviewed.** The caller decides how to proceed (user review, implementation planning, etc.).
 
 ## The Process
 
@@ -108,7 +103,6 @@ digraph brainstorming {
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
 <!-- not migrated: elements-of-style skill -->
-- Commit the design document to git
 
 **Spec document template:**
 
@@ -160,17 +154,6 @@ After writing the spec document:
 2. If Issues Found: fix, re-dispatch, repeat until Approved
 3. If loop exceeds 3 iterations, surface to human for guidance
 
-**User Review Gate:**
-After the spec review loop passes, ask the user to review the written spec before proceeding:
-
-> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
-
-Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
-
-**Implementation:**
-
-- Invoke the writing-plans skill to create a detailed implementation plan
-- Do NOT invoke any other skill. writing-plans is the next step.
 
 ## Key Principles
 

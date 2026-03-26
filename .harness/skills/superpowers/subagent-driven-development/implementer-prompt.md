@@ -32,14 +32,8 @@ Task tool (general-purpose):
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
     3. Verify implementation works
-    4. [COMMIT_STEP]
-    5. Self-review (see below)
-    6. Report back
-
-    [COMMIT_STEP] placeholder: The controller replaces this with either
-    "Commit your work" (when git workflow is active) or removes this step
-    (when the caller manages commits externally). Do NOT commit unless
-    this step explicitly says to.
+    4. Self-review (see below)
+    5. Report back
 
     Work from: [directory]
 

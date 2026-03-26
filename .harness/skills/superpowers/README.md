@@ -31,6 +31,13 @@
 | After the Design | 同上 | 同上 | |
 | Spec document template | 英文字段（Created, Status, Source） | 中文字段（创建时间, 状态, 任务来源） | 模板本地化 |
 | Spec document template | 英文章节名 | 中文章节备注（涉及数据结构变更时、涉及界面变更时） | |
+| After the Design | "Commit the design document to git" | 已删除 | 不执行 git commit |
+| User Review Gate | "Spec written and committed to" | 改为 "Spec written to" | 移除 committed 措辞 |
+| User Review Gate | 完整 User Review Gate 节 | 已删除 | 用户确认由调用方接管 |
+| Implementation | "Invoke the writing-plans skill" | 已删除 | 技能间流转由调用方接管 |
+| Checklist Step 7-8 | User reviews spec + Transition to implementation | 已删除 | 同上 |
+| Process Flow 流程图 | 含 "User reviews spec?" + "Invoke writing-plans skill" | 终止于 "Spec written" | 流程图截止到 spec 完成 |
+| terminal state 说明 | "The terminal state is invoking writing-plans" | 改为 "The caller decides how to proceed" | |
 | 未迁移标记 | N/A | `<!-- not migrated: elements-of-style skill -->` | 原版子技能未引入 |
 
 ### 2.2 writing-plans.md
@@ -54,7 +61,43 @@
 |------|------|------|------|
 | Dispatch after | 通用路径 | `.harness/specs/active/` | |
 
-### 2.5 未修改文件（保持原版）
+### 2.5 writing-plans.md
+
+| 位置 | 原版 | 定制 | 说明 |
+|------|------|------|------|
+| Overview | "Frequent commits" | 已删除 | 不执行 git commit |
+| Context | "should be run in a dedicated worktree" | 已删除 | 不使用 worktree |
+| Bite-Sized Task | "Commit" - step | 已删除 | 不执行 git commit |
+| Task Structure | Step 5: Commit 模板 | 已删除 | 不执行 git commit |
+| Remember | "frequent commits" | 已删除 | |
+| Plan Review Loop | "proceed to execution handoff" | 改为 "plan is ready" | |
+| Execution Handoff | 整节（auto-selection + Subagent/Inline 引用） | 已删除 | 执行方式由调用方决定 |
+
+### 2.6 executing-plans.md
+
+| 位置 | 原版 | 定制 | 说明 |
+|------|------|------|------|
+| Remember | "Never start on main/master without explicit user consent" | 已删除 | 分支管理由调用方控制 |
+| Step 3 | finishing-a-development-branch REQUIRED | 改为"调用方决定收尾流程" | 收尾由 iterate-feature P5-7 接管 |
+| Integration | using-git-worktrees REQUIRED + finishing REQUIRED | 仅保留 writing-plans 引用 | worktree/finishing 已移除 |
+
+### 2.7 subagent-driven-development.md
+
+| 位置 | 原版 | 定制 | 说明 |
+|------|------|------|------|
+| 流程图+示例 | "implements, tests, commits, self-reviews" | 移除 "commits"/"Committed" | 不执行 git commit |
+| Red Flags | "Never start on main/master without explicit user consent" | 已删除 | 分支管理由调用方控制 |
+| Integration | using-git-worktrees REQUIRED + finishing REQUIRED | 仅保留 writing-plans + requesting-code-review | worktree/finishing 已移除 |
+| 末尾流程图 | finishing-a-development-branch | 改为 "Announce completion" | 收尾由调用方接管 |
+| [FINAL_REVIEW_STEP] | 流程图节点 + 示例中的 FINAL_REVIEW_STEP | 已删除 | review 由调用方接管 |
+
+### 2.8 implementer-prompt.md
+
+| 位置 | 原版 | 定制 | 说明 |
+|------|------|------|------|
+| Your Job | Step 4: [COMMIT_STEP] + 占位符说明 | 已删除，步骤重编号 | 不执行 git commit |
+
+### 2.9 未修改文件（保持原版）
 
 以下文件未发现定制化修改（除全局路径重映射外）：
 
@@ -66,8 +109,6 @@
 - dispatching-parallel-agents.md
 - finishing-a-development-branch.md
 - using-git-worktrees.md
-- executing-plans.md（仅路径重映射）
-- subagent-driven-development.md（仅路径重映射）
 - systematic-debugging/root-cause-tracing.md
 - systematic-debugging/defense-in-depth.md
 - systematic-debugging/condition-based-waiting.md

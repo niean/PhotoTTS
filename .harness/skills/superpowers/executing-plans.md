@@ -32,9 +32,8 @@ For each task:
 ### Step 3: Complete Development
 
 After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use .harness/skills/superpowers/finishing-a-development-branch.md
-- Follow that skill to verify tests, present options, execute choice
+- Announce completion and summarize what was done
+- The caller decides how to handle post-implementation workflow (review, merge, etc.)
 
 ## When to Stop and Ask for Help
 
@@ -60,11 +59,7 @@ After all tasks complete and verified:
 - Don't skip verifications
 - Reference skills when plan says to
 - Stop when blocked, don't guess
-- Never start implementation on main/master branch without explicit user consent
-
 ## Integration
 
-**Required workflow skills:**
-- **.harness/skills/superpowers/using-git-worktrees.md** - REQUIRED: Set up isolated workspace before starting
+**Related skills:**
 - **.harness/skills/superpowers/writing-plans.md** - Creates the plan this skill executes
-- **.harness/skills/superpowers/finishing-a-development-branch.md** - Complete development after all tasks
