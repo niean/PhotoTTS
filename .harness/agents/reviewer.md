@@ -17,7 +17,7 @@
 
 ### Step 2: 代码扫描
 
-必须通过 Agent 工具（subagent_type=general-purpose，model=opus）并行启动扫描，每个维度一个 subagent，subagent使用独立上下文。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。每个维度必须有独立扫描结论，禁止跳过或虚报。
+必须通过 Agent 工具（subagent_type=general-purpose,model=opus）并行启动扫描，每个维度一个 subagent，subagent使用独立上下文。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。每个维度必须有独立扫描结论，禁止跳过或虚报。
 
 扫描模板列表：
 

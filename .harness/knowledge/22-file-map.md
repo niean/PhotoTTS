@@ -35,6 +35,7 @@
 
 - PeerTransferManager（MultipeerConnectivity 设备间直传）：Core/Managers/PeerTransfer/PeerTransferManager.swift
 - DeviceTransferView（发送方 UI）：Sources/UI/DeviceTransferView.swift
+- TransferReceiverModifier（接收方公共 UI，ViewModifier）：Sources/UI/TransferReceiverModifier.swift
 
 ## OCR 与 TTS
 

@@ -147,10 +147,10 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 ```
 .harness/
   specs/             -- 设计文档（WHAT：需求、架构、设计决策）
-    active/          -- 当前活跃 spec（原则上只有 1 个文件）
+    active/          -- 当前活跃 spec（可多文件并行）
     completed/       -- 已完成 spec 归档
   plans/             -- 实现计划（HOW：具体步骤、代码、验证命令）
-    active/          -- 当前活跃计划（原则上只有 1 个文件）
+    active/          -- 当前活跃计划（可多文件并行）
     completed/       -- 已完成计划归档
     debt-tracker.md  -- 技术债追踪
 ```
@@ -179,12 +179,12 @@ spec 是一次性产物，服务于当前任务的设计确认和实现。实现
 
 ### 生命周期
 
-同一 Task 只允许有 1 个 spec + 1 个 plan。
+同一 Task 允许有 1 个 spec + 1 个 plan；不同 Task 的 spec/plan 可同时存在于 active/ 目录中并行推进。
 
-1. Phase 1（任务调度）：检测 `specs/active/` 和 `plans/active/` 是否有未完成文件；若有，提示用户上个任务是继续或是删除；若无但 `completed/` 中有当前 Task 的文件，移回 `active/` 复用（状态改回 active）；均无则在后续 Phase 3 创建
+1. Phase 1（任务调度）：检测 `specs/active/` 和 `plans/active/` 是否有属于当前 Task 的未完成文件；若有，复用；若有其他 Task 的活跃文件，保留不动；若无但 `completed/` 中有当前 Task 的文件，移回 `active/` 复用（状态改回 active）；均无则在后续 Phase 3 创建
 2. Phase 3（意图确认）：设计文档写入 `specs/active/spec-{YYMMDD}-{desc}.md`，实现计划写入 `plans/active/plan-{YYMMDD}-{desc}.md`
 3. 任务执行中：更新 plan 检查清单状态，记录变更，记录发现的技术债
-4. Phase 6（任务总结）：将 spec 和 plan 状态改为 completed，分别移动到对应的 `completed/`
+4. Phase 6（任务总结）：将当前 Task 的 spec 和 plan 状态改为 completed，分别移动到对应的 `completed/`；不影响其他 Task 的活跃文件
 
 ### 技术债管理
 
@@ -214,10 +214,10 @@ AGENTS.md              -- AI 知识库入口（本文件）
     subskills/         -- Subskill 扫描模板
     superpowers/   -- superpowers 方法论技能（开发方法论，本地适配版）
   specs/               -- 设计文档（WHAT：需求、架构、设计决策）
-    active/            -- 当前活跃 spec（原则上只有 1 个文件）
+    active/            -- 当前活跃 spec（可多文件并行）
     completed/         -- 已完成 spec 归档
   plans/               -- 实现计划（HOW：具体步骤、代码、验证命令）
-    active/            -- 当前活跃计划（原则上只有 1 个文件）
+    active/            -- 当前活跃计划（可多文件并行）
     completed/         -- 已完成计划归档（不入 git）
     debt-tracker.md    -- 技术债追踪
   guides/              -- 方法论与参考文档（人工维护）

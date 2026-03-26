@@ -53,7 +53,6 @@ description: 人工下发功能需求或修改代码时使用
 - 职责边界：Phase 4 per-task review 关注 task 级正确性（spec 合规 + 代码质量），Phase 5 关注项目级约束（架构边界、编码约定、安全规范、图片处理、日志规范）及整体验收标准
 - 扫描范围：仅本次变更文件
 - 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报
-- 代码扫描必须通过 Agent 工具以 subagent_type=general-purpose、model=opus 并行启动 5 个维度 subagent（架构/编码/安全/图片/日志），每个维度独立输出结论；禁止合并为单个 subagent 或内联执行
 - 扫描违规或验收不通过时回到 Phase 4 修复
 
 必须执行的步骤：
@@ -70,7 +69,7 @@ description: 人工下发功能需求或修改代码时使用
 ## Phase 7: 任务总结
 - Agent: Orchestrator
 - 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
-- 执行顺序：输出总结报告 -> 归档（spec 移到 `specs/completed/`，plan 移到 `plans/completed/`）-> attempt_completion，在同一条回复中完成
+- 执行顺序：输出总结报告 -> 归档当前 Task 的文件（spec 移到 `specs/completed/`，plan 移到 `plans/completed/`，不影响其他 Task 的活跃文件）-> attempt_completion，在同一条回复中完成
 - 总结报告内容通过 `attempt_completion` 的 result 参数承载
 
 ---

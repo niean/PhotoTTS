@@ -15,7 +15,12 @@
 - 定制：统一改为 `.harness/skills/superpowers/` 前缀（如 `.harness/skills/superpowers/finishing-a-development-branch.md`）
 - 影响文件：brainstorming.md, writing-plans.md, executing-plans.md, subagent-driven-development.md, systematic-debugging.md, writing-skills.md, requesting-code-review.md
 
-### 1.2 AGENTS.md 调用约束
+### 1.2 Phase N 重命名为 P N
+- 原版：superpowers 内部阶段使用 `Phase N` 命名
+- 定制：统一改为 `P N`，避免与 Harness Skill 流程的 `Phase N` 命名冲突
+- 影响文件：systematic-debugging.md, using-git-worktrees.md
+
+### 1.3 AGENTS.md 调用约束
 - 在 AGENTS.md 中添加：禁止主动调起 superpowers 插件（形如 `superpowers:skill-x`），仅在用户明确指令时才可调用
 - 这是 Harness 层面的约束，不修改 superpowers 文件本身
 
@@ -108,7 +113,6 @@
 - receiving-code-review.md
 - dispatching-parallel-agents.md
 - finishing-a-development-branch.md
-- using-git-worktrees.md
 - systematic-debugging/root-cause-tracing.md
 - systematic-debugging/defense-in-depth.md
 - systematic-debugging/condition-based-waiting.md
