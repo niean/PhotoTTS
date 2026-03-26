@@ -2063,17 +2063,18 @@ class SessionRecordManager {
     // MARK: - 连播队列
 
     /// 从指定记录开始，收集同日期的后续已完成记录 ID 列表（遇到跨天记录即停止）
+    /// 日期判断使用名称前缀中的日期（如 "26.03.16 小红帽" -> 2026-03-16），解析失败时回退到 createdAt
     static func buildSameDateQueue(from startId: String, in metadataList: [SessionRecordMetadata]) -> [String] {
         guard let startIndex = metadataList.firstIndex(where: { $0.id == startId }) else {
             return []
         }
 
-        let startDate = metadataList[startIndex].createdAt
+        let startDate = metadataList[startIndex].namePrefixDate
         var queue: [String] = []
 
         for i in startIndex..<metadataList.count {
             let metadata = metadataList[i]
-            guard Calendar.current.isDate(metadata.createdAt, inSameDayAs: startDate) else {
+            guard Calendar.current.isDate(metadata.namePrefixDate, inSameDayAs: startDate) else {
                 break
             }
             // makeStatus == nil 表示旧数据（已完成），makeStatus == .completed 表示已完成

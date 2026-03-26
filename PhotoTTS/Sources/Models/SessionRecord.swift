@@ -401,7 +401,22 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
     
     /// 是否为内置默认会话
     var isDefault: Bool { id == Constants.DefaultSession.id }
-    
+
+    /// 从名称前缀解析的日期（格式 "YY.MM.DD "），解析失败时回退到 createdAt
+    /// 用于连播队列等需要按"显示日期"分组的场景
+    var namePrefixDate: Date {
+        // 名称前缀格式：yy.MM.dd （如 "26.03.16 "），前 8 个字符为日期部分
+        guard name.count >= 9 else { return createdAt }
+        let prefixDateStr = String(name.prefix(8))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yy.MM.dd"
+        formatter.locale = Locale(identifier: "zh_CN")
+        if let date = formatter.date(from: prefixDateStr) {
+            return date
+        }
+        return createdAt
+    }
+
     init(from record: SessionRecord) {
         self.id = record.id
         self.name = record.name

@@ -298,6 +298,8 @@ extension Constants {
         static let endPictRoundRobinH = "end_pict_round_robin_h"
         // 要点图片轮询队列（纵向）
         static let endPictRoundRobinZ = "end_pict_round_robin_z"
+        // 播放倍速
+        static let playbackSpeed = "playback_speed"
     }
     
     // MARK: - 通知名
@@ -498,5 +500,41 @@ extension Constants {
 
         /// PlayView 设置面板标题: 14pt medium
         static var playSettingsTitle: Font { .system(size: s(14), weight: .medium) }
+    }
+
+    // MARK: - 播放倍速
+
+    /// 播放倍速选项
+    enum PlaybackSpeed: String, CaseIterable, Codable {
+        case x0_9 = "0.9"
+        case x1 = "1.0"
+        case x1_25 = "1.25"
+        case x1_5 = "1.5"
+        case x2 = "2.0"
+
+        /// 显示名称
+        var displayName: String {
+            switch self {
+            case .x0_9: return "0.9x"
+            case .x1: return "1x"
+            case .x1_25: return "1.25x"
+            case .x1_5: return "1.5x"
+            case .x2: return "2x"
+            }
+        }
+
+        /// AVAudioPlayer 使用的速率值
+        var rate: Float {
+            switch self {
+            case .x0_9: return 0.9
+            case .x1: return 1.0
+            case .x1_25: return 1.25
+            case .x1_5: return 1.5
+            case .x2: return 2.0
+            }
+        }
+
+        /// 默认倍速
+        static var `default`: PlaybackSpeed { .x1 }
     }
 }

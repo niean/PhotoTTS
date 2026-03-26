@@ -78,6 +78,9 @@ struct PlayView: View {
     @State private var controlStartTranslation: CGFloat = 0
     /// 系统音量滑块（隐藏，用于编程控制系统音量）
     @State private var systemVolumeSlider: UISlider? = nil
+    /// 播放倍速
+    @State private var playbackSpeed: Constants.PlaybackSpeed = .x1
+
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -134,6 +137,7 @@ struct PlayView: View {
             }
         }
         .onAppear {
+            loadPlaybackSpeed()  // 加载持久化的倍速设置
             if let pre = preloadedRecord {
                 record = pre
                 recordIsFromPreload = true
@@ -347,6 +351,7 @@ struct PlayView: View {
                         eyeProtectionEnabled: eyeProtectionEnabled,
                         fillScreenEnabled: fillScreenEnabled,
                         animationStyle: $animationStyle,
+                        playbackSpeed: playbackSpeed,
                         onTogglePlayback: { togglePlayback() },
                         onToggleContinuousPlay: { continuousPlayEnabled.toggle() },
                         onToggleEyeProtection: { eyeProtectionEnabled.toggle() },
@@ -354,6 +359,7 @@ struct PlayView: View {
                         onToggleAnimationStyle: {
                             animationStyle = animationStyle == .rightToLeft ? .topToBottom : .rightToLeft
                         },
+                        onToggleSpeed: { togglePlaybackSpeed($0) },
                         onDismiss: { stopAndDismiss() },
                         onHideOverlay: { isOverlayVisible = false },
                         onSeek: { seekToRatio($0) },
@@ -479,6 +485,30 @@ struct PlayView: View {
         return ranges
     }
 
+    // MARK: - 倍速管理
+
+    /// 从 UserDefaults 读取持久化的倍速设置
+    private func loadPlaybackSpeed() {
+        if let savedRaw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.playbackSpeed),
+           let speed = Constants.PlaybackSpeed(rawValue: savedRaw) {
+            playbackSpeed = speed
+        } else {
+            playbackSpeed = .default
+        }
+    }
+
+    /// 保存倍速设置到 UserDefaults
+    private func savePlaybackSpeed(_ speed: Constants.PlaybackSpeed) {
+        UserDefaults.standard.set(speed.rawValue, forKey: Constants.UserDefaultsKeys.playbackSpeed)
+    }
+
+    /// 切换播放倍速
+    private func togglePlaybackSpeed(_ speed: Constants.PlaybackSpeed) {
+        playbackSpeed = speed
+        savePlaybackSpeed(speed)
+        audioPlayer?.rate = speed.rate
+    }
+
     // MARK: - 播放控制
 
     private func startPlayback() {
@@ -490,7 +520,9 @@ struct PlayView: View {
                 DispatchQueue.main.async { onPlaybackFinished() }
             }
             player.delegate = delegate
+            player.enableRate = true  // 启用变速播放
             guard player.prepareToPlay(), player.play() else { return }
+            player.rate = playbackSpeed.rate  // 设置当前倍速
             audioPlayer = player
             audioPlayerDelegate = delegate
             isPlaying = true
@@ -848,11 +880,13 @@ private struct PlayerControlLayer: View {
     let eyeProtectionEnabled: Bool
     let fillScreenEnabled: Bool
     @Binding var animationStyle: AnimationStyle
+    let playbackSpeed: Constants.PlaybackSpeed
     let onTogglePlayback: () -> Void
     let onToggleContinuousPlay: () -> Void
     let onToggleEyeProtection: () -> Void
     let onToggleFillScreen: () -> Void
     let onToggleAnimationStyle: () -> Void
+    let onToggleSpeed: (Constants.PlaybackSpeed) -> Void
     let onDismiss: () -> Void
     let onHideOverlay: () -> Void
     let onSeek: (Double) -> Void
@@ -1018,6 +1052,43 @@ private struct PlayerControlLayer: View {
                         }
                         .padding(.horizontal, scaled(14))
                         .padding(.vertical, scaled(14))
+
+                        // 分割线
+                        Rectangle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(height: 0.5)
+                            .padding(.horizontal, scaled(14))
+
+                        // 倍速选择区域
+                        VStack(alignment: .leading, spacing: scaled(8)) {
+                            Text("倍速")
+                                .font(Constants.Fonts.playNextLabel)
+                                .foregroundColor(.white)
+
+                            HStack(spacing: scaled(8)) {
+                                ForEach(Constants.PlaybackSpeed.allCases, id: \.self) { speed in
+                                    Button(action: {
+                                        onToggleSpeed(speed)
+                                        onInteraction()
+                                    }) {
+                                        Text(speed.displayName)
+                                            .font(Constants.Fonts.playSettingsLabel)
+                                            .foregroundColor(playbackSpeed == speed ? .white : .white.opacity(0.5))
+                                            .frame(width: scaled(44), height: scaled(28))
+                                            .background(
+                                                RoundedRectangle(cornerRadius: scaled(6))
+                                                    .fill(playbackSpeed == speed ? Color.white.opacity(0.25) : Color.clear)
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: scaled(6))
+                                                    .stroke(Color.white.opacity(playbackSpeed == speed ? 0.5 : 0.2), lineWidth: 1)
+                                            )
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, scaled(14))
+                        .padding(.vertical, scaled(10))
 
                         // 分割线
                         Rectangle()
