@@ -22,6 +22,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | Skill | 触发 | 文件 |
 |-------|------|------|
 | 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
+| 修复Bug | 人工下发Bug修复或异常行为修复需求 | .harness/skills/fix-bug.md |
 | 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
 | 回填产品文档 | 人工指令 | .harness/skills/harness-ops/backfill-prd.md |
 | 治理代码 | 人工指令 | .harness/skills/harness-ops/governance-code.md |
@@ -31,7 +32,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 治理全部 | 人工指令 | .harness/skills/harness-ops/governance-all.md |
 | 总结任务 | AI自动触发（任务完成后） | .harness/skills/summarize-task.md |
 
-自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（仅适用于按迭代功能完整流程执行的任务）。
+自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（适用于按迭代功能或修复Bug完整流程执行的任务）。
 
 ## Subskills（并行扫描任务）
 
@@ -52,7 +53,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 任务开始时首先进行 任务分类和Skill路由（新 Task 或同一 Task 内的第 2+ 次迭代均需分类），必须立即执行以下步骤，禁止跳过：
 
-1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-3。否则：功能需求或修改代码（含Bug修复） -> `Skill: 迭代功能`，其它任务按需路由到已注册 Skill 或直接执行
+1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-3。否则：功能需求或修改代码 -> `Skill: 迭代功能`，Bug修复或异常行为修复 -> `Skill: 修复Bug`，其它任务按需路由到已注册 Skill 或直接执行
 2. 读取 Skill 定义：立即读取对应的 Skill 文件（如 `.harness/skills/iterate-feature.md`）
 3. 遵循 Skill 流程：按 Skill 文件定义的 Phase 顺序执行；特别强调，`[GATE]` 标记的 Phase 必须在消息框展示意图、等待人工确认，否则禁止执行后续 Phase
 
