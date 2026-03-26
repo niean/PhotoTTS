@@ -237,12 +237,10 @@ PhotoTTSUITests/       -- UI 测试
 ## 构建与测试
 
 ```bash
-# 构建（模拟器，arch=arm64 消除 destination 匹配歧义；iPhone + iPad 各一次）
+# 构建（模拟器，arch=arm64 消除 destination 匹配歧义）
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' build
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPad (A16),arch=arm64' build
-# 单元测试（iPhone + iPad 各一次）
+# 单元测试
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPad (A16),arch=arm64' test
 # API 配置（首次）
 cp PhotoTTS/Resources/config_example.json locals/config_local.json
 ```

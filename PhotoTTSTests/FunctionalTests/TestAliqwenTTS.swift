@@ -22,14 +22,11 @@ final class AliqwenTTSTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-
+        // [SKIP] 功能测试需要真实 API 配置，setUp 中不加断言，避免 XCTSkip 前失败
+        // 配置检查延迟到各测试方法内执行
         let config = loadConfiguration()
-        XCTAssertNotNil(config, "config_local.json 加载失败")
-
         let tts = config?["tts"] as? [String: Any]
         aliqwenConfig = tts?["aliqwen"] as? [String: Any]
-        XCTAssertNotNil(aliqwenConfig, "tts.aliqwen 配置缺失")
-
         secretKey = aliqwenConfig?["secret_key"] as? String
         baseURL = aliqwenConfig?["base_url"] as? String
             ?? "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"

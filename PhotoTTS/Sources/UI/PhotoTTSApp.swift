@@ -127,10 +127,22 @@ struct PhotoTTSApp: App {
                     loadPendingSiriSession()
                     // 设备传输：前台时开始广播，可被附近设备发现
                     PeerTransferManager.shared.startAdvertising()
+                    // 性能监控：前台且非启动页时启动监控
+                    if appState.fullScreenKind != .loading {
+                        PerformanceMonitorManager.shared.startMonitoring()
+                    }
                 }
                 if phase == .background || phase == .inactive {
                     // 设备传输：进入后台时停止广播
                     PeerTransferManager.shared.stopAdvertising()
+                    // 性能监控：后台时停止监控
+                    PerformanceMonitorManager.shared.stopMonitoring()
+                }
+            }
+            // 性能监控：启动页结束时启动监控
+            .onChange(of: appState.fullScreenKind) { oldKind, newKind in
+                if oldKind == .loading && newKind == nil && scenePhase == .active {
+                    PerformanceMonitorManager.shared.startMonitoring()
                 }
             }
             // 设备传输：接收邀请弹窗

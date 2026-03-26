@@ -40,12 +40,6 @@ struct RealTimeMonitorView: View {
             })
         }
         .navigationBarHidden(true) // 隐藏系统导航栏
-        .onAppear {
-            monitor.startMonitoring()
-        }
-        .onDisappear {
-            monitor.stopMonitoring()
-        }
     }
 }
 

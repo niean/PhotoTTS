@@ -139,32 +139,6 @@ struct SessionRecordListView: View {
             // 主内容区
             HStack {
                 VStack(spacing: 0) {
-                    // 制作入口（仅管理页 root tab）
-                    if mode == .manage && isRootTab {
-                        HStack(spacing: 0) {
-                            Button(action: {
-                                appState.openCameraOnNextRecordAppear = true
-                                appState.selectedTab = 1
-                            }) {
-                                makeEntryItem(icon: "camera.fill", title: "拍照制作")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, scaled(24))
-                            .padding(.bottom, scaled(12))
-
-                            Button(action: {
-                                appState.openPhotoPickerOnNextRecordAppear = true
-                                appState.selectedTab = 1
-                            }) {
-                                makeEntryItem(icon: "photo.on.rectangle.angled", title: "选图制作")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, scaled(24))
-                            .padding(.bottom, scaled(12))
-                        }
-                        .background(Color(.systemBackground))
-                    }
-
                     if isLoading {
                         Spacer()
                         ProgressView("加载中...")
@@ -565,19 +539,6 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 制作入口项（管理页 root tab 使用）
-    private func makeEntryItem(icon: String, title: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(Constants.Fonts.homeIcon)
-                .foregroundColor(.blue)
-            Text(title)
-                .font(Constants.Fonts.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .contentShape(Rectangle())
-    }
-
     // 自动滚动到第一条记录，隐藏搜索栏
     private func scrollToHideSearchBar(proxy: ScrollViewProxy) {
         // 搜索框有输入文本时，不隐藏
