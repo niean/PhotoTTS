@@ -508,18 +508,18 @@ extension Constants {
     enum PlaybackSpeed: String, CaseIterable, Codable {
         case x0_9 = "0.9"
         case x1 = "1.0"
+        case x1_1 = "1.1"
         case x1_25 = "1.25"
         case x1_5 = "1.5"
-        case x2 = "2.0"
 
         /// 显示名称
         var displayName: String {
             switch self {
             case .x0_9: return "0.9x"
             case .x1: return "1x"
+            case .x1_1: return "1.1x"
             case .x1_25: return "1.25x"
             case .x1_5: return "1.5x"
-            case .x2: return "2x"
             }
         }
 
@@ -528,9 +528,9 @@ extension Constants {
             switch self {
             case .x0_9: return 0.9
             case .x1: return 1.0
+            case .x1_1: return 1.1
             case .x1_25: return 1.25
             case .x1_5: return 1.5
-            case .x2: return 2.0
             }
         }
 

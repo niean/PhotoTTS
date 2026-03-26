@@ -24,21 +24,23 @@ final class PeerTransferManagerTests: XCTestCase {
     // MARK: - TransferInvitationContext Codable
 
     func testTransferInvitationContextCoding() throws {
-        let context = TransferInvitationContext(sessionCount: 5, totalSize: 1024000, deviceName: "Test iPad")
+        let context = TransferInvitationContext(sessionCount: 5, totalSize: 1024000, deviceName: "Test iPad", sessionIDs: ["id-1", "id-2"])
         let data = try JSONEncoder().encode(context)
         let decoded = try JSONDecoder().decode(TransferInvitationContext.self, from: data)
         XCTAssertEqual(decoded.sessionCount, 5)
         XCTAssertEqual(decoded.totalSize, 1024000)
         XCTAssertEqual(decoded.deviceName, "Test iPad")
+        XCTAssertEqual(decoded.sessionIDs, ["id-1", "id-2"])
     }
 
     func testTransferInvitationContextEmptyValues() throws {
-        let context = TransferInvitationContext(sessionCount: 0, totalSize: 0, deviceName: "")
+        let context = TransferInvitationContext(sessionCount: 0, totalSize: 0, deviceName: "", sessionIDs: [])
         let data = try JSONEncoder().encode(context)
         let decoded = try JSONDecoder().decode(TransferInvitationContext.self, from: data)
         XCTAssertEqual(decoded.sessionCount, 0)
         XCTAssertEqual(decoded.totalSize, 0)
         XCTAssertEqual(decoded.deviceName, "")
+        XCTAssertEqual(decoded.sessionIDs, [])
     }
 
     // MARK: - Archive / Unarchive

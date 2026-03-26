@@ -42,11 +42,50 @@ struct DeviceTransferView: View {
                 transferManager.reset()
             }
         }
+        .alert("接收传输", isPresented: Binding<Bool>(
+            get: { transferManager.pendingInvitation != nil },
+            set: { if !$0 { transferManager.pendingInvitation?.handler(false); transferManager.pendingInvitation = nil } }
+        )) {
+            if let invitation = transferManager.pendingInvitation {
+                Button("跳过重复") {
+                    handleInvitationDecision(invitation: invitation, skipDuplicates: true)
+                }
+                Button("覆盖重复", role: .destructive) {
+                    handleInvitationDecision(invitation: invitation, skipDuplicates: false)
+                }
+                Button("拒绝", role: .cancel) {
+                    invitation.handler(false)
+                    transferManager.pendingInvitation = nil
+                }
+            }
+        } message: {
+            if let invitation = transferManager.pendingInvitation {
+                let total = invitation.context.sessionCount
+                let existing = invitation.existingIDs.count
+                if existing > 0 {
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条本机已存在。")
+                } else {
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录。")
+                }
+            }
+        }
     }
 
     private func handleDismiss() {
         transferManager.cancelTransfer()
         dismiss()
+    }
+
+    private func handleInvitationDecision(invitation: TransferInvitation, skipDuplicates: Bool) {
+        let decision = TransferConflictDecision(
+            skipDuplicates: skipDuplicates,
+            existingIDs: invitation.existingIDs
+        )
+        // 存储决策，连接建立后发送给发送方
+        transferManager.pendingDecisionToSend = decision
+        // 接受连接
+        invitation.handler(true)
+        transferManager.pendingInvitation = nil
     }
 
     @ViewBuilder
@@ -60,8 +99,8 @@ struct DeviceTransferView: View {
             statusView(message: "正在打包数据...")
         case .transferring:
             transferringView
-        case .completed(let imported, _):
-            completedView(count: imported)
+        case .completed(let imported, let skipped):
+            completedView(count: imported, skipped: skipped)
         case .failed(let message):
             failedView(message: message)
         case .importing:
@@ -123,8 +162,13 @@ struct DeviceTransferView: View {
             ProgressView(value: transferManager.transferProgress)
                 .progressViewStyle(.linear)
                 .frame(width: scaled(200))
-            Text("正在传输 \(sessionIDs.count) 条记录...")
+            Text("正在传输 \(transferManager.actualSendCount) 条记录...")
                 .font(Constants.Fonts.body)
+            if transferManager.skippedDuplicateCount > 0 {
+                Text("跳过 \(transferManager.skippedDuplicateCount) 条重复")
+                    .font(Constants.Fonts.caption)
+                    .foregroundColor(.secondary)
+            }
             Text("\(Int(transferManager.transferProgress * 100))%")
                 .font(Constants.Fonts.headline)
                 .foregroundColor(.blue)
@@ -142,7 +186,7 @@ struct DeviceTransferView: View {
 
     // MARK: - 完成
 
-    private func completedView(count: Int) -> some View {
+    private func completedView(count: Int, skipped: Int) -> some View {
         VStack(spacing: scaled(20)) {
             Spacer()
             Image(systemName: "checkmark.circle.fill")
@@ -150,7 +194,7 @@ struct DeviceTransferView: View {
                 .foregroundColor(.green)
             Text("传输完成")
                 .font(Constants.Fonts.headline)
-            Text("已发送 \(count) 条记录")
+            Text("已发送 \(count) 条记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
                 .font(Constants.Fonts.body)
                 .foregroundColor(.secondary)
 

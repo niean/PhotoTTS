@@ -175,6 +175,8 @@ struct PlayView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             pauseIfPlaying()
         }
+        // E2E传输：接收方公共 UI + 暂停播放回调
+        .transferReceiver(isActive: true, onInvitationReceived: { pauseIfPlaying() })
     }
 
     // MARK: - 播放器主视图

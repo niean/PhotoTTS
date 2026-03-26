@@ -66,7 +66,6 @@ class AppState: ObservableObject {
 struct PhotoTTSApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
-    @ObservedObject private var peerTransferManager = PeerTransferManager.shared
     @Environment(\.scenePhase) private var scenePhase
     
     init() {
@@ -145,86 +144,8 @@ struct PhotoTTSApp: App {
                     PerformanceMonitorManager.shared.startMonitoring()
                 }
             }
-            // 设备传输：接收邀请弹窗
-            .alert("传输", isPresented: Binding(
-                get: { peerTransferManager.pendingInvitation != nil },
-                set: { if !$0 {
-                    peerTransferManager.pendingInvitation?.handler(false)
-                    peerTransferManager.pendingInvitation = nil
-                }}
-            )) {
-                Button("接收") {
-                    peerTransferManager.pendingInvitation?.handler(true)
-                    peerTransferManager.pendingInvitation = nil
-                }
-                Button("拒绝", role: .cancel) {
-                    peerTransferManager.pendingInvitation?.handler(false)
-                    peerTransferManager.pendingInvitation = nil
-                }
-            } message: {
-                if let invitation = peerTransferManager.pendingInvitation {
-                    Text("\(invitation.context.deviceName) 请求发送 \(invitation.context.sessionCount) 条记录，是否接收？")
-                }
-            }
-            // 设备传输：接收进度 overlay（仅接收方）
-            .overlay {
-                if (peerTransferManager.transferState == .transferring || peerTransferManager.transferState == .importing),
-                   !peerTransferManager.isSender {
-                    Color.black.opacity(0.4).ignoresSafeArea()
-                    VStack(spacing: Constants.DeviceScale.adaptiveSize(iPhone: 12)) {
-                        ProgressView()
-                            .tint(.white)
-                        if peerTransferManager.transferState == .importing {
-                            Text("正在导入...")
-                                .font(Constants.Fonts.headline)
-                                .foregroundColor(.white)
-                        } else {
-                            Text("正在接收... \(Int(peerTransferManager.transferProgress * 100))%")
-                                .font(Constants.Fonts.headline)
-                                .foregroundColor(.white)
-                        }
-                        Button("取消") {
-                            peerTransferManager.cancelTransfer()
-                        }
-                        .font(Constants.Fonts.body)
-                        .foregroundColor(.white.opacity(0.8))
-                    }
-                }
-            }
-            // 设备传输：接收完成提示
-            .alert("接收完成", isPresented: Binding(
-                get: {
-                    if case .completed = peerTransferManager.transferState,
-                       !peerTransferManager.isSender {
-                        return true
-                    }
-                    return false
-                },
-                set: { if !$0 { peerTransferManager.reset(); peerTransferManager.startAdvertising() } }
-            )) {
-                Button("确定") { peerTransferManager.reset(); peerTransferManager.startAdvertising() }
-            } message: {
-                if case .completed(let imported, let skipped) = peerTransferManager.transferState {
-                    Text("已接收 \(imported) 条记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
-                }
-            }
-            // 设备传输：接收失败提示
-            .alert("接收失败", isPresented: Binding(
-                get: {
-                    if case .failed = peerTransferManager.transferState,
-                       !peerTransferManager.isSender {
-                        return true
-                    }
-                    return false
-                },
-                set: { if !$0 { peerTransferManager.reset(); peerTransferManager.startAdvertising() } }
-            )) {
-                Button("确定") { peerTransferManager.reset(); peerTransferManager.startAdvertising() }
-            } message: {
-                if case .failed(let msg) = peerTransferManager.transferState {
-                    Text(msg)
-                }
-            }
+            // 设备传输：接收方公共 UI（PlayView 活跃时由 PlayView 实例展示）
+            .transferReceiver(isActive: !appState.isPlayViewActive)
         }
     }
 

@@ -38,12 +38,19 @@ struct TransferInvitationContext: Codable {
     let sessionCount: Int
     let totalSize: Int64
     let deviceName: String
+    let sessionIDs: [String]
+}
+
+struct TransferConflictDecision: Codable {
+    let skipDuplicates: Bool
+    let existingIDs: [String]
 }
 
 struct TransferInvitation: Identifiable {
     let id = UUID()
     let peerID: MCPeerID
     let context: TransferInvitationContext
+    let existingIDs: [String]
     let handler: (Bool) -> Void
 }
 
@@ -56,6 +63,10 @@ class PeerTransferManager: NSObject, ObservableObject {
     @Published var transferState: TransferState = .idle
     @Published var transferProgress: Double = 0
     @Published var pendingInvitation: TransferInvitation?
+    /// 实际传输记录数（去重后），发送方在 sendSessions 中设置，接收方在接受邀请时设置
+    @Published private(set) var actualSendCount: Int = 0
+    /// 跳过的重复记录数
+    @Published private(set) var skippedDuplicateCount: Int = 0
 
     private let serviceType = Constants.PeerTransfer.serviceType
     private let myPeerID: MCPeerID
@@ -69,6 +80,12 @@ class PeerTransferManager: NSObject, ObservableObject {
     private(set) var pendingSendPeer: MCPeerID?
     /// 发送方标志：从 invitePeer 开始到传输完成/失败/取消为止保持 true，用于区分发送方和接收方
     @Published private(set) var isSender: Bool = false
+    /// 接收方待发送的决策（连接建立后发送给发送方）
+    var pendingDecisionToSend: TransferConflictDecision?
+    /// 发送方收到的决策（用于过滤传输内容）
+    private(set) var pendingDecision: TransferConflictDecision?
+    /// 决策等待超时定时器（发送方使用）
+    private var decisionTimeoutTimer: Timer?
 
     private override init() {
         self.myPeerID = MCPeerID(displayName: UIDevice.current.name)
@@ -115,7 +132,6 @@ class PeerTransferManager: NSObject, ObservableObject {
         advertiser = MCNearbyServiceAdvertiser(peer: myPeerID, discoveryInfo: nil, serviceType: serviceType)
         advertiser?.delegate = self
         advertiser?.startAdvertisingPeer()
-        os.Logger.peerTransfer.info("开始广播")
     }
 
     func stopAdvertising() {
@@ -124,7 +140,6 @@ class PeerTransferManager: NSObject, ObservableObject {
         if transferState == .advertising || transferState == .idle {
             teardownSession()
         }
-        os.Logger.peerTransfer.info("停止广播")
     }
 
     // MARK: - 搜索（发送方）
@@ -147,7 +162,6 @@ class PeerTransferManager: NSObject, ObservableObject {
                 self.transferState = .failed("未找到附近设备，请确认两台设备都已打开 PhotoTTS")
             }
         }
-        os.Logger.peerTransfer.info("开始搜索附近设备")
     }
 
     func stopBrowsing() {
@@ -155,13 +169,14 @@ class PeerTransferManager: NSObject, ObservableObject {
         browsingTimer = nil
         browser?.stopBrowsingForPeers()
         browser = nil
-        os.Logger.peerTransfer.info("停止搜索")
     }
 
     func reset() {
         stopBrowsing()
         stopAdvertising()
         teardownSession()
+        decisionTimeoutTimer?.invalidate()
+        decisionTimeoutTimer = nil
         DispatchQueue.main.async {
             self.discoveredPeers = []
             self.transferState = .idle
@@ -170,6 +185,10 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.isSender = false
             self.pendingSendIDs = []
             self.pendingSendPeer = nil
+            self.pendingDecision = nil
+            self.pendingDecisionToSend = nil
+            self.actualSendCount = 0
+            self.skippedDuplicateCount = 0
         }
     }
 
@@ -191,7 +210,8 @@ class PeerTransferManager: NSObject, ObservableObject {
         let context = TransferInvitationContext(
             sessionCount: sessionIDs.count,
             totalSize: 0,
-            deviceName: UIDevice.current.name
+            deviceName: UIDevice.current.name,
+            sessionIDs: sessionIDs
         )
         let contextData = try? JSONEncoder().encode(context)
 
@@ -212,6 +232,34 @@ class PeerTransferManager: NSObject, ObservableObject {
         }
 
         beginBackgroundTask()
+
+        // 根据决策过滤IDs
+        var idsToSend = ids
+        var skippedCount = 0
+        if let decision = pendingDecision {
+            if decision.skipDuplicates {
+                let existingSet = Set(decision.existingIDs)
+                idsToSend = ids.filter { !existingSet.contains($0) }
+            }
+            skippedCount = ids.count - idsToSend.count
+            pendingDecision = nil  // 清理决策
+        }
+
+        // 发布去重结果供 UI 展示
+        DispatchQueue.main.async {
+            self.actualSendCount = idsToSend.count
+            self.skippedDuplicateCount = skippedCount
+        }
+
+        // 如果没有需要传输的记录
+        if idsToSend.isEmpty {
+            os.Logger.peerTransfer.info("无需传输: 全部 \(ids.count) 条已存在")
+            DispatchQueue.main.async {
+                self.transferState = .completed(imported: 0, skipped: skippedCount)
+            }
+            return
+        }
+
         DispatchQueue.main.async {
             self.transferState = .preparing
             self.transferProgress = 0
@@ -224,7 +272,7 @@ class PeerTransferManager: NSObject, ObservableObject {
                     .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
 
                 let exportResult = SessionRecordManager.shared.exportSelectedSessions(
-                    ids, to: tempDir, isAllSelected: false
+                    idsToSend, to: tempDir, isAllSelected: false
                 )
                 guard exportResult.success else {
                     throw NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode,
@@ -247,8 +295,8 @@ class PeerTransferManager: NSObject, ObservableObject {
                             os.Logger.peerTransfer.error("传输失败: \(error.localizedDescription)")
                             self?.transferState = .failed("传输失败，请重试")
                         } else {
-                            os.Logger.peerTransfer.info("传输完成")
-                            self?.transferState = .completed(imported: ids.count, skipped: 0)
+                            os.Logger.peerTransfer.info("传输完成: \(idsToSend.count) 条")
+                            self?.transferState = .completed(imported: idsToSend.count, skipped: skippedCount)
                         }
                     }
                 }
@@ -299,6 +347,34 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.pendingSendIDs = []
             self.pendingSendPeer = nil
             self.discoveredPeers = []
+            self.pendingDecision = nil
+            self.pendingDecisionToSend = nil
+            self.actualSendCount = 0
+            self.skippedDuplicateCount = 0
+            self.decisionTimeoutTimer?.invalidate()
+            self.decisionTimeoutTimer = nil
+        }
+    }
+
+    /// 接收方：设置去重统计（接受邀请时由 UI 调用）
+    func setReceiverDedupInfo(totalCount: Int, skipDuplicates: Bool, duplicateCount: Int) {
+        DispatchQueue.main.async {
+            self.actualSendCount = skipDuplicates ? totalCount - duplicateCount : totalCount
+            self.skippedDuplicateCount = skipDuplicates ? duplicateCount : 0
+        }
+    }
+
+    // MARK: - 决策消息传输
+
+    /// 发送决策到发送方（接收方调用）
+    private func sendDecision(_ decision: TransferConflictDecision, to peer: MCPeerID) {
+        guard let session, session.connectedPeers.contains(peer) else { return }
+        do {
+            let data = try JSONEncoder().encode(decision)
+            try session.send(data, toPeers: [peer], with: .reliable)
+            os.Logger.peerTransfer.info("已发送决策: skipDuplicates=\(decision.skipDuplicates), existingCount=\(decision.existingIDs.count)")
+        } catch {
+            os.Logger.peerTransfer.error("发送决策失败: \(error.localizedDescription)")
         }
     }
 
@@ -490,15 +566,33 @@ extension PeerTransferManager: MCSessionDelegate {
             switch state {
             case .connected:
                 os.Logger.peerTransfer.info("已连接: \(peerID.displayName)")
-                if let sendPeer = self.pendingSendPeer, sendPeer == peerID, !self.pendingSendIDs.isEmpty {
-                    self.sendSessions(ids: self.pendingSendIDs, to: peerID)
-                    self.pendingSendIDs = []
-                    self.pendingSendPeer = nil
+                if self.isSender {
+                    // 发送方：设置决策等待超时（10秒）
+                    self.decisionTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+                        guard let self, self.pendingDecision == nil, !self.pendingSendIDs.isEmpty else { return }
+                        os.Logger.peerTransfer.warning("等待决策超时，使用默认行为")
+                        DispatchQueue.main.async {
+                            if let sendPeer = self.pendingSendPeer, !self.pendingSendIDs.isEmpty {
+                                self.sendSessions(ids: self.pendingSendIDs, to: sendPeer)
+                                self.pendingSendIDs = []
+                                self.pendingSendPeer = nil
+                            }
+                        }
+                        self.decisionTimeoutTimer = nil
+                    }
+                } else {
+                    // 接收方：发送决策到发送方
+                    if let decision = self.pendingDecisionToSend {
+                        self.sendDecision(decision, to: peerID)
+                        self.pendingDecisionToSend = nil
+                    }
                 }
             case .connecting:
                 os.Logger.peerTransfer.info("连接中: \(peerID.displayName)")
             case .notConnected:
                 os.Logger.peerTransfer.info("断开连接: \(peerID.displayName)")
+                self.decisionTimeoutTimer?.invalidate()
+                self.decisionTimeoutTimer = nil
                 if self.transferState == .transferring || self.transferState == .connecting {
                     self.transferState = .failed("连接中断，请靠近后重试")
                     UIApplication.shared.isIdleTimerDisabled = false
@@ -510,7 +604,25 @@ extension PeerTransferManager: MCSessionDelegate {
         }
     }
 
-    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        // 解析决策消息
+        if let decision = try? JSONDecoder().decode(TransferConflictDecision.self, from: data) {
+            os.Logger.peerTransfer.info("收到决策: skipDuplicates=\(decision.skipDuplicates), existingCount=\(decision.existingIDs.count)")
+            DispatchQueue.main.async {
+                // 取消超时定时器
+                self.decisionTimeoutTimer?.invalidate()
+                self.decisionTimeoutTimer = nil
+                // 存储决策
+                self.pendingDecision = decision
+                // 开始传输
+                if let sendPeer = self.pendingSendPeer, sendPeer == peerID, !self.pendingSendIDs.isEmpty {
+                    self.sendSessions(ids: self.pendingSendIDs, to: peerID)
+                    self.pendingSendIDs = []
+                    self.pendingSendPeer = nil
+                }
+            }
+        }
+    }
 
     func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
 
@@ -601,17 +713,22 @@ extension PeerTransferManager: MCSessionDelegate {
 
 extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        os.Logger.peerTransfer.info("收到邀请来自: \(peerID.displayName)")
 
-        var invitationContext = TransferInvitationContext(sessionCount: 0, totalSize: 0, deviceName: peerID.displayName)
+        var invitationContext = TransferInvitationContext(sessionCount: 0, totalSize: 0, deviceName: peerID.displayName, sessionIDs: [])
         if let context, let decoded = try? JSONDecoder().decode(TransferInvitationContext.self, from: context) {
             invitationContext = decoded
         }
+
+        // 检查本地已存在哪些重复 session
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "PeerTransfer.邀请检查")
+        let localIDs = Set(allMetadata.map(\.id))
+        let duplicateIDs = invitationContext.sessionIDs.filter { localIDs.contains($0) }
 
         DispatchQueue.main.async {
             self.pendingInvitation = TransferInvitation(
                 peerID: peerID,
                 context: invitationContext,
+                existingIDs: duplicateIDs,
                 handler: { [weak self] accept in
                     invitationHandler(accept, accept ? self?.session : nil)
                     if !accept {
