@@ -153,7 +153,7 @@
              style="width: 60px; height: 60px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" />
       </div>
       <h1>隐私政策</h1>
-      <p>适用产品：拍照阅读（PhotoTTS）&nbsp;&nbsp;|&nbsp;&nbsp;最后更新：2026年3月10日</p>
+      <p>适用产品：拍照阅读（PhotoTTS）&nbsp;&nbsp;|&nbsp;&nbsp;最后更新：2026年3月27日</p>
     </header>
 
     <p>
@@ -205,6 +205,12 @@
           <td>个性化显示，不与账号绑定</td>
           <td>否，仅存本地</td>
         </tr>
+        <tr>
+          <td>设备传输数据</td>
+          <td>用户主动发起设备间传输</td>
+          <td>在两台设备之间直接传输绘本记录</td>
+          <td>否，仅在本地网络内点对点传输，不经过任何服务器</td>
+        </tr>
       </tbody>
     </table>
 
@@ -236,6 +242,11 @@
           <td>Siri 与快捷指令</td>
           <td>支持通过 Siri 快速播放已保存的会话</td>
           <td>可拒绝，不影响应用核心功能</td>
+        </tr>
+        <tr>
+          <td>本地网络（Local Network）</td>
+          <td>在两台设备之间通过本地 Wi-Fi 网络直接传输绘本记录（基于 Apple MultipeerConnectivity 框架）</td>
+          <td>可拒绝，拒绝后无法使用设备间传输功能，可改为文件导出/导入方式</td>
         </tr>
       </tbody>
     </table>
@@ -301,6 +312,7 @@
     <ul>
       <li>会话数据（图片、音频、识别文字）存储于设备本地 Documents/Sessions/ 目录，不会自动备份至外部。</li>
       <li>您可随时在应用内删除任意会话记录，删除后数据不可恢复。</li>
+      <li>设备间传输功能通过本地 Wi-Fi 网络点对点传输（Apple MultipeerConnectivity），数据不经过任何外部服务器。</li>
       <li>卸载应用后，设备上的所有应用数据将被系统清除。</li>
     </ul>
 
@@ -329,6 +341,7 @@
       <li>所有对外网络请求强制使用 HTTPS，不降级至 HTTP。</li>
       <li>图片在发送至外部 API 前自动降采样（最大边长 2048 像素），减少敏感内容暴露。</li>
       <li>应用内不包含任何追踪代码或第三方统计 SDK。</li>
+      <li>设备间传输基于 Apple MultipeerConnectivity 框架，数据仅在本地 Wi-Fi 网络内点对点传输，不经过外部服务器。</li>
     </ul>
 
     <!-- 7. 用户权利 -->
