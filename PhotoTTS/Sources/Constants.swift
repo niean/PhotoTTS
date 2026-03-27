@@ -366,6 +366,14 @@ extension Constants {
     /// 草稿会话默认名称后缀（前缀为日期格式）
     static let draftSessionNameSuffix = "未命名"
 
+    // MARK: - 分组展示
+    struct GroupDisplay {
+        /// 未分类标签（系列名无法提取时的 fallback）
+        static let uncategorizedLabel = "未分类"
+        /// 月份分组键格式
+        static let monthKeyFormat = "yyyy年M月"
+    }
+
     // MARK: - LLM配置
     struct LLM {
         /// 触发LLM绘本分析的最小图片数量
@@ -418,6 +426,8 @@ extension Constants {
         static var playSettingsLabel: Font { .system(size: s(11)) }
         /// PlayView 关闭按钮: 11pt bold
         static var playCloseIcon: Font { .system(size: s(11), weight: .bold) }
+        /// 分组折叠箭头: 12pt medium
+        static var groupChevron: Font { .system(size: s(12), weight: .medium) }
         /// 记录状态标签、分页文本: 12pt
         static var recordMeta: Font { .system(size: s(12)) }
         /// PlayView 播完提示: 13pt

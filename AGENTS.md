@@ -71,6 +71,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
 - `[GATE-ENTRY]` 标记的 Phase 开始前，必须执行前置条件检查：(1) 上一条用户消息包含明确确认（如"确认""Yes""ok""继续"等），(2) 前置 GATE Phase 不在当前回复中输出。任一条件不满足则停止并提示用户
 - 当前 GATE 点：迭代功能 Phase 2 -> Phase 3
+- 非 GATE Phase 禁止使用 `AskUserQuestion` 等待用户确认后再继续后续 Phase；AI 应按 Skill 定义自主推进流程
 
 ### 引用外部步骤的执行约束（AI-READONLY）
 

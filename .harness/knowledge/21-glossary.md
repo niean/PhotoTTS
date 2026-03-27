@@ -25,7 +25,8 @@
 - AppLoadingView/AppIntroView：位于 AppPagesView.swift；前者模拟加载后置 fullScreenKind=nil，后者用于"关于"页面
 - ExportManifest/ExportSessionInfo：导出包清单（version/exportDate/appName/totalSessions/totalSize/sessions），导入时解析 export_manifest.json
 - config_local.json：本地 API 配置（OCR 多 Provider：豆包/OpenAI，TTS 多 Provider：火山引擎/阿里千问，LLM 多 Provider：豆包/OpenAI），SettingsManager 读取，设置页可编辑
-- 会话命名约定：会话名称以日期前缀 `YY.MM.DD ` 开头（如 `26.03.16 `），前缀自动生成且只读，用户只能编辑前缀后的自定义名称部分
+- 会话命名约定：会话名称以日期前缀 `YY.MM.DD ` 开头（如 `26.03.16 `），前缀自动生成且只读，用户只能编辑前缀后的自定义名称部分；格式 `yy.MM.dd 系列-故事名`，系列名通过 SessionRecordMetadata.seriesName 提取（第一个 `-` 前的部分）
+- GroupMode：管理页分组展示模式（private enum，SessionRecordListView.swift 内），flat/bySeries/byMonth 三种模式，顶导左侧图标按钮轮换切换；分组模式全量加载 metadata、手风琴折叠展示
 - PeerTransferManager：E2E设备传输管理器（封装MultipeerConnectivity），支持WiFi/蓝牙自动切换，管理设备发现、连接、数据传输全流程
 - TransferInvitationContext：E2E传输邀请上下文（Codable），字段：sessionCount/totalSize/deviceName/sessionIDs，邀请时携带记录ID列表用于接收方去重判断
 - TransferConflictDecision：E2E传输冲突决策（Codable），字段：skipDuplicates/existingIDs，接收方选择跳过或覆盖重复记录后发送给发送方

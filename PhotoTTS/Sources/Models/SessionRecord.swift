@@ -405,9 +405,10 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
     /// 从名称前缀解析的日期（格式 "YY.MM.DD "），解析失败时回退到 createdAt
     /// 用于连播队列等需要按"显示日期"分组的场景
     var namePrefixDate: Date {
-        // 名称前缀格式：yy.MM.dd （如 "26.03.16 "），前 8 个字符为日期部分
-        guard name.count >= 9 else { return createdAt }
-        let prefixDateStr = String(name.prefix(8))
+        let prefixLen = Constants.sessionNameDatePrefixFormat.count
+        guard name.count >= prefixLen else { return createdAt }
+        // 日期部分为前缀去掉末尾空格
+        let prefixDateStr = String(name.prefix(prefixLen)).trimmingCharacters(in: .whitespaces)
         let formatter = DateFormatter()
         formatter.dateFormat = "yy.MM.dd"
         formatter.locale = Locale(identifier: "zh_CN")
@@ -415,6 +416,27 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
             return date
         }
         return createdAt
+    }
+
+    /// 从名称中提取系列名（日期前缀后、第一个 - 前的部分）
+    /// 示例："26.03.16 小红帽-第一章" -> "小红帽"
+    /// 无法提取时返回 "未分类"
+    var seriesName: String {
+        let prefixLen = Constants.sessionNameDatePrefixFormat.count
+        guard name.count >= prefixLen else { return Constants.GroupDisplay.uncategorizedLabel }
+        let afterPrefix = String(name.dropFirst(prefixLen))
+        guard let hyphenIndex = afterPrefix.firstIndex(of: "-") else { return Constants.GroupDisplay.uncategorizedLabel }
+        let series = String(afterPrefix[afterPrefix.startIndex..<hyphenIndex])
+            .trimmingCharacters(in: .whitespaces)
+        return series.isEmpty ? Constants.GroupDisplay.uncategorizedLabel : series
+    }
+
+    /// 从 namePrefixDate 格式化的月份键（如 "2026年3月"），用于按月份分组
+    var monthKey: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = Constants.GroupDisplay.monthKeyFormat
+        formatter.locale = Locale(identifier: "zh_CN")
+        return formatter.string(from: namePrefixDate)
     }
 
     init(from record: SessionRecord) {

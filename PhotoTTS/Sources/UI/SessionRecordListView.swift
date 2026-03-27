@@ -13,6 +13,29 @@ enum SessionRecordListMode {
     case manage
 }
 
+// MARK: - 管理页分组展示模式
+private enum GroupMode: CaseIterable {
+    case flat       // 平铺（list.bullet）
+    case bySeries   // 按系列（square.grid.2x2）
+    case byMonth    // 按月份（calendar）
+
+    var iconName: String {
+        switch self {
+        case .flat: return "list.bullet"
+        case .bySeries: return "square.grid.2x2"
+        case .byMonth: return "calendar"
+        }
+    }
+
+    var next: GroupMode {
+        switch self {
+        case .flat: return .bySeries
+        case .bySeries: return .byMonth
+        case .byMonth: return .flat
+        }
+    }
+}
+
 // MARK: - 会话记录列表视图
 struct SessionRecordListView: View {
     // 跨Tab协调
@@ -53,6 +76,13 @@ struct SessionRecordListView: View {
     // 设备传输
     @State private var showDeviceTransfer = false
     @State private var deviceTransferIDs: [String] = []
+
+    // 分组状态（仅管理 Tab 使用）
+    @State private var groupMode: GroupMode = .flat
+    @State private var expandedGroup: String? = nil
+    @State private var allMetadataList: [SessionRecordMetadata] = []
+    // 分组计算结果缓存（避免展开/折叠时重新计算导致乱序）
+    @State private var cachedGroups: [(key: String, items: [SessionRecordMetadata])] = []
     
     let onLoadSession: (SessionRecord) -> Void
     var onLoadToMake: ((String) -> Void)? = nil
@@ -92,6 +122,83 @@ struct SessionRecordListView: View {
         totalCount > Constants.Pagination.pageSize
     }
     
+    // 是否处于分组模式
+    private var isGroupedMode: Bool { groupMode != .flat }
+
+    /// 根据 allMetadataList 和 groupMode 重新计算分组，结果写入 cachedGroups
+    private func rebuildGroups() {
+        guard groupMode != .flat else {
+            cachedGroups = []
+            return
+        }
+
+        let keyExtractor: (SessionRecordMetadata) -> String = groupMode == .bySeries
+            ? { $0.seriesName }
+            : { $0.monthKey }
+
+        var groups: [String: [SessionRecordMetadata]] = [:]
+        for item in allMetadataList {
+            let key = keyExtractor(item)
+            groups[key, default: []].append(item)
+        }
+
+        let uncategorized = Constants.GroupDisplay.uncategorizedLabel
+        let sorted = groups.map { (key: $0.key, items: $0.value.sorted { $0.namePrefixDate > $1.namePrefixDate }) }
+            .sorted { lhs, rhs in
+                if lhs.key == uncategorized { return false }
+                if rhs.key == uncategorized { return true }
+                if groupMode == .bySeries {
+                    return lhs.key.localizedCompare(rhs.key) == .orderedAscending
+                } else {
+                    let lhsDate = lhs.items.first?.namePrefixDate ?? Date.distantPast
+                    let rhsDate = rhs.items.first?.namePrefixDate ?? Date.distantPast
+                    return lhsDate > rhsDate
+                }
+            }
+        cachedGroups = sorted
+    }
+
+    // 手风琴组头
+    private func groupHeaderView(key: String, count: Int, latestDate: Date) -> some View {
+        let isExpanded = expandedGroup == key
+        let dateFormatter: DateFormatter = {
+            let f = DateFormatter()
+            f.dateFormat = "MM.dd"
+            return f
+        }()
+
+        return Button(action: {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                expandedGroup = isExpanded ? nil : key
+            }
+        }) {
+            HStack(spacing: scaled(8)) {
+                Image(systemName: "chevron.right")
+                    .font(Constants.Fonts.groupChevron)
+                    .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+
+                Text(key)
+                    .font(Constants.Fonts.body)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Text("\(count)条")
+                    .font(Constants.Fonts.recordMeta)
+                    .foregroundColor(.secondary)
+
+                Text("最近\(dateFormatter.string(from: latestDate))")
+                    .font(Constants.Fonts.recordMeta)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, scaled(16))
+            .padding(.vertical, scaled(12))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     // 搜索栏（微信风格，外层 padding 由 listRowInsets 控制）
     private var searchBar: some View {
         HStack(spacing: 8) {
@@ -105,12 +212,21 @@ struct SessionRecordListView: View {
                 .textInputAutocapitalization(.never)
                 .submitLabel(.search)
                 .onSubmit {
-                    currentPage = 1
-                    loadPage()
+                    if isGroupedMode {
+                        loadAllMetadata()
+                    } else {
+                        currentPage = 1
+                        loadPage()
+                    }
                 }
 
             if !searchText.isEmpty {
-                Button(action: { searchText = "" }) {
+                Button(action: {
+                    searchText = ""
+                    if isGroupedMode {
+                        loadAllMetadata()
+                    }
+                }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(Constants.Fonts.searchIcon)
                         .foregroundColor(.gray)
@@ -144,7 +260,7 @@ struct SessionRecordListView: View {
                         ProgressView("加载中...")
                             .scaleEffect(scaled(1.0))
                         Spacer()
-                    } else if totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    } else if !isGroupedMode && totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Spacer()
                         VStack(spacing: scaled(20)) {
                             Image(systemName: "book.closed")
@@ -176,8 +292,44 @@ struct SessionRecordListView: View {
                                 .listRowSeparator(.hidden)
                                 .id(Constants.UI.searchBarRowId)
                             
-                            if pagedMetadataList.isEmpty {
-                                // 搜索无结果
+                            if isGroupedMode {
+                                // 分组模式：手风琴
+                                let groups = cachedGroups
+                                if groups.isEmpty {
+                                    VStack(spacing: scaled(12)) {
+                                        Image(systemName: "magnifyingglass")
+                                            .font(Constants.Fonts.searchEmptyIcon)
+                                            .foregroundColor(.gray)
+                                        Text(Constants.UI.searchNoResult)
+                                            .font(Constants.Fonts.searchNoResult)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, scaled(40))
+                                    .listRowInsets(EdgeInsets())
+                                    .listRowBackground(Color(.systemBackground))
+                                    .listRowSeparator(.hidden)
+                                } else {
+                                    ForEach(groups, id: \.key) { group in
+                                        Section {
+                                            groupHeaderView(
+                                                key: group.key,
+                                                count: group.items.count,
+                                                latestDate: group.items.first?.namePrefixDate ?? Date()
+                                            )
+                                            .listRowInsets(EdgeInsets())
+                                            .listRowSeparator(.hidden)
+
+                                            if expandedGroup == group.key {
+                                                ForEach(group.items) { metadata in
+                                                    self.makeSessionRecordRow(for: metadata)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if pagedMetadataList.isEmpty {
+                                // 平铺模式搜索无结果
                                 VStack(spacing: scaled(12)) {
                                     Image(systemName: "magnifyingglass")
                                         .font(Constants.Fonts.searchEmptyIcon)
@@ -192,6 +344,7 @@ struct SessionRecordListView: View {
                                 .listRowBackground(Color(.systemBackground))
                                 .listRowSeparator(.hidden)
                             } else {
+                                // 平铺模式
                                 ForEach(pagedMetadataList) { metadata in
                                     self.makeSessionRecordRow(for: metadata)
                                         .overlay {
@@ -214,8 +367,8 @@ struct SessionRecordListView: View {
                                             }
                                         }
                                 }
-                                
-                                // 分页控件（放在每页末尾）
+
+                                // 分页控件（仅平铺模式）
                                 if showPagination {
                                     paginationControl
                                         .listRowInsets(EdgeInsets())
@@ -305,7 +458,25 @@ struct SessionRecordListView: View {
                             onSwipeBack: isRootTab ? nil : { dismiss() },
                             leading: {
                                 if isRootTab {
-                                    EmptyView()
+                                    Button(action: {
+                                        withAnimation(.easeInOut(duration: 0.25)) {
+                                            groupMode = groupMode.next
+                                            expandedGroup = nil
+                                        }
+                                        if groupMode == .flat {
+                                            cachedGroups = []
+                                            currentPage = 1
+                                            loadPage()
+                                        } else {
+                                            loadAllMetadata()
+                                        }
+                                    }) {
+                                        Image(systemName: groupMode.iconName)
+                                            .symbolRenderingMode(.monochrome)
+                                            .font(Constants.Fonts.navAction)
+                                            .frame(width: scaled(20), height: scaled(20))
+                                            .foregroundStyle(.primary)
+                                    }
                                 } else {
                                     Button(action: { dismiss() }) {
                                         Image(systemName: "chevron.left")
@@ -365,8 +536,12 @@ struct SessionRecordListView: View {
         .onChange(of: searchText) {
             // 清空时自动刷新回原列表
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                currentPage = 1
-                loadPage()
+                if isGroupedMode {
+                    loadAllMetadata()
+                } else {
+                    currentPage = 1
+                    loadPage()
+                }
             }
         }
         .alert("删除会话记录", isPresented: $showDeleteConfirmation) {
@@ -577,6 +752,25 @@ struct SessionRecordListView: View {
                     self.currentPage -= 1
                     self.loadPage()
                 }
+            }
+        }
+    }
+
+    /// 分组模式：全量加载 metadata（带搜索过滤）
+    private func loadAllMetadata() {
+        isLoading = true
+        let keyword = searchText
+        DispatchQueue.global(qos: .userInitiated).async {
+            var list = SessionRecordManager.shared.getAllSessionMetadata(caller: "分组列表")
+            let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                list = list.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+            }
+            DispatchQueue.main.async {
+                self.allMetadataList = list
+                self.totalCount = list.count
+                self.rebuildGroups()
+                self.isLoading = false
             }
         }
     }

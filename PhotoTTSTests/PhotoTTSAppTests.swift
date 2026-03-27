@@ -245,6 +245,52 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertNotNil(cameraVC, "CustomCameraViewController should be created successfully")
     }
     
+    // MARK: - SessionRecordMetadata seriesName 测试
+
+    private func makeMetadata(name: String, createdAt: Date = Date()) -> SessionRecordMetadata {
+        SessionRecordMetadata(id: UUID().uuidString, name: name, createdAt: createdAt, updatedAt: createdAt, totalImageCount: 1, validImageCount: 1, textLength: 100, audioDuration: 60, avatarImageIndex: 0, storageSize: 1024)
+    }
+
+    func testSeriesName_normalFormat() {
+        let m = makeMetadata(name: "26.03.16 小红帽-第一章")
+        XCTAssertEqual(m.seriesName, "小红帽")
+    }
+
+    func testSeriesName_noHyphen() {
+        let m = makeMetadata(name: "26.03.16 随手拍")
+        XCTAssertEqual(m.seriesName, "未分类")
+    }
+
+    func testSeriesName_shortName() {
+        let m = makeMetadata(name: "短")
+        XCTAssertEqual(m.seriesName, "未分类")
+    }
+
+    func testSeriesName_multipleHyphens() {
+        let m = makeMetadata(name: "26.03.16 小红帽-第一章-上")
+        XCTAssertEqual(m.seriesName, "小红帽")
+    }
+
+    func testSeriesName_emptyAfterPrefix() {
+        let m = makeMetadata(name: "26.03.16 -故事")
+        XCTAssertEqual(m.seriesName, "未分类")
+    }
+
+    // MARK: - SessionRecordMetadata monthKey 测试
+
+    func testMonthKey_normalFormat() {
+        let m = makeMetadata(name: "26.03.16 小红帽-第一章")
+        XCTAssertEqual(m.monthKey, "2026年3月")
+    }
+
+    func testMonthKey_fallbackToCreatedAt() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let jan2026 = formatter.date(from: "2026-01-15")!
+        let m = makeMetadata(name: "短", createdAt: jan2026)
+        XCTAssertEqual(m.monthKey, "2026年1月")
+    }
+
     // MARK: - 性能测试
     
     func testVoiceSettingsEncodingPerformance() {

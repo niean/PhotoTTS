@@ -39,7 +39,7 @@
 
 ## 常量
 
-- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts
+- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts/GroupDisplay
 - 新增优先归入已有分类；不属于任何分类可新建 struct（PascalCase）
 - 禁止业务文件硬编码魔法值
 - 运行时可变配置通过 config_local.json + SettingsManager
