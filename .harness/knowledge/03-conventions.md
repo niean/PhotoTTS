@@ -39,7 +39,7 @@
 
 ## 常量
 
-- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts/GroupDisplay
+- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/PeerTransfer/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/HomeCard/Monitor/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts/DefaultSession/CameraTip/GroupDisplay/LLM/EndPicts/Links
 - 新增优先归入已有分类；不属于任何分类可新建 struct（PascalCase）
 - 禁止业务文件硬编码魔法值
 - 运行时可变配置通过 config_local.json + SettingsManager
@@ -73,7 +73,7 @@
 ## 日志
 
 - 禁止 print()，统一 os.Logger
-- 分类定义在 PhotoTTSApp.swift `extension os.Logger`（app/siri/audioPlayer/camera/makeView/appPages/ttsService/networkService/settingsManager/ocrService/coordinator/debugLog/sessionRecord/playHistory/backgroundMake/makeHistory），subsystem "com.photoTTS.PhotoTTS"
+- 分类定义在 PhotoTTSApp.swift `extension os.Logger`（app/siri/audioPlayer/camera/makeView/appPages/ttsService/networkService/settingsManager/ocrService/coordinator/debugLog/sessionRecord/playHistory/backgroundMake/makeHistory/llmService/peerTransfer），subsystem "com.photoTTS.PhotoTTS"
 - 级别：debug/info/warning/error
 - 文本禁用 emoji/加粗/斜体，禁止输出敏感字段
 

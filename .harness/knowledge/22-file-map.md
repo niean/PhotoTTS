@@ -12,7 +12,9 @@
 - 制作：MakeView（MakeView.swift）
 - 管理：SessionRecordListView（SessionRecordListView.swift，isRootTab=true，mode=.manage）
 - 我的：MeTabView（MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/要点图片/设置/关于入口
+- 消息（预留）：MessageTabView（MessageTabView.swift），未集成到 MainTabView
 - 要点图片管理：EndPictManagementView（EndPictManagementView.swift），从我的 Tab 进入
+- 分页控件：PaginationControl（PaginationControl.swift），供 HomePageView/SessionRecordListView 复用
 
 ## 全屏与相机
 
@@ -54,8 +56,8 @@
 
 - SettingsView/SettingsManager：SettingsView.swift / Core/Managers/Settings/SettingsManager.swift
 - PlayHistoryManager+View / MakeHistoryManager+View / DebugLogManager+View
-- PerformanceMonitorManager+View（实时监控）：Core/Managers/Monitor/PerformanceMonitorManager.swift / UI/RealTimeMonitorView.swift
-- ScheduledTasks（预留，空）
+- PerformanceMonitorManager+View（实时监控）：Core/Managers/Monitor/PerformanceMonitorManager.swift / UI/RealTimeMonitorView.swift / UI/RealTimeMonitorChartView.swift（时序图表组件）
+- ChangeLogsView（更新记录）：UI/ChangeLogsView.swift（解析 Resources/changelogs.md 渲染）
 
 ## 模型与常量
 
@@ -65,12 +67,12 @@
 
 ## 配置与资源
 
-- config_example.json（Bundle 内默认配置模板）/ ChangeLogsView+changelogs.md
+- config_example.json（Bundle 内默认配置模板）/ changelogs.md（更新记录数据）
 - Resources/DefaultSession/：内置默认绘本（使用介绍），含 metadata.json/record.json/history.json/audio.mp3/avatar.jpg/images/；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
 - locals/（项目根目录，不在 Xcode PBXFileSystemSynchronizedRootGroup 内，不打包到 App Bundle）：存放 config_local.json 等本地敏感配置；App 首次启动时 SettingsManager.ensureUserConfigExists() 从 Bundle 的 config_example.json 复制到 Documents/config_local.json
 
 ## 测试
 
-- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests
+- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests
 - 功能测试（FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）、TestAliqwenTTS（阿里千问 TTS 真实 API 测试）
 - UI 测试（PhotoTTSUITests/）：启动验证/性能/截图
