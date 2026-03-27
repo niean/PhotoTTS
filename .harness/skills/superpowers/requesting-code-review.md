@@ -49,16 +49,16 @@ Use Task tool with code-reviewer subagent type, fill template at `code-reviewer.
 ## Example
 
 ```
-[Just completed Task 2: Add verification function]
+[Just completed T 2: Add verification function]
 
 You: Let me request code review before proceeding.
 
-BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
+BASE_SHA=$(git log --oneline | grep "T 1" | head -1 | awk '{print $1}')
 HEAD_SHA=$(git rev-parse HEAD)
 
 [Dispatch code-reviewer subagent]
   WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
-  PLAN_OR_REQUIREMENTS: Task 2 from .harness/plans/active/plan-{YYMMDD}-{desc}.md
+  PLAN_OR_REQUIREMENTS: T 2 from .harness/plans/active/plan-{YYMMDD}-{desc}.md
   BASE_SHA: a7981ec
   HEAD_SHA: 3df7661
   DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
@@ -71,7 +71,7 @@ HEAD_SHA=$(git rev-parse HEAD)
   Assessment: Ready to proceed
 
 You: [Fix progress indicators]
-[Continue to Task 3]
+[Continue to T 3]
 ```
 
 ## Integration with Workflows

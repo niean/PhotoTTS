@@ -20,7 +20,17 @@
 - 定制：统一改为 `P N`，避免与 Harness Skill 流程的 `Phase N` 命名冲突
 - 影响文件：systematic-debugging.md, using-git-worktrees.md
 
-### 1.3 AGENTS.md 调用约束
+### 1.3 Task N 重命名为 T N
+- 原版：superpowers 内部任务使用 `Task N` 命名
+- 定制：统一改为 `T N`，避免与 Harness 的 `Task` 命名冲突
+- 影响文件：subagent-driven-development.md, requesting-code-review.md
+
+### 1.4 Step N 重命名为 S N
+- 原版：superpowers 内部步骤使用 `Step N` 命名
+- 定制：统一改为 `S N`，避免与 Harness Skill 流程的 `Step N` 命名冲突
+- 影响文件：writing-plans.md, finishing-a-development-branch.md, executing-plans.md, systematic-debugging.md, writing-skills/anthropic-best-practices.md
+
+### 1.5 AGENTS.md 调用约束
 - 在 AGENTS.md 中添加：禁止主动调起 superpowers 插件（形如 `superpowers:skill-x`），仅在用户明确指令时才可调用
 - 这是 Harness 层面的约束，不修改 superpowers 文件本身
 
@@ -32,7 +42,7 @@
 
 | 位置 | 原版 | 定制 | 说明 |
 |------|------|------|------|
-| Checklist Step 5 | 写 spec 到通用路径 | 写 spec 到 `.harness/specs/active/spec-{YYMMDD}-{desc}.md` | 对接 Harness 执行计划管理 |
+| Checklist S 5 | 写 spec 到通用路径 | 写 spec 到 `.harness/specs/active/spec-{YYMMDD}-{desc}.md` | 对接 Harness 执行计划管理 |
 | After the Design | 同上 | 同上 | |
 | Spec document template | 英文字段（Created, Status, Source） | 中文字段（创建时间, 状态, 任务来源） | 模板本地化 |
 | Spec document template | 英文章节名 | 中文章节备注（涉及数据结构变更时、涉及界面变更时） | |
@@ -40,7 +50,7 @@
 | User Review Gate | "Spec written and committed to" | 改为 "Spec written to" | 移除 committed 措辞 |
 | User Review Gate | 完整 User Review Gate 节 | 已删除 | 用户确认由调用方接管 |
 | Implementation | "Invoke the writing-plans skill" | 已删除 | 技能间流转由调用方接管 |
-| Checklist Step 7-8 | User reviews spec + Transition to implementation | 已删除 | 同上 |
+| Checklist S 7-8 | User reviews spec + Transition to implementation | 已删除 | 同上 |
 | Process Flow 流程图 | 含 "User reviews spec?" + "Invoke writing-plans skill" | 终止于 "Spec written" | 流程图截止到 spec 完成 |
 | terminal state 说明 | "The terminal state is invoking writing-plans" | 改为 "The caller decides how to proceed" | |
 | 未迁移标记 | N/A | `<!-- not migrated: elements-of-style skill -->` | 原版子技能未引入 |
@@ -73,7 +83,7 @@
 | Overview | "Frequent commits" | 已删除 | 不执行 git commit |
 | Context | "should be run in a dedicated worktree" | 已删除 | 不使用 worktree |
 | Bite-Sized Task | "Commit" - step | 已删除 | 不执行 git commit |
-| Task Structure | Step 5: Commit 模板 | 已删除 | 不执行 git commit |
+| Task Structure | S 5: Commit 模板 | 已删除 | 不执行 git commit |
 | Remember | "frequent commits" | 已删除 | |
 | Plan Review Loop | "proceed to execution handoff" | 改为 "plan is ready" | |
 | Execution Handoff | 整节（auto-selection + Subagent/Inline 引用） | 已删除 | 执行方式由调用方决定 |
@@ -83,7 +93,7 @@
 | 位置 | 原版 | 定制 | 说明 |
 |------|------|------|------|
 | Remember | "Never start on main/master without explicit user consent" | 已删除 | 分支管理由调用方控制 |
-| Step 3 | finishing-a-development-branch REQUIRED | 改为"调用方决定收尾流程" | 收尾由 iterate-feature P5-7 接管 |
+| S 3 | finishing-a-development-branch REQUIRED | 改为"调用方决定收尾流程" | 收尾由 iterate-feature P5-7 接管 |
 | Integration | using-git-worktrees REQUIRED + finishing REQUIRED | 仅保留 writing-plans 引用 | worktree/finishing 已移除 |
 
 ### 2.7 subagent-driven-development.md
@@ -100,7 +110,7 @@
 
 | 位置 | 原版 | 定制 | 说明 |
 |------|------|------|------|
-| Your Job | Step 4: [COMMIT_STEP] + 占位符说明 | 已删除，步骤重编号 | 不执行 git commit |
+| Your Job | S 4: [COMMIT_STEP] + 占位符说明 | 已删除，步骤重编号 | 不执行 git commit |
 
 ### 2.9 未修改文件（保持原版）
 

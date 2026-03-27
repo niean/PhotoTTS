@@ -422,35 +422,35 @@ Copy this checklist and track your progress:
 
 ```
 Research Progress:
-- [ ] Step 1: Read all source documents
-- [ ] Step 2: Identify key themes
-- [ ] Step 3: Cross-reference claims
-- [ ] Step 4: Create structured summary
-- [ ] Step 5: Verify citations
+- [ ] S 1: Read all source documents
+- [ ] S 2: Identify key themes
+- [ ] S 3: Cross-reference claims
+- [ ] S 4: Create structured summary
+- [ ] S 5: Verify citations
 ```
 
-**Step 1: Read all source documents**
+**S 1: Read all source documents**
 
 Review each document in the `sources/` directory. Note the main arguments and supporting evidence.
 
-**Step 2: Identify key themes**
+**S 2: Identify key themes**
 
 Look for patterns across sources. What themes appear repeatedly? Where do sources agree or disagree?
 
-**Step 3: Cross-reference claims**
+**S 3: Cross-reference claims**
 
 For each major claim, verify it appears in the source material. Note which source supports each point.
 
-**Step 4: Create structured summary**
+**S 4: Create structured summary**
 
 Organize findings by theme. Include:
 - Main claim
 - Supporting evidence from sources
 - Conflicting viewpoints (if any)
 
-**Step 5: Verify citations**
+**S 5: Verify citations**
 
-Check that every claim references the correct source document. If citations are incomplete, return to Step 3.
+Check that every claim references the correct source document. If citations are incomplete, return to S 3.
 ````
 
 This example shows how workflows apply to analysis tasks that don't require code. The checklist pattern works for any complex, multi-step process.
@@ -464,38 +464,38 @@ Copy this checklist and check off items as you complete them:
 
 ```
 Task Progress:
-- [ ] Step 1: Analyze the form (run analyze_form.py)
-- [ ] Step 2: Create field mapping (edit fields.json)
-- [ ] Step 3: Validate mapping (run validate_fields.py)
-- [ ] Step 4: Fill the form (run fill_form.py)
-- [ ] Step 5: Verify output (run verify_output.py)
+- [ ] S 1: Analyze the form (run analyze_form.py)
+- [ ] S 2: Create field mapping (edit fields.json)
+- [ ] S 3: Validate mapping (run validate_fields.py)
+- [ ] S 4: Fill the form (run fill_form.py)
+- [ ] S 5: Verify output (run verify_output.py)
 ```
 
-**Step 1: Analyze the form**
+**S 1: Analyze the form**
 
 Run: `python scripts/analyze_form.py input.pdf`
 
 This extracts form fields and their locations, saving to `fields.json`.
 
-**Step 2: Create field mapping**
+**S 2: Create field mapping**
 
 Edit `fields.json` to add values for each field.
 
-**Step 3: Validate mapping**
+**S 3: Validate mapping**
 
 Run: `python scripts/validate_fields.py fields.json`
 
 Fix any validation errors before continuing.
 
-**Step 4: Fill the form**
+**S 4: Fill the form**
 
 Run: `python scripts/fill_form.py input.pdf fields.json output.pdf`
 
-**Step 5: Verify output**
+**S 5: Verify output**
 
 Run: `python scripts/verify_output.py output.pdf`
 
-If verification fails, return to Step 2.
+If verification fails, return to S 2.
 ````
 
 Clear steps prevent Claude from skipping critical validation. The checklist helps both Claude and you track progress through multi-step workflows.

@@ -130,9 +130,9 @@ You: I'm using Subagent-Driven Development to execute this plan.
 [Extract all 5 tasks with full text and context]
 [Create TodoWrite with all tasks]
 
-Task 1: Hook installation script
+T 1: Hook installation script
 
-[Get Task 1 text and context (already extracted)]
+[Get T 1 text and context (already extracted)]
 [Dispatch implementation subagent with full task text + context]
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
@@ -151,11 +151,11 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 [Get git SHAs, dispatch code quality reviewer]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
-[Mark Task 1 complete]
+[Mark T 1 complete]
 
-Task 2: Recovery modes
+T 2: Recovery modes
 
-[Get Task 2 text and context (already extracted)]
+[Get T 2 text and context (already extracted)]
 [Dispatch implementation subagent with full task text + context]
 
 Implementer: [No questions, proceeds]
@@ -184,7 +184,7 @@ Implementer: Extracted PROGRESS_INTERVAL constant
 [Code reviewer reviews again]
 Code reviewer: ✅ Approved
 
-[Mark Task 2 complete]
+[Mark T 2 complete]
 
 ...
 

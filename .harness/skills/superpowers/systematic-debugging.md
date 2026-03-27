@@ -284,7 +284,7 @@ These techniques are part of systematic debugging and available in this director
 - **`./systematic-debugging/condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
 
 **Related skills:**
-- **.harness/skills/superpowers/test-driven-development.md** - For creating failing test case (P 4, Step 1)
+- **.harness/skills/superpowers/test-driven-development.md** - For creating failing test case (P 4, S 1)
 - **.harness/skills/superpowers/verification-before-completion.md** - Verify fix worked before claiming success
 
 ## Real-World Impact
