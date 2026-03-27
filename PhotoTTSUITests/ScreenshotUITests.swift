@@ -27,14 +27,14 @@ final class ScreenshotUITests: XCTestCase {
     func testCaptureAllScreenshots() throws {
         throw XCTSkip("App Store 截图测试，发版前通过 take-screenshots.sh 手动执行")
         // let deviceName = UIDevice.current.name.replacingOccurrences(of: " ", with: "_")
-        //
+        
         // let makeTabForHome = app.tabBars.buttons["制作"]
         // if makeTabForHome.waitForExistence(timeout: 3) {
         //     makeTabForHome.tap()
         //     sleep(2)
         // }
         // sleep(10)
-        //
+        
         // // 1. 首页截图
         // let homeTabForHome = app.tabBars.buttons["首页"]
         // if homeTabForHome.waitForExistence(timeout: 3) {
@@ -42,7 +42,7 @@ final class ScreenshotUITests: XCTestCase {
         //     sleep(3)
         //     captureScreenshot(named: "01_home_\(deviceName)")
         // }
-        //
+        
         // // 2. 制作页截图
         // let makeTabButton = app.tabBars.buttons["制作"]
         // if makeTabButton.waitForExistence(timeout: 5) {
@@ -50,7 +50,7 @@ final class ScreenshotUITests: XCTestCase {
         //     sleep(3)
         //     captureScreenshot(named: "02_make_\(deviceName)")
         // }
-        //
+        
         // // 3. 管理页截图
         // let manageTabButton = app.tabBars.buttons["管理"]
         // if manageTabButton.waitForExistence(timeout: 3) {
@@ -58,7 +58,7 @@ final class ScreenshotUITests: XCTestCase {
         //     sleep(2)
         //     captureScreenshot(named: "03_manage_\(deviceName)")
         // }
-        //
+        
         // // 4. 我的页截图
         // let meTabButton = app.tabBars.buttons["我的"]
         // if meTabButton.waitForExistence(timeout: 3) {
@@ -66,14 +66,14 @@ final class ScreenshotUITests: XCTestCase {
         //     sleep(2)
         //     captureScreenshot(named: "04_me_\(deviceName)")
         // }
-        //
+        
         // // 5. 播放页截图
         // let homeTabButton = app.tabBars.buttons["首页"]
         // if homeTabButton.waitForExistence(timeout: 3) {
         //     homeTabButton.tap()
         //     sleep(2)
         // }
-        //
+        
         // let playButton = app.buttons["play.circle"].firstMatch
         // if playButton.waitForExistence(timeout: 5) {
         //     playButton.tap()
