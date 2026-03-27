@@ -37,11 +37,19 @@
 
 对照 spec.test_criteria 逐项验证。
 
+## 严重程度分级
+
+| 级别 | 判断标准 | 处理方式 |
+|------|---------|---------|
+| Blocking | 安全漏洞、构建失败、架构边界违规、验收标准不通过 | 必须修复后重新验收 |
+| Warning | 编码约定偏离、图片处理可优化、日志格式不规范 | 本次任务中修复 |
+| Info | 废弃代码、可选优化、非本次引入的既存问题 | 记录到 debt-tracker.md |
+
 ## 输出
 
 通过：`[结果验收] 构建: 通过, 扫描: N维度/0违规, 验收标准: M项通过`
 
-不通过时输出 JSON（build_issues/scan_issues/criteria_check），交回修复后重新验收。
+不通过时输出违规清单（级别/build_issues/scan_issues/criteria_check），Blocking 和 Warning 交回修复后重新验收，Info 记录技术债。
 
 ## 上下文管理
 

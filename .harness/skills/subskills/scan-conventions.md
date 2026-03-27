@@ -25,6 +25,12 @@ PhotoTTS/Sources/ 下全部 .swift 文件。
 4. 左边缘手势识别 -- 有返回按钮的页面须实现左边缘手势（注释 `// 手势识别`，参数 `Constants.Gesture`）。
 5. 文档禁止润色 -- 注释和文本禁用 emoji/加粗/斜体。
 
+## 已知例外（不视为违规）
+
+- Constants.swift 内的常量定义本身不属于"散落各文件"
+- 系统框架要求的字面量（如 NotificationCenter name、UserDefaults key）在使用处定义可接受，但建议迁移到 Constants
+- 测试文件中的硬编码测试数据不视为魔法值
+
 ## 输出格式
 
 ```

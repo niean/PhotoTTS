@@ -21,7 +21,7 @@ description: 人工指令触发知识库回填
 识别：仓库结构不一致、Skills/Subskills 表过时、知识库索引不一致、摘要与 03-conventions.md 不同步等。列出候选清单（位置、当前描述、建议描述、原因）。
 
 ### Step 4 -- 等待人工确认
-通过 ask_followup_question 展示候选清单（必须写在 question 参数内）。
+通过 `AskUserQuestion` 展示候选清单，等待用户确认。
 
 ### Step 5 -- 更新 AGENTS.md
 按确认项最小化修改。

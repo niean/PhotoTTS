@@ -27,7 +27,7 @@ description: 人工指令触发代码治理
 ## Phase 3: 汇总与确认
 - Agent: Orchestrator
 - 合并结果，按严重程度排序（安全 > 架构 > 图片 > 日志 > 编码 > 废弃代码）
-- 通过 ask_followup_question 向用户展示违规清单，等待确认
+- 通过 `AskUserQuestion` 向用户展示违规清单，等待确认
 
 ## Phase 4: 修复
 - Agent: Orchestrator（主 Agent 直接修复）
@@ -40,10 +40,7 @@ description: 人工指令触发代码治理
 - Agent: Reviewer
 
 ### Step 5a: 构建验证（主 Agent）
-```bash
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' build 2>&1 | tail -20
-```
-零警告。失败回 Phase 4。
+执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），确认零警告零错误。失败回 Phase 4。
 
 ### Step 5b: 回归扫描（可选，修复涉及面广时）
 对修复涉及的文件重新执行 Phase 2 中相关维度的扫描，确认无新增违规或残留问题。无 subagent 时主 Agent 顺序执行。

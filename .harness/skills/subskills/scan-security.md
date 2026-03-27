@@ -26,6 +26,12 @@ PhotoTTS/Sources/ 下全部 .swift、.gitignore、Info.plist（如存在）。
 5. API 响应校验 -- 校验 HTTP 状态码和数据完整性，JSON 解码失败按错误处理。
 6. 数据本地存储 -- 用户数据仅存 Documents/Sessions/，不主动上传（OCR/TTS 请求除外）。
 
+## 已知例外（不视为违规）
+
+- config_example.json 中的占位符值（非真实密钥）
+- 测试代码中的 mock API key / mock URL
+- Bundle 内的非敏感配置文件（如 UI 配置、本地化字符串）
+
 ## 输出格式
 
 ```

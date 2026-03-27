@@ -28,6 +28,12 @@ PhotoTTS/Sources/ 下全部 .swift 文件。
 7. 头像预生成 -- 保存时生成 avatar.jpg，列表从磁盘加载，不从原图现场生成。
 8. 外发图片降采样 -- 发送到外部 API 的图片须经降采样（2048px）。
 
+## 已知例外（不视为违规）
+
+- SF Symbols 和 Asset Catalog 中的系统图标加载（Image(systemName:) / Image(decorative:)）
+- App Icon 和 LaunchScreen 中的静态资源
+- 小尺寸 UI 装饰图（如分隔线、背景纹理），无需降采样
+
 ## 输出格式
 
 ```

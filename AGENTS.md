@@ -49,7 +49,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 流程合规
 
-### 任务执行入口（不可压缩）
+### 任务执行入口（AI-READONLY）
 
 任务开始时首先进行 任务分类和Skill路由（新 Task 或同一 Task 内的第 2+ 次迭代均需分类），必须立即执行以下步骤，禁止跳过：
 
@@ -57,32 +57,26 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 2. 读取 Skill 定义：立即读取对应的 Skill 文件（如 `.harness/skills/iterate-feature.md`）
 3. 遵循 Skill 流程：按 Skill 文件定义的 Phase 顺序执行；特别强调，`[GATE]` 标记的 Phase 必须在消息框展示意图、等待人工确认，否则禁止执行后续 Phase
 
-禁止行为：
-- 禁止在读取 Skill 定义前直接开始代码实现
-- 禁止跳过任何 Phase，禁止简化、改编、拆分或合并 Phase
-- 禁止跳过`Phase 门禁[GATE]`（见下方 GATE 规则）
-- 禁止跳过、简化、改动 Phase的消息输出格式
-- 禁止主动调起 superpowers 插件（形如 `superpowers:skill-x`）；仅在用户明确指令时才可调用
+执行约束：
+- 必须先读取 Skill 定义，再开始代码实现
+- 必须按 Skill 文件定义的 Phase 顺序完整执行，不跳过、不简化、不改编、不拆分、不合并
+- 必须遵守 `[GATE]` 门禁（见下方 GATE 规则），在 GATE 点等待用户确认后再继续
+- 必须按 Phase 定义的消息输出格式输出，不简化、不改动
+- superpowers 插件（形如 `superpowers:skill-x`）仅在用户明确指令时调用，不主动调起
 
 
-### Phase 门禁（GATE）规则（不可压缩）
+### Phase 门禁（GATE）规则（AI-READONLY）
 
-- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `ask_followup_question` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
+- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `AskUserQuestion` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
-- `[GATE-ENTRY]` 标记的 Phase 开始前，必须确认用户已在上一条消息中给出明确回复；若前置 GATE Phase 在当前回复中刚输出，说明 GATE 被违反，必须停止
+- `[GATE-ENTRY]` 标记的 Phase 开始前，必须执行前置条件检查：(1) 上一条用户消息包含明确确认（如"确认""Yes""ok""继续"等），(2) 前置 GATE Phase 不在当前回复中输出。任一条件不满足则停止并提示用户
 - 当前 GATE 点：迭代功能 Phase 2 -> Phase 3
 
-### 引用外部步骤的执行约束（不可压缩）
+### 引用外部步骤的执行约束（AI-READONLY）
 
 - 当文档引用其它能力的 Step 而未展开描述时，在引用处必须附加约束：`每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报`
 
-### 不可压缩章节保护规则（不可压缩）
-
-- 标记为 `不可压缩` 的章节，AI 发现其内容存在问题时，只能以消息方式提示用户
-- AI 禁止自动修改 `不可压缩` 章节的内容
-- AI 禁止索要用户确认然后代为修改 `不可压缩` 章节的内容（防止用户误授权）
-
-### 消息输出格式（不可压缩）
+### 消息输出格式（AI-READONLY）
 
 - 任务声明：任务开始时声明任务类型和架构（新 Task 或同一 Task 内的第 2+ 次迭代均需声明），标准格式：`任务类型：功能需求；调度架构：多Agent` 或 `任务类型：修改文档；调度架构：单Agent`；同一 Task 内第 2+ 次迭代追加标注：`任务类型：功能需求；调度架构：多Agent。同一 Task 内第 N 次迭代`；非迭代功能类任务标注实际类型即可
 - 阶段描述：Skill 流程中的每个 Phase，输出时使用 `## Phase N: 名称` 作为段落标题，名称严格对齐 Skill 定义（如 `## Phase 1: 任务调度`）；Phase 标题必须独占一行，禁止在同一行附加角色标注或其它内容
@@ -90,10 +84,17 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
   - 阶段和角色组合格式示例：`## Phase 1: 任务调度`（标题独占一行）换行后 `[Agent: Orchestrator]`（角色标注独占一行）换行后正文内容
 - 术语禁忌：约束类术语（"硬性门禁""流程违规"等）只在规范文档中体现，不输出到用户消息框
 
+### 受保护章节规则（AI-READONLY）
+
+1. 标记为 `AI-READONLY` 内容保护的章节，AI 发现其内容存在问题时，只能以消息方式提示用户；AI 不得自动修改，也不得索要用户确认后代为修改（防止误授权）
+2. 标记为 `CONTEXT-CRITICAL` 上下文保护的章节：上下文压缩时必须保留原文，不得摘要替代
+
+
 ## 文件与文档
 
 - 禁止主动创建 README；不删除项目文件
 - 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
+- 命名语言约定：Agent 名称使用英文（Orchestrator、Reviewer）；Skill/Subskill 显示名使用中文（迭代功能、扫描架构边界）、文件名使用英文 kebab-case；消息输出中角色标注使用英文（`[Agent: Orchestrator]`）
 - AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/prd/、.harness/guides/
 - prd/ 与 knowledge/ 知识库冲突时，提示用户确认
 - 文档禁用 emoji/加粗/斜体，使用普通文字
@@ -181,10 +182,12 @@ spec 是一次性产物，服务于当前任务的设计确认和实现。实现
 
 同一 Task 允许有 1 个 spec + 1 个 plan；不同 Task 的 spec/plan 可同时存在于 active/ 目录中并行推进。
 
-1. Phase 1（任务调度）：检测 `specs/active/` 和 `plans/active/` 是否有属于当前 Task 的未完成文件；若有，复用；若有其他 Task 的活跃文件，保留不动；若无但 `completed/` 中有当前 Task 的文件，移回 `active/` 复用（状态改回 active）；均无则在后续 Phase 3 创建
-2. Phase 3（意图确认）：设计文档写入 `specs/active/spec-{YYMMDD}-{desc}.md`，实现计划写入 `plans/active/plan-{YYMMDD}-{desc}.md`
-3. 任务执行中：更新 plan 检查清单状态，记录变更，记录发现的技术债
-4. Phase 6（任务总结）：将当前 Task 的 spec 和 plan 状态改为 completed，分别移动到对应的 `completed/`；不影响其他 Task 的活跃文件
+| 阶段 | 操作 | 规则 |
+|------|------|------|
+| Phase 1 任务调度 | 检测 active/ 中是否有当前 Task 文件 | 有则复用；其他 Task 文件保留不动；completed/ 中有则移回 active/ 复用；均无则 Phase 3 创建 |
+| Phase 3 意图确认 | 写入 spec 和 plan | spec -> `specs/active/`，plan -> `plans/active/` |
+| 任务执行中 | 更新 plan | 更新检查清单状态、记录变更、记录技术债 |
+| Phase 6/7 任务总结 | 归档 | spec/plan 状态改 completed，移到 `completed/`；不影响其他 Task 文件 |
 
 ### 技术债管理
 

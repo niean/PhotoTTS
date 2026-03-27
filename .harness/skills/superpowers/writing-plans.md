@@ -81,7 +81,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ## Task Structure
 
 ````markdown
-### Task N: [Component Name]
+### T N: [Component Name]
 
 **Files:**
 - Create: `exact/path/to/file.py`
