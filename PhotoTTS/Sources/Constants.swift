@@ -436,8 +436,6 @@ extension Constants {
         static var navAction: Font { .system(size: s(16), weight: .medium) }
         /// 导航栏标题: 17pt semibold
         static var navTitle: Font { .system(size: s(17), weight: .semibold) }
-        /// PlayView 更多按钮: 18pt bold
-        static var playMoreIcon: Font { .system(size: s(18), weight: .bold) }
         /// 横拍提示返回: 18pt medium
         static var tipBackIcon: Font { .system(size: s(18), weight: .medium) }
         /// 播放/编辑圆形图标: 20pt
@@ -448,9 +446,13 @@ extension Constants {
         static var makeControlIcon: Font { .system(size: s(25)) }
         /// 制作开始按钮: 25pt semibold
         static var makeStartIcon: Font { .system(size: s(25), weight: .semibold) }
-        /// PlayView 播放按钮: 28pt bold
+        /// PlayView 播放按钮
         static var playMainIcon: Font { .system(size: s(28), weight: .bold) }
-        /// PlayView 连播进度: 22pt regular
+        /// PlayView 设置按钮
+        static var playSetIcon: Font { .system(size: s(25), weight: .regular) }
+        /// PlayView 更多按钮
+        static var playMoreIcon: Font { .system(size: s(25), weight: .regular) }
+        /// PlayView 连播进度
         static var playQueueProgress: Font { .system(size: s(22), weight: .regular) }
         /// 横拍提示箭头: 30pt medium
         static var tipArrowIcon: Font { .system(size: s(30), weight: .medium) }
@@ -506,31 +508,34 @@ extension Constants {
 
     /// 播放倍速选项
     enum PlaybackSpeed: String, CaseIterable, Codable {
-        case x0_9 = "0.9"
         case x1 = "1.0"
         case x1_1 = "1.1"
         case x1_25 = "1.25"
         case x1_5 = "1.5"
+        case x2 = "2.0"
+        case x3 = "3.0"
 
         /// 显示名称
         var displayName: String {
             switch self {
-            case .x0_9: return "0.9x"
             case .x1: return "1x"
             case .x1_1: return "1.1x"
             case .x1_25: return "1.25x"
             case .x1_5: return "1.5x"
+            case .x2: return "2x"
+            case .x3: return "3x"
             }
         }
 
         /// AVAudioPlayer 使用的速率值
         var rate: Float {
             switch self {
-            case .x0_9: return 0.9
             case .x1: return 1.0
             case .x1_1: return 1.1
             case .x1_25: return 1.25
             case .x1_5: return 1.5
+            case .x2: return 2.0
+            case .x3: return 3.0
             }
         }
 

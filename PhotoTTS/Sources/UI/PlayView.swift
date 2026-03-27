@@ -909,7 +909,7 @@ private struct PlayerControlLayer: View {
 
     var body: some View {
         ZStack {
-            // 横屏 bottom-left（旋转后 -> 用户横屏 bottom-left）：时间 + 进度条 + 操作按钮
+            // 横屏 bottom-left（旋转后 -> 用户横屏 bottom-left）：时间 + 进度条 + 操作按钮 + 设置按钮
             VStack(alignment: .leading, spacing: 10) {
                 // 时间显示
                 if showProgressBar {
@@ -937,7 +937,7 @@ private struct PlayerControlLayer: View {
                     )
                 }
 
-                // 操作按钮
+                // 操作按钮（含设置按钮）
                 HStack(spacing: 20) {
                     Button(action: {
                         onInteraction()
@@ -968,19 +968,21 @@ private struct PlayerControlLayer: View {
                             .foregroundColor(.white.opacity(0.5))
                             .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                     }
-                }
-            }
-            .padding(.bottom, 30)
-            .padding(.leading, 60)
-            .padding(.trailing, 60)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
-            // 顶部控制栏（横屏 top-right -> 用户横屏 top-right）：关闭按钮 + 更多按钮 + 播放设置面板
-            // HStack 内左→右顺序在用户横屏视角下保持不变：关闭在左（前方），更多在右
-            VStack(alignment: .trailing, spacing: 12) {
-                // 顶部按钮行：关闭 + 更多，间距固定，不受面板宽度影响
-                HStack(alignment: .top, spacing: 12) {
-                    // 关闭按钮（常驻快捷按钮，直接退出播放页）
+                    Spacer()
+
+                    // 设置按钮（与播放按钮同一水平线）
+                    Button(action: {
+                        isSettingsPanelVisible.toggle()
+                        onInteraction()
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(Constants.Fonts.playSetIcon)
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+                    }
+
+                    // 关闭按钮（与设置按钮同一水平线）
                     Button(action: {
                         onDismiss()
                     }) {
@@ -988,24 +990,18 @@ private struct PlayerControlLayer: View {
                             .font(Constants.Fonts.playMoreIcon)
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
-                            .frame(width: scaled(36), height: scaled(36))
-                    }
-
-                    // 更多按钮（三白点图标）
-                    Button(action: {
-                        isSettingsPanelVisible.toggle()
-                        onInteraction()
-                    }) {
-                        Image(systemName: "ellipsis")
-                            .font(Constants.Fonts.playMoreIcon)
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
-                            .frame(width: scaled(36), height: scaled(36))
+                            //.frame(width: scaled(36), height: scaled(36))
                     }
                 }
+            }
+            .padding(.bottom, 30)
+            .padding(.leading, 60)
+            .padding(.trailing, 60)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
-                // 播放设置面板（点击更多按钮展开/收起，位于按钮下方）
-                if isSettingsPanelVisible {
+            // 右侧：播放设置面板（从右边缘弹出，top/right 贴紧屏幕边缘）
+            if isSettingsPanelVisible {
+                ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         // 标题行
                         HStack {
@@ -1067,7 +1063,10 @@ private struct PlayerControlLayer: View {
                                 .font(Constants.Fonts.playNextLabel)
                                 .foregroundColor(.white)
 
-                            HStack(spacing: scaled(8)) {
+                            // 倍速选项网格布局：每行3个按钮
+                            let columns = Array(repeating: GridItem(.fixed(scaled(44)), spacing: scaled(8)), count: 3)
+
+                            LazyVGrid(columns: columns, spacing: scaled(8)) {
                                 ForEach(Constants.PlaybackSpeed.allCases, id: \.self) { speed in
                                     Button(action: {
                                         onToggleSpeed(speed)
@@ -1122,17 +1121,18 @@ private struct PlayerControlLayer: View {
                     }
                     .background(
                         RoundedRectangle(cornerRadius: scaled(12))
-                            .fill(Color.black.opacity(0.25))
+                            .fill(Color.black.opacity(0.5))
                     )
-                    .fixedSize(horizontal: true, vertical: false)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topTrailing)))
                 }
-            } // VStack（顶部按钮行 + 面板）
-            .padding(.trailing, 60)
-            .padding(.top, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .animation(.easeInOut(duration: 0.2), value: isSettingsPanelVisible)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minHeight: scaled(350))
+                .padding(.trailing, 0)
+                .padding(.top, 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: isSettingsPanelVisible)
     }
 
     private func formatTime(_ time: TimeInterval) -> String {
