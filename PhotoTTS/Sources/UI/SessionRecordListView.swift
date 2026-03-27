@@ -240,6 +240,95 @@ struct SessionRecordListView: View {
         .clipShape(RoundedRectangle(cornerRadius: Constants.SearchBar.cornerRadius))
     }
     
+    // 分组模式列表内容
+    @ViewBuilder
+    private var groupedListContent: some View {
+        let groups = cachedGroups
+        if groups.isEmpty {
+            VStack(spacing: scaled(12)) {
+                Image(systemName: "magnifyingglass")
+                    .font(Constants.Fonts.searchEmptyIcon)
+                    .foregroundColor(.gray)
+                Text(Constants.UI.searchNoResult)
+                    .font(Constants.Fonts.searchNoResult)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, scaled(40))
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color(.systemBackground))
+            .listRowSeparator(.hidden)
+        } else {
+            ForEach(groups, id: \.key) { group in
+                Section {
+                    groupHeaderView(
+                        key: group.key,
+                        count: group.items.count,
+                        latestDate: group.items.first?.namePrefixDate ?? Date()
+                    )
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+
+                    if expandedGroup == group.key {
+                        ForEach(group.items) { metadata in
+                            self.makeSessionRecordRow(for: metadata)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 平铺模式列表内容
+    @ViewBuilder
+    private var flatListContent: some View {
+        if pagedMetadataList.isEmpty {
+            VStack(spacing: scaled(12)) {
+                Image(systemName: "magnifyingglass")
+                    .font(Constants.Fonts.searchEmptyIcon)
+                    .foregroundColor(.gray)
+                Text(Constants.UI.searchNoResult)
+                    .font(Constants.Fonts.searchNoResult)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, scaled(40))
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color(.systemBackground))
+            .listRowSeparator(.hidden)
+        } else {
+            ForEach(pagedMetadataList) { metadata in
+                self.makeSessionRecordRow(for: metadata)
+                    .overlay {
+                        if metadata.id == pagedMetadataList.first?.id {
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear {
+                                        if !scrollAnchorSetup {
+                                            scrollAnchorY = geo.frame(in: .named("listOuter")).minY
+                                        }
+                                    }
+                                    .onChange(of: geo.frame(in: .named("listOuter")).minY) { _, newY in
+                                        guard scrollAnchorSetup else {
+                                            scrollAnchorY = newY
+                                            return
+                                        }
+                                        onListScrolled?(newY < scrollAnchorY - 5)
+                                    }
+                            }
+                        }
+                    }
+            }
+
+            if showPagination {
+                paginationControl
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color(.systemBackground))
+                    .listRowSeparator(.hidden)
+            }
+        }
+    }
+
     // 分页控件
     private var paginationControl: some View {
         PaginationControl(
@@ -250,142 +339,67 @@ struct SessionRecordListView: View {
         )
     }
     
+    // 主内容区（loading / empty / list）
+    @ViewBuilder
+    private var mainContentArea: some View {
+        if isLoading {
+            Spacer()
+            ProgressView("加载中...")
+                .scaleEffect(scaled(1.0))
+            Spacer()
+        } else if !isGroupedMode && totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Spacer()
+            VStack(spacing: scaled(20)) {
+                Image(systemName: "book.closed")
+                    .font(Constants.Fonts.emptyStateIcon)
+                    .foregroundColor(.gray)
+
+                Text("暂无会话记录")
+                    .font(Constants.Fonts.navTitle)
+                    .foregroundColor(.secondary)
+
+                Text("导入记录，或播放完成后保存记录")
+                    .font(Constants.Fonts.recordMeta)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        } else {
+            ScrollViewReader { scrollProxy in
+            List {
+                searchBar
+                    .frame(minHeight: Constants.SearchBar.rowMinHeight)
+                    .listRowInsets(EdgeInsets(
+                        top: Constants.SearchBar.topPadding,
+                        leading: Constants.SearchBar.outerHorizontalPadding,
+                        bottom: Constants.SearchBar.bottomPadding,
+                        trailing: Constants.SearchBar.outerHorizontalPadding
+                    ))
+                    .listRowBackground(Color(.systemBackground))
+                    .listRowSeparator(.hidden)
+                    .id(Constants.UI.searchBarRowId)
+
+                if isGroupedMode {
+                    groupedListContent
+                } else {
+                    flatListContent
+                }
+            }
+            .listStyle(.plain)
+            .onAppear {
+                if hideSearchBarByDefault {
+                    scrollToHideSearchBar(proxy: scrollProxy)
+                }
+            }
+            } // ScrollViewReader
+        }
+    }
+
     var body: some View {
         CustomZStack {
             // 主内容区
             HStack {
                 VStack(spacing: 0) {
-                    if isLoading {
-                        Spacer()
-                        ProgressView("加载中...")
-                            .scaleEffect(scaled(1.0))
-                        Spacer()
-                    } else if !isGroupedMode && totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Spacer()
-                        VStack(spacing: scaled(20)) {
-                            Image(systemName: "book.closed")
-                                .font(Constants.Fonts.emptyStateIcon)
-                                .foregroundColor(.gray)
-                            
-                            Text("暂无会话记录")
-                                .font(Constants.Fonts.navTitle)
-                                .foregroundColor(.secondary)
-                            
-                            Text("导入记录，或播放完成后保存记录")
-                                .font(Constants.Fonts.recordMeta)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    } else {
-                        ScrollViewReader { scrollProxy in
-                        List {
-                            // 搜索栏（embedded 模式默认隐藏在顶导上方，其他模式默认可见）
-                            searchBar
-                                .frame(minHeight: Constants.SearchBar.rowMinHeight)
-                                .listRowInsets(EdgeInsets(
-                                    top: Constants.SearchBar.topPadding,
-                                    leading: Constants.SearchBar.outerHorizontalPadding,
-                                    bottom: Constants.SearchBar.bottomPadding,
-                                    trailing: Constants.SearchBar.outerHorizontalPadding
-                                ))
-                                .listRowBackground(Color(.systemBackground))
-                                .listRowSeparator(.hidden)
-                                .id(Constants.UI.searchBarRowId)
-                            
-                            if isGroupedMode {
-                                // 分组模式：手风琴
-                                let groups = cachedGroups
-                                if groups.isEmpty {
-                                    VStack(spacing: scaled(12)) {
-                                        Image(systemName: "magnifyingglass")
-                                            .font(Constants.Fonts.searchEmptyIcon)
-                                            .foregroundColor(.gray)
-                                        Text(Constants.UI.searchNoResult)
-                                            .font(Constants.Fonts.searchNoResult)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, scaled(40))
-                                    .listRowInsets(EdgeInsets())
-                                    .listRowBackground(Color(.systemBackground))
-                                    .listRowSeparator(.hidden)
-                                } else {
-                                    ForEach(groups, id: \.key) { group in
-                                        Section {
-                                            groupHeaderView(
-                                                key: group.key,
-                                                count: group.items.count,
-                                                latestDate: group.items.first?.namePrefixDate ?? Date()
-                                            )
-                                            .listRowInsets(EdgeInsets())
-                                            .listRowSeparator(.hidden)
-
-                                            if expandedGroup == group.key {
-                                                ForEach(group.items) { metadata in
-                                                    self.makeSessionRecordRow(for: metadata)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if pagedMetadataList.isEmpty {
-                                // 平铺模式搜索无结果
-                                VStack(spacing: scaled(12)) {
-                                    Image(systemName: "magnifyingglass")
-                                        .font(Constants.Fonts.searchEmptyIcon)
-                                        .foregroundColor(.gray)
-                                    Text(Constants.UI.searchNoResult)
-                                        .font(Constants.Fonts.searchNoResult)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, scaled(40))
-                                .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color(.systemBackground))
-                                .listRowSeparator(.hidden)
-                            } else {
-                                // 平铺模式
-                                ForEach(pagedMetadataList) { metadata in
-                                    self.makeSessionRecordRow(for: metadata)
-                                        .overlay {
-                                            if metadata.id == pagedMetadataList.first?.id {
-                                                GeometryReader { geo in
-                                                    Color.clear
-                                                        .onAppear {
-                                                            if !scrollAnchorSetup {
-                                                                scrollAnchorY = geo.frame(in: .named("listOuter")).minY
-                                                            }
-                                                        }
-                                                        .onChange(of: geo.frame(in: .named("listOuter")).minY) { _, newY in
-                                                            guard scrollAnchorSetup else {
-                                                                scrollAnchorY = newY
-                                                                return
-                                                            }
-                                                            onListScrolled?(newY < scrollAnchorY - 5)
-                                                        }
-                                                }
-                                            }
-                                        }
-                                }
-
-                                // 分页控件（仅平铺模式）
-                                if showPagination {
-                                    paginationControl
-                                        .listRowInsets(EdgeInsets())
-                                        .listRowBackground(Color(.systemBackground))
-                                        .listRowSeparator(.hidden)
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .onAppear {
-                            // embedded 模式下自动滚动隐藏搜索栏，其他模式保持可见
-                            if hideSearchBarByDefault {
-                                scrollToHideSearchBar(proxy: scrollProxy)
-                            }
-                        }
-                        } // ScrollViewReader
-                    }
+                    mainContentArea
                 }
                 .frame(maxWidth: maxContentWidth)
                 .padding(.top, showTopNav ? (scaled(45)) : 0)
