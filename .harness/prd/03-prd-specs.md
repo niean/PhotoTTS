@@ -164,13 +164,13 @@
     - 播放：FR，播放器设置面板倍速选项支持多行，倍速选项调整为x1 x1.1 x1.25 x1.5 x2 x3，每行最多3个选项按钮、支持多行
 - HE
     - 治理：superpowers，任务名为`Task N`的、均改为`T N`，步骤名为`Step N`的、均改为`S N`，避免和Harness冲突；同步更新 superpowers/README
+    - 治理：按照Anthropic最佳实践，检查项目Harness知识库的RULE、SKILL、Prompt等描述，给出必要的改进意见；
 
 
 ---
 
 [待办]
 - 优化
-    - 治理：按照Anthropic的最佳实践，检查Harness知识库的RULE、SKILL、Prompt等描述；
 - 新增
     - 管理：支持按绘本系列分类
 - 备选

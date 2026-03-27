@@ -22,7 +22,7 @@ description: 人工指令触发产品文档回填
 列出候选清单（位置、当前描述、建议描述、需求来源）。
 
 ### Step 3 -- 等待人工确认
-通过 ask_followup_question 展示候选清单（必须写在 question 参数内）。
+通过 `AskUserQuestion` 展示候选清单，等待用户确认。
 
 ### Step 4 -- 更新产品文档
 按确认项最小化修改，保持文风。

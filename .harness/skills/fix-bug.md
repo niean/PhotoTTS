@@ -22,11 +22,7 @@ description: 修复Bug或异常行为修复时使用
 
 ## Phase 2: 修复Bug
 - Agent: Orchestrator
-- 读取 `.harness/skills/superpowers/systematic-debugging.md`，完整执行其四阶段流程：
-  1. Phase 1 Root Cause Investigation：阅读错误、复现问题、检查变更、收集证据
-  2. Phase 2 Pattern Analysis：找到可工作的示例，对比参考实现，识别差异点
-  3. Phase 3 Hypothesis and Testing：形成单一假设，进行最小化测试确认
-  4. Phase 4 Implementation：TDD 写失败测试 → 修复 → 用 `verification-before-completion` 验证
+- 读取 `.harness/skills/superpowers/systematic-debugging.md`，完整执行其四阶段流程（核心：根因调查 → 模式分析 → 假设验证 → TDD 实现修复）
 - 完全遵循 superpowers 流程，不跳过、不简化、不自定义
 - build 必须 zero warnings（含 IDE 配置警告、工具级警告）
 
@@ -53,7 +49,7 @@ description: 修复Bug或异常行为修复时使用
 ## Phase 5: 任务总结
 - Agent: Orchestrator
 - 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
-- 执行顺序：输出总结报告 -> attempt_completion，在同一条回复中完成
+- 执行顺序：输出总结报告 -> 结束任务，在同一条回复中完成
 
 ---
 

@@ -25,13 +25,14 @@ description: 人工下发功能需求或修改代码时使用
 - spec 落盘后，向用户输出需求摘要（目标 + 范围 + 方案 + 验收标准），等待确认
 - 用户修正时：更新 spec，输出完整摘要再次确认
 - 用户修正 ≠ 用户确认：收到修正后必须重新输出完整摘要并重走 GATE 确认流程，禁止将修正视为确认直接进入 Phase 3
-- `[GATE]` spec 落盘后（含修正后重新落盘），必须使用 `ask_followup_question` 向用户请求确认，立即结束当前回复；禁止在同一条回复中继续 Phase 3
+- `[GATE]` spec 落盘后（含修正后重新落盘），必须使用 `AskUserQuestion` 向用户请求确认，立即结束当前回复；禁止在同一条回复中继续 Phase 3
 
 检查点：`[Phase 2 需求探索与设计] goal: ..., scope: N 文件, 方案: 已确认`
 
 ## Phase 3: 计划制定 `[GATE-ENTRY]`
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认 spec；若 Phase 2 在当前回复中刚输出，说明 GATE 被违反，必须停止
 - 读取 `.harness/skills/superpowers/writing-plans.md`，按其流程执行到 "Plan Review Loop" 后终止；"Execution Handoff" 由本 Phase 自行执行（见"流程控制覆盖"节）
+- 核心步骤：读取 spec + 代码 → 拆分 task（含文件结构 + TDD 步骤）→ 写 plan → plan review loop
 - plan 落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > Plan 文件模板）
 - plan 落盘后，确定执行方式（Subagent-Driven / Inline Execution）后进入 Phase 4：若用户在输入指令中明确指定了执行方式则遵从；否则 AI 按任务类型自主决策，简单任务使用 Inline Execution、复杂任务使用 Subagent-Driven，无需人工确认
 
@@ -39,8 +40,8 @@ description: 人工下发功能需求或修改代码时使用
 
 ## Phase 4: 代码实现
 - 按 Phase 3 确定的执行方式，读取对应的 superpowers 文件并按其流程执行：
-  - Subagent-Driven: `.harness/skills/superpowers/subagent-driven-development.md`
-  - Inline Execution: `.harness/skills/superpowers/executing-plans.md`
+  - Subagent-Driven: `.harness/skills/superpowers/subagent-driven-development.md`（核心：分派独立 task 到 subagent 并行实现，主 Agent 逐 task review）
+  - Inline Execution: `.harness/skills/superpowers/executing-plans.md`（核心：主 Agent 按 plan 逐 task 串行实现，每 task 完成后 self-review）
 - 按 plan 逐 task 实现，不含 git commit
 - build 必须 zero warnings（含 IDE 配置警告、工具级警告）
 - TDD 适用范围：Manager/Coordinator/Service/Handler 等可独立测试的逻辑层必须 TDD（failing test → implement → verify）；SwiftUI View、App 生命周期、纯 UI 布局等不要求 TDD，直接实现后通过构建验证即可
@@ -69,8 +70,7 @@ description: 人工下发功能需求或修改代码时使用
 ## Phase 7: 任务总结
 - Agent: Orchestrator
 - 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
-- 执行顺序：输出总结报告 -> 归档当前 Task 的文件（spec 移到 `specs/completed/`，plan 移到 `plans/completed/`，不影响其他 Task 的活跃文件）-> attempt_completion，在同一条回复中完成
-- 总结报告内容通过 `attempt_completion` 的 result 参数承载
+- 执行顺序：输出总结报告 -> 归档当前 Task 的文件（spec 移到 `specs/completed/`，plan 移到 `plans/completed/`，不影响其他 Task 的活跃文件）-> 结束任务，在同一条回复中完成
 
 ---
 
