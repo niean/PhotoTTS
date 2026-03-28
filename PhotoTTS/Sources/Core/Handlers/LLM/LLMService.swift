@@ -67,6 +67,20 @@ struct LLMConstants {
     static let maxInputTextLength = 20000
     /// 绘本名称需要过滤的特殊字符集
     static let storyNameInvalidCharacters: CharacterSet = CharacterSet(charactersIn: "`'\"「」『』〔〕【】〖〗[]()（）")
+
+    /// 去除字符串开头的数字编号模式（如 "1." "2." "3." 等）
+    /// - Parameter text: 待处理的字符串
+    /// - Returns: 去除开头数字编号后的字符串
+    static func stripLeadingNumberPrefix(_ text: String) -> String {
+        var result = text
+        // 匹配开头的数字+点模式，如 "1." "2." "10." 等
+        let pattern = "^\\d+\\."
+        if let range = result.range(of: pattern, options: .regularExpression) {
+            result.removeSubrange(range)
+            result = result.trimmingCharacters(in: .whitespaces)
+        }
+        return result
+    }
 }
 
 // MARK: - LLM错误
@@ -307,8 +321,10 @@ class DoubaoLLMService: LLMServiceProtocol {
                     .replacingOccurrences(of: namePrefix, with: "")
                     .replacingOccurrences(of: "绘本名称:", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !extracted.isEmpty && !extracted.contains("总结失败") {
-                    let filtered = extracted.components(separatedBy: LLMConstants.storyNameInvalidCharacters).joined()
+                // 去除开头的数字编号（如 "1." "2." 等）
+                let cleaned = LLMConstants.stripLeadingNumberPrefix(extracted)
+                if !cleaned.isEmpty && !cleaned.contains("总结失败") {
+                    let filtered = cleaned.components(separatedBy: LLMConstants.storyNameInvalidCharacters).joined()
                     let trimmed = String(filtered.prefix(12))
                     if trimmed.count >= 3 {
                         storyName = trimmed
@@ -335,8 +351,10 @@ class DoubaoLLMService: LLMServiceProtocol {
                     .replacingOccurrences(of: highlightsPrefix, with: "")
                     .replacingOccurrences(of: "绘本要点:", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !extracted.isEmpty && !extracted.contains("总结失败") {
-                    let trimmed = String(extracted.prefix(30))
+                // 去除开头的数字编号（如 "1." "2." 等）
+                let cleaned = LLMConstants.stripLeadingNumberPrefix(extracted)
+                if !cleaned.isEmpty && !cleaned.contains("总结失败") {
+                    let trimmed = String(cleaned.prefix(30))
                     if trimmed.count >= 15 {
                         storyHighlights = trimmed
                         isHighlightsSuccess = true
@@ -509,8 +527,10 @@ class OpenAILLMService: LLMServiceProtocol {
                     .replacingOccurrences(of: namePrefix, with: "")
                     .replacingOccurrences(of: "绘本名称:", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !extracted.isEmpty && !extracted.contains("总结失败") {
-                    let filtered = extracted.components(separatedBy: LLMConstants.storyNameInvalidCharacters).joined()
+                // 去除开头的数字编号（如 "1." "2." 等）
+                let cleaned = LLMConstants.stripLeadingNumberPrefix(extracted)
+                if !cleaned.isEmpty && !cleaned.contains("总结失败") {
+                    let filtered = cleaned.components(separatedBy: LLMConstants.storyNameInvalidCharacters).joined()
                     let trimmed = String(filtered.prefix(12))
                     if trimmed.count >= 3 {
                         storyName = trimmed
@@ -537,8 +557,10 @@ class OpenAILLMService: LLMServiceProtocol {
                     .replacingOccurrences(of: highlightsPrefix, with: "")
                     .replacingOccurrences(of: "绘本要点:", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !extracted.isEmpty && !extracted.contains("总结失败") {
-                    let trimmed = String(extracted.prefix(30))
+                // 去除开头的数字编号（如 "1." "2." 等）
+                let cleaned = LLMConstants.stripLeadingNumberPrefix(extracted)
+                if !cleaned.isEmpty && !cleaned.contains("总结失败") {
+                    let trimmed = String(cleaned.prefix(30))
                     if trimmed.count >= 15 {
                         storyHighlights = trimmed
                         isHighlightsSuccess = true

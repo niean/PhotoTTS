@@ -106,6 +106,8 @@ extension Constants {
         static let browsingTimeout: TimeInterval = 30
         static let transferTimeout: TimeInterval = 300
         static let zipTempPrefix = "peer_transfer_"
+        /// 状态重置延迟：确保 MultipeerConnectivity 底层状态完全清理后再创建新 session
+        static let stateResetDelay: TimeInterval = 0.5
     }
 
     // MARK: - 缓存配置扩展

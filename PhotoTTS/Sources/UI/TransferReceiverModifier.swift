@@ -117,9 +117,15 @@ struct TransferReceiverModifier: ViewModifier {
                     }
                     return false
                 },
-                set: { if !$0 { transferManager.reset(); transferManager.startAdvertising() } }
+                set: { if !$0 {
+                    // 延迟重置并重启广播，确保 MultipeerConnectivity 底层状态完全清理
+                    transferManager.reset()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Constants.PeerTransfer.stateResetDelay) {
+                        transferManager.startAdvertising()
+                    }
+                }}
             )) {
-                Button("确定") { transferManager.reset(); transferManager.startAdvertising() }
+                Button("确定") {}
             } message: {
                 if case .completed(let imported, let skipped) = transferManager.transferState {
                     Text("已接收 \(imported) 条记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
@@ -135,9 +141,15 @@ struct TransferReceiverModifier: ViewModifier {
                     }
                     return false
                 },
-                set: { if !$0 { transferManager.reset(); transferManager.startAdvertising() } }
+                set: { if !$0 {
+                    // 延迟重置并重启广播，确保 MultipeerConnectivity 底层状态完全清理
+                    transferManager.reset()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Constants.PeerTransfer.stateResetDelay) {
+                        transferManager.startAdvertising()
+                    }
+                }}
             )) {
-                Button("确定") { transferManager.reset(); transferManager.startAdvertising() }
+                Button("确定") {}
             } message: {
                 if case .failed(let msg) = transferManager.transferState {
                     Text(msg)

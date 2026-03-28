@@ -65,6 +65,14 @@ subagent 是通过 `use_subagents` 启动的独立上下文窗口，是运行方
 - Skill/Agent 调用 Subskill：通过 subagent 机制并行启动
 - Subskill 不反向引用 Skill 或 Agent
 
+### 3.4 文档引用方向
+
+引用方向应自上而下：上层引用下层定义，同层可编排引用，下层仅允许"指回入口"式引用（不反向引用上层具体定义）。
+
+允许的特例：
+- AGENTS.md 与 knowledge/03-conventions.md：双向声明摘要-权威源关系
+- knowledge/01-overview.md 指回 AGENTS.md：入口指引
+
 ---
 
 ## 4. Skills
