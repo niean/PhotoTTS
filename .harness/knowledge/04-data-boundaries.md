@@ -1,3 +1,4 @@
+<!-- SUMMARY: 数据边界：SessionRecord结构、磁盘存储格式、config_local.json、导入导出格式 -->
 # 数据与类型边界
 
 ## 会话记录

@@ -132,13 +132,37 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ## 上下文管理
 
-- 首次加载（Task 首条消息），必须读取 `.harness/knowledge/` 全部文件 + `.harness/prd/`（除 03-prd-specs.md），了解项目全貌
+- 首次加载（Task 首条消息）分层加载知识库：
+  1. 必读：读取 `.harness/knowledge/` 和 `.harness/prd/`（除 03-prd-specs.md）每个文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
+  2. 必读：完整读取 `01-overview.md`（项目概览）+ `22-file-map.md`（文件映射）
+  3. 按需：根据任务类型完整读取相关文件（见下方"任务类型加载矩阵"）
 - 后续迭代（同一 Task 内），按需查阅 `.harness/knowledge/` 和 `.harness/prd/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
-- 多步任务：每步完成压缩为检查点摘要（不超过 5 行），后续只携带摘要；每步只加载必需文件
+- 多步任务：每步完成压缩为检查点摘要（见下方"检查点摘要模板"），后续只携带摘要；每步只加载必需文件
 - 所有步骤均为必选项，禁止因上下文压力跳过；上下文紧张时先压缩已有内容再继续
 - 委派产出（subagent、跨 Phase 交接）：产出结构化结论（表格、要点），不搬运原文；需要完整内容时直接读取源文件
 - 产出超限时：缩小单次任务范围或拆分为多个子任务，不重试相同范围
 - 各 Skill 如有更具体的上下文管理要求，以 Skill 文件为准
+
+### 任务类型加载矩阵
+
+首次加载时，根据任务类型选择性读取知识库文件（所有文件首行 SUMMARY 始终必读）：
+
+| 任务类型 | 必读（完整读取） | 按需读取 |
+|---------|----------------|---------|
+| 功能需求 | 01-overview, 02-architecture, 22-file-map, 01-prd-sense, 02-prd-baseline | 03-conventions, 04-data-boundaries, 05-key-patterns, 21-glossary |
+| Bug修复 | 01-overview, 03-conventions, 22-file-map | 02-architecture, 04-data-boundaries, 05-key-patterns, 21-glossary |
+| 治理/扫描 | 01-overview, 03-conventions, 22-file-map | 02-architecture, 05-key-patterns |
+| 文档维护 | 01-overview, 22-file-map | 按涉及文档内容按需读取 |
+
+### 检查点摘要模板
+
+Phase 间交接使用结构化检查点摘要（不超过 5 行），标准格式：
+
+```
+[Phase N: 名称] 目标: {一句话}; 产出: {文件/决策}; 变更: {file1(修改), file2(新增)}; 状态: {完成/部分完成}; 后续依赖: {下一Phase需要的关键信息}
+```
+
+各 Skill 可在此模板基础上定义更具体的字段（如 iterate-feature 的 scope/tasks 字段），但必须保持单行格式、不超过 5 行。
 
 ## 执行计划管理
 

@@ -1,3 +1,4 @@
+<!-- SUMMARY: 术语表：32个核心术语定义(AppState/SessionRecord/Coordinator/PlayView等) -->
 # 术语表
 
 - AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、sessionRecordToPlay（Siri 触发）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage 等

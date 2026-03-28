@@ -1,3 +1,4 @@
+<!-- SUMMARY: 项目概览：iOS绘本听读应用，技术栈Swift/iOS18.1+/MVVM+SwiftUI，核心流程选图-OCR-TTS-播放-保存 -->
 # 项目概览
 
 ## 一句话

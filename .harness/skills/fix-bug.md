@@ -17,7 +17,7 @@ description: 修复Bug或异常行为修复时使用
 
 ## Phase 1: 任务调度
 - Agent: Orchestrator
-- 按 AGENTS.md "上下文管理"要求，首次加载必须读取 `.harness/knowledge/` 全部文件 + `.harness/prd/`（除 03-prd-specs.md）
+- 按 AGENTS.md "上下文管理"要求分层加载知识库：读取所有文件首行 SUMMARY 建立索引，完整读取任务类型加载矩阵中"Bug修复"对应的必读文件
 - 确认约束与产品方向，启动 Phase 2
 
 ## Phase 2: 修复Bug
