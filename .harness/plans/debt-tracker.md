@@ -17,6 +17,7 @@
 | DEBT009 | 编码约定-RealTimeMonitorView.swift第15-16行本地常量iconSize/horizontalPadding未统一到Constants.swift | low | plan-260326-early-start-monitor | 2026-03-26 | open |
 | DEBT010 | 测试-PeerTransferManagerTests.testArchiveEmptyDirectory()失败，需排查修复 | medium | plan-260326-early-start-monitor | 2026-03-26 | open |
 | DEBT011 | 测试-AliqwenTTSTests.testFullConfigRequest()/testMinimalRequest()失败，需排查修复 | medium | plan-260326-early-start-monitor | 2026-03-26 | open |
+| DEBT012 | 编码约定-CustomCameraView.swift约30+处UI布局魔法值（圆角/边框/字号/间距等）硬编码，未集中到Constants.swift | low | plan-260329-camera-thumbnail | 2026-03-29 | open |
 
 ---
 

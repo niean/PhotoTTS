@@ -125,10 +125,9 @@ class MakeTask: ObservableObject, Identifiable {
     /// 标记处理完成
     func markCompleted(response: AudioResponse) {
         let endTime = Date()
-        if let start = ocrStartTime {
-            ocrDuration = endTime.timeIntervalSince(start) - llmDuration - ttsDuration
-            if ocrDuration < 0 { ocrDuration = 0 }
-        }
+        // OCR 耗时已在 updateProgress 中计算（进入 LLM 阶段时）
+        // LLM 耗时已在 updateProgress 中计算（进入 TTS 阶段时）
+        // TTS 耗时需要在此处最终确认
         if let start = ttsStartTime {
             ttsDuration = endTime.timeIntervalSince(start)
         }

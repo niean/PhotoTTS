@@ -69,6 +69,8 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     // MARK: - 状态信息
     /// OCR处理耗时（秒）
     let ocrDuration: TimeInterval
+    /// LLM处理耗时（秒）
+    let llmDuration: TimeInterval
     /// TTS处理耗时（秒）
     let ttsDuration: TimeInterval
     /// 有效图片数量
@@ -117,6 +119,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         audioFormat: String,
         audioDuration: TimeInterval,
         ocrDuration: TimeInterval,
+        llmDuration: TimeInterval = 0,
         ttsDuration: TimeInterval,
         validImageCount: Int,
         voiceSettings: VoiceSettings? = nil,
@@ -143,8 +146,9 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.audioDataBase64 = audioData.base64EncodedString()
         self.audioFormat = audioFormat
         self.audioDuration = audioDuration
-        
+
         self.ocrDuration = ocrDuration
+        self.llmDuration = llmDuration
         self.ttsDuration = ttsDuration
         self.validImageCount = validImageCount
         self.totalImageCount = images.count
@@ -169,7 +173,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     }
     
     /// 按成员复制
-    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft) {
+    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, llmDuration: TimeInterval = 0, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -181,6 +185,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.audioFormat = audioFormat
         self.audioDuration = audioDuration
         self.ocrDuration = ocrDuration
+        self.llmDuration = llmDuration
         self.ttsDuration = ttsDuration
         self.validImageCount = validImageCount
         self.totalImageCount = totalImageCount
@@ -212,6 +217,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         try container.encode(audioFormat, forKey: .audioFormat)
         try container.encode(audioDuration, forKey: .audioDuration)
         try container.encode(ocrDuration, forKey: .ocrDuration)
+        try container.encode(llmDuration, forKey: .llmDuration)
         try container.encode(ttsDuration, forKey: .ttsDuration)
         try container.encode(validImageCount, forKey: .validImageCount)
         try container.encode(totalImageCount, forKey: .totalImageCount)
@@ -238,6 +244,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         case audioFormat
         case audioDuration
         case ocrDuration
+        case llmDuration
         case ttsDuration
         case validImageCount
         case totalImageCount
@@ -266,6 +273,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         audioFormat = try container.decode(String.self, forKey: .audioFormat)
         audioDuration = try container.decode(TimeInterval.self, forKey: .audioDuration)
         ocrDuration = try container.decode(TimeInterval.self, forKey: .ocrDuration)
+        llmDuration = try container.decodeIfPresent(TimeInterval.self, forKey: .llmDuration) ?? 0
         ttsDuration = try container.decode(TimeInterval.self, forKey: .ttsDuration)
         validImageCount = try container.decode(Int.self, forKey: .validImageCount)
         totalImageCount = try container.decode(Int.self, forKey: .totalImageCount)
@@ -283,7 +291,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     
     /// 返回带新 storageSize 的副本（用于保存后写回 record.json）
     func withStorageSize(_ size: Int64) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle)
     }
     
     // MARK: - 辅助方法
@@ -348,7 +356,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     
     /// 获取总处理耗时
     var totalDuration: TimeInterval {
-        return ocrDuration + ttsDuration
+        return ocrDuration + llmDuration + ttsDuration
     }
     
     /// 格式化显示时间

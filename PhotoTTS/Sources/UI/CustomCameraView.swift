@@ -49,12 +49,19 @@ struct CustomCameraView: UIViewControllerRepresentable {
             parent.selectedImages.append(capped)
             parent.onImagesSelected?([capped])
             os.Logger.camera.debug("照片已添加, 继续拍摄。当前已拍摄 \(self.parent.selectedImages.count) 张")
-            
-            // 更新相机界面的状态显示
+
+            // 更新相机界面的状态显示和缩略图
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 let newCount = self.parent.selectedImages.count
                 self.parent.onPhotoCountUpdate?(newCount)
+
+                // 发送通知更新缩略图
+                NotificationCenter.default.post(
+                    name: Constants.NotificationNames.updateImageCount,
+                    object: nil,
+                    userInfo: ["count": newCount, "lastImage": capped]
+                )
             }
         }
         
@@ -88,8 +95,20 @@ class CustomCameraViewController: UIViewController {
     
     private let captureButton = UIButton()
     private let cancelButton = UIButton()
-    private let flipCameraButton = UIButton()
     private let statusLabel = UILabel()
+
+    /// 上一张图片缩略图
+    private let lastPhotoThumbnailView: UIImageView = {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = 25
+        imageView.layer.borderWidth = 2
+        imageView.layer.borderColor = UIColor.white.cgColor
+        imageView.backgroundColor = .white
+        imageView.isHidden = false
+        return imageView
+    }()
     
     // 遮罩层视图
     private let bottomOverlay = UIView()
@@ -119,6 +138,16 @@ class CustomCameraViewController: UIViewController {
         if let userInfo = notification.userInfo,
            let count = userInfo["count"] as? Int {
             setPhotoCount(count)
+        }
+        // 更新缩略图
+        if let userInfo = notification.userInfo,
+           let lastImage = userInfo["lastImage"] as? UIImage {
+            updateThumbnail(lastImage)
+        } else if let userInfo = notification.userInfo,
+                  let count = userInfo["count"] as? Int,
+                  count == 0 {
+            // 无图片时隐藏缩略图
+            updateThumbnail(nil)
         }
     }
     
@@ -357,35 +386,11 @@ class CustomCameraViewController: UIViewController {
         cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .medium)
         cancelButton.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
         view.addSubview(cancelButton)
-        
-        // 前后相机切换按钮
-        flipCameraButton.setTitle("", for: .normal)
-        flipCameraButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        flipCameraButton.layer.cornerRadius = 25
-        flipCameraButton.layer.borderWidth = 2
-        flipCameraButton.layer.borderColor = UIColor.white.cgColor
-        flipCameraButton.layer.shadowColor = UIColor.black.cgColor
-        flipCameraButton.layer.shadowOffset = CGSize(width: 0, height: 2)
-        flipCameraButton.layer.shadowOpacity = 0.3
-        flipCameraButton.layer.shadowRadius = 4
-        flipCameraButton.addTarget(self, action: #selector(flipCameraButtonTapped), for: .touchUpInside)
-        view.addSubview(flipCameraButton)
-        
-        // 相机切换图标（与标准相机一致）
-        let flipIcon = UIImageView()
-        flipIcon.image = UIImage(systemName: "arrow.triangle.2.circlepath.camera", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium))
-        flipIcon.tintColor = .white
-        flipIcon.translatesAutoresizingMaskIntoConstraints = false
-        flipCameraButton.addSubview(flipIcon)
-        
-        NSLayoutConstraint.activate([
-            flipIcon.centerXAnchor.constraint(equalTo: flipCameraButton.centerXAnchor),
-            flipIcon.centerYAnchor.constraint(equalTo: flipCameraButton.centerYAnchor),
-            flipIcon.widthAnchor.constraint(equalToConstant: 24),
-            flipIcon.heightAnchor.constraint(equalToConstant: 20)
-        ])
-        
-        
+
+        // 上一张图片缩略图（右下角）
+        lastPhotoThumbnailView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(lastPhotoThumbnailView)
+
         setupConstraints()
     }
     
@@ -424,26 +429,25 @@ class CustomCameraViewController: UIViewController {
     private func setupConstraints() {
         captureButton.translatesAutoresizingMaskIntoConstraints = false
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
-        flipCameraButton.translatesAutoresizingMaskIntoConstraints = false
-        
+
         NSLayoutConstraint.activate([
             // 拍照按钮 - 底部中心
             captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -50),
             captureButton.widthAnchor.constraint(equalToConstant: 70),
             captureButton.heightAnchor.constraint(equalToConstant: 70),
-            
+
             // 取消按钮 - 底部左侧
             cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             cancelButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor),
             cancelButton.widthAnchor.constraint(equalToConstant: 50),
             cancelButton.heightAnchor.constraint(equalToConstant: 50),
-            
-            // 前后相机切换按钮 - 底部右侧
-            flipCameraButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
-            flipCameraButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor),
-            flipCameraButton.widthAnchor.constraint(equalToConstant: 50),
-            flipCameraButton.heightAnchor.constraint(equalToConstant: 50)
+
+            // 缩略图 - 底部右侧
+            lastPhotoThumbnailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
+            lastPhotoThumbnailView.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor),
+            lastPhotoThumbnailView.widthAnchor.constraint(equalToConstant: 50),
+            lastPhotoThumbnailView.heightAnchor.constraint(equalToConstant: 50)
         ])
     }
     
@@ -506,40 +510,30 @@ class CustomCameraViewController: UIViewController {
     @objc private func cancelButtonTapped() {
         delegate?.didCancel()
     }
-    
-    @objc private func flipCameraButtonTapped() {
-        guard let captureSession = captureSession else { return }
-        guard let currentInput = captureSession.inputs.first as? AVCaptureDeviceInput else { return }
-        
-        let currentPosition = currentInput.device.position
-        let newPosition: AVCaptureDevice.Position = (currentPosition == .back) ? .front : .back
-        
-        guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition) else {
-            os.Logger.camera.error("无法获取\(newPosition == .front ? "前置" : "后置")相机")
-            return
-        }
-        
-        do {
-            let newInput = try AVCaptureDeviceInput(device: newDevice)
-            
-            captureSession.beginConfiguration()
-            captureSession.removeInput(currentInput)
-            if captureSession.canAddInput(newInput) {
-                captureSession.addInput(newInput)
+
+    /// 更新缩略图显示
+    /// - Parameter image: 最新拍摄的图片，nil 表示显示空白白底
+    func updateThumbnail(_ image: UIImage?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if let image = image {
+                // 生成 50x50 缩略图
+                let thumbnailSize = CGSize(width: 50, height: 50)
+                let thumbnail = self.generateThumbnail(from: image, size: thumbnailSize)
+                self.lastPhotoThumbnailView.image = thumbnail
             } else {
-                // 回退到原来的输入
-                captureSession.addInput(currentInput)
-                os.Logger.camera.error("无法切换相机")
+                // 无图片时显示纯白底圆形
+                self.lastPhotoThumbnailView.image = nil
             }
-            captureSession.commitConfiguration()
-            
-            os.Logger.camera.debug("相机已切换到\(newPosition == .front ? "前置" : "后置")")
-        } catch {
-            os.Logger.camera.error("切换相机失败: \(error.localizedDescription)")
         }
     }
-    
-    
+
+    /// 从原图生成指定尺寸的缩略图（iOS 15+ preparingThumbnail API）
+    private func generateThumbnail(from image: UIImage, size: CGSize) -> UIImage? {
+        return image.preparingThumbnail(of: size)
+    }
+
+
     private func startSession() {
         guard let captureSession = captureSession, !isConfiguring else {
             os.Logger.camera.debug("相机会话未初始化或正在配置中")
@@ -575,34 +569,29 @@ class CustomCameraViewController: UIViewController {
     
     private func ensureButtonsVisible() {
         os.Logger.camera.debug("确保按钮可见 - 拍照按钮状态: isEnabled=\(self.captureButton.isEnabled), isHidden=\(self.captureButton.isHidden)")
-        
+
         // 只在必要时更新按钮状态，减少UI操作
         if captureButton.isHidden || !captureButton.isEnabled {
             captureButton.isHidden = false
             captureButton.isEnabled = true
         }
-        
+
         if cancelButton.isHidden || !cancelButton.isEnabled {
             cancelButton.isHidden = false
             cancelButton.isEnabled = true
         }
-        
-        if flipCameraButton.isHidden || !flipCameraButton.isEnabled {
-            flipCameraButton.isHidden = false
-            flipCameraButton.isEnabled = true
-        }
-        
+
         os.Logger.camera.debug("按钮状态更新后 - 拍照按钮状态: isEnabled=\(self.captureButton.isEnabled), isHidden=\(self.captureButton.isHidden)")
-        
+
         // 批量更新层级，减少UI操作
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         view.bringSubviewToFront(captureButton)
         view.bringSubviewToFront(cancelButton)
-        view.bringSubviewToFront(flipCameraButton)
+        view.bringSubviewToFront(lastPhotoThumbnailView)
         view.bringSubviewToFront(statusLabel)
         CATransaction.commit()
-        
+
         // 更新状态标签
         updateStatusLabel()
     }

@@ -216,6 +216,7 @@ struct MakeView: View {
             audioFormat: audioFormat,
             audioDuration: audioResponse.duration,
             ocrDuration: ocrDuration,
+            llmDuration: llmDuration,
             ttsDuration: ttsDuration,
             validImageCount: audioResponse.validImageCount ?? images.count,
             voiceSettings: audioResponse.voiceSettings,
@@ -257,6 +258,7 @@ struct MakeView: View {
                 audioFormat: audioFormat,
                 audioDuration: audioResponse.duration,
                 ocrDuration: self.ocrDuration,
+                llmDuration: self.llmDuration,
                 ttsDuration: self.ttsDuration,
                 validImageCount: audioResponse.validImageCount ?? images.count,
                 voiceSettings: audioResponse.voiceSettings,
@@ -386,6 +388,7 @@ struct MakeView: View {
             isPlaying: false,
             playbackProgress: 0,
             ocrDuration: ocrDuration,
+            llmDuration: llmDuration,
             ttsDuration: ttsDuration,
             intermediateResults: intermediateResults,
             allowChangeOperations: true,
@@ -796,6 +799,7 @@ struct PhotoProcessingView: View {
     let isPlaying: Bool
     let playbackProgress: Double
     let ocrDuration: TimeInterval
+    let llmDuration: TimeInterval
     let ttsDuration: TimeInterval
     let intermediateResults: IntermediateResults?
     /// 是否允许变更操作（识别、删除、保存、拍照、缩略图顺序/删除）
@@ -1134,6 +1138,7 @@ struct PhotoProcessingView: View {
                         isPlaying: isPlaying,
                         audioData: audioData,
                         ocrDuration: ocrDuration,
+                        llmDuration: llmDuration,
                         ttsDuration: ttsDuration,
                         validImageCount: audioResponse?.validImageCount
                     )
@@ -1296,6 +1301,7 @@ struct ProcessingResultView: View {
     let isPlaying: Bool  // 是否正在播放，用于控制自动滚动
     let audioData: Data?
     let ocrDuration: TimeInterval
+    let llmDuration: TimeInterval
     let ttsDuration: TimeInterval
     let validImageCount: Int?
     
@@ -1348,7 +1354,7 @@ struct ProcessingResultView: View {
                     
                 HStack {
                     Spacer()
-                    Text("OCR:\(String(format: "%.0f", ocrDuration))s, TTS:\(String(format: "%.0f", ttsDuration))s")
+                    Text("OCR:\(String(format: "%.0f", ocrDuration))s\(llmDuration > 0 ? ", LLM:\(String(format: "%.0f", llmDuration))s" : ""), TTS:\(String(format: "%.0f", ttsDuration))s")
                         .font(Constants.Fonts.caption)
                         .foregroundColor(.secondary)
                         .padding(.all, 3)

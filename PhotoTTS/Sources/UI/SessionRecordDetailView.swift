@@ -402,6 +402,9 @@ struct SessionRecordUnifiedView: View {
                     .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 InfoRow(label: "OCR耗时", value: "\(Int(record.ocrDuration))秒")
+                if record.llmDuration > 0 {
+                    InfoRow(label: "LLM耗时", value: "\(Int(record.llmDuration))秒")
+                }
                 InfoRow(label: "TTS耗时", value: "\(Int(record.ttsDuration))秒")
                 InfoRow(label: "总耗时", value: "\(Int(record.totalDuration))秒")
                 InfoRow(label: "有效图片", value: "\(record.validImageCount)/\(record.totalImageCount)张")
