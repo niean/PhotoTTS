@@ -617,6 +617,12 @@ struct SessionRecordListView: View {
         .navigationDestination(isPresented: $showDeviceTransfer) {
             DeviceTransferView(sessionIDs: deviceTransferIDs)
         }
+        .onChange(of: showDeviceTransfer) { _, newValue in
+            if !newValue && isSelectionMode {
+                isSelectionMode = false
+                selectedIDs.removeAll()
+            }
+        }
         .overlay {
             if isImporting {
                 CustomZStack {
