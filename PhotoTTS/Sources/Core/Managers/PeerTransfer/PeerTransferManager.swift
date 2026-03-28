@@ -264,7 +264,6 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.transferState = .preparing
             self.transferProgress = 0
         }
-        UIApplication.shared.isIdleTimerDisabled = true
 
         Task {
             do {
@@ -289,7 +288,6 @@ class PeerTransferManager: NSObject, ObservableObject {
                 let progress = session.sendResource(at: archiveURL, withName: "transfer.ptarchive", toPeer: peer) { [weak self] error in
                     try? FileManager.default.removeItem(at: archiveURL)
                     DispatchQueue.main.async {
-                        UIApplication.shared.isIdleTimerDisabled = false
                         self?.cancelBackgroundTask()
                         if let error {
                             os.Logger.peerTransfer.error("传输失败: \(error.localizedDescription)")
@@ -315,7 +313,6 @@ class PeerTransferManager: NSObject, ObservableObject {
 
             } catch {
                 DispatchQueue.main.async {
-                    UIApplication.shared.isIdleTimerDisabled = false
                     self.cancelBackgroundTask()
                     os.Logger.peerTransfer.error("打包失败: \(error.localizedDescription)")
                     self.transferState = .failed("数据打包失败，请重试")
@@ -336,7 +333,6 @@ class PeerTransferManager: NSObject, ObservableObject {
             }
         }
 
-        UIApplication.shared.isIdleTimerDisabled = false
         cancelBackgroundTask()
         teardownSession()
 
@@ -595,7 +591,6 @@ extension PeerTransferManager: MCSessionDelegate {
                 self.decisionTimeoutTimer = nil
                 if self.transferState == .transferring || self.transferState == .connecting {
                     self.transferState = .failed("连接中断，请靠近后重试")
-                    UIApplication.shared.isIdleTimerDisabled = false
                     self.cancelBackgroundTask()
                 }
             @unknown default:
@@ -630,7 +625,6 @@ extension PeerTransferManager: MCSessionDelegate {
         os.Logger.peerTransfer.info("开始接收: \(resourceName) from \(peerID.displayName)")
         DispatchQueue.main.async {
             self.transferState = .transferring
-            UIApplication.shared.isIdleTimerDisabled = true
         }
         beginBackgroundTask()
 
@@ -647,7 +641,6 @@ extension PeerTransferManager: MCSessionDelegate {
 
         guard let localURL, error == nil else {
             DispatchQueue.main.async {
-                UIApplication.shared.isIdleTimerDisabled = false
                 self.cancelBackgroundTask()
                 os.Logger.peerTransfer.error("接收失败: \(error?.localizedDescription ?? "未知错误")")
                 self.transferState = .failed("接收失败，请重试")
@@ -683,7 +676,6 @@ extension PeerTransferManager: MCSessionDelegate {
                 try? FileManager.default.removeItem(at: localURL)
 
                 DispatchQueue.main.async {
-                    UIApplication.shared.isIdleTimerDisabled = false
                     self.cancelBackgroundTask()
                     if result.success {
                         os.Logger.peerTransfer.info("导入完成: \(result.importedCount) 条, 跳过 \(result.skippedCount + result.duplicateCount) 条")
@@ -699,7 +691,6 @@ extension PeerTransferManager: MCSessionDelegate {
             } catch {
                 try? FileManager.default.removeItem(at: localURL)
                 DispatchQueue.main.async {
-                    UIApplication.shared.isIdleTimerDisabled = false
                     self.cancelBackgroundTask()
                     os.Logger.peerTransfer.error("解压失败: \(error.localizedDescription)")
                     self.transferState = .failed(error.localizedDescription)

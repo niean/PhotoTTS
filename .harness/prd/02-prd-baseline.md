@@ -96,5 +96,4 @@
 
 ## 5. 版本与需求池
 
-- 备选需求池 prd/03-prd-specs.md
 - 版本历史见 PhotoTTS/Resources/changelogs.md

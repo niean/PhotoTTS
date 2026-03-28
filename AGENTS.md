@@ -291,7 +291,6 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 | .harness/knowledge/21-glossary.md | 对术语不清楚时 |
 | .harness/knowledge/22-file-map.md | 确定功能对应源文件时 |
 | .harness/prd/02-prd-baseline.md | 确认功能需求与产品约束时 |
-| .harness/prd/03-prd-specs.md | 了解原始需求规格或历史逻辑时 |
 | .harness/guides/00-harness-desc.md | 了解 Harness 体系描述时 |
 | .harness/guides/01-harness-ops.md | 了解 Harness 运维操作时 |
 | .harness/guides/02-harness-dev.md | 了解 Harness 开发流程时 |
