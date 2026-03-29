@@ -1,4 +1,4 @@
-<!-- SUMMARY: 11个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/后台制作/iPad适配 -->
+<!-- SUMMARY: 12个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/后台制作/iPad适配/防息屏 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -116,3 +116,18 @@ private func scaled(_ value: CGFloat) -> CGFloat {
 NSError 创建：统一使用 Constants.ErrorInfo.domain / Constants.ErrorInfo.defaultCode，禁止硬编码 domain 字符串。
 
 涉及文件：OCRService.swift（OCRError）、TTSService.swift（TTSError）、ImageToSpeechCoordinator.swift（ImageToSpeechProcessingError）、Constants.swift（ErrorInfo）。
+
+## 模式十二：防息屏（Idle Timer）
+
+两层策略防止屏幕自动熄灭：全局兜底 + 场景级保护。
+
+全局兜底：PhotoTTSApp init() 设置 `UIApplication.shared.isIdleTimerDisabled = true`，scenePhase 变为 .active 时再次设置（应对系统重置）。
+
+场景级保护：关键页面在各自启动入口重新设置 isIdleTimerDisabled = true：
+- PlayView：startPlayback()、resumePlayback()
+- MakeView：processImages()
+- PeerTransferManager：startBrowsing()（传输开始）、session didReceiveStream（传输恢复）
+
+陷阱：系统会在特定时机重置 isIdleTimerDisabled（如 App 回前台），不能只依赖全局 init() 设置。每个需要防息屏的场景必须在自己的启动入口独立设置。
+
+新增防息屏页面应在对应的启动/恢复入口设置 `UIApplication.shared.isIdleTimerDisabled = true`。
