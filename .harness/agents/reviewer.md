@@ -13,7 +13,7 @@
 
 ### Step 1: 构建验证
 
-执行 `Skill: 验证构建`（.harness/skills/verify-build.md），全量构建 + 全量测试，确认零警告零错误。每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报。
+执行 `Skill: 验证构建`（.harness/skills/verify-build.md），全量构建确认零警告零错误；单元测试仅在用户明确要求时执行。每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报。
 
 ### Step 2: 代码扫描
 

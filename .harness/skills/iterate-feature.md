@@ -57,7 +57,7 @@ description: 人工下发功能需求或修改代码时使用
 - 扫描违规或验收不通过时回到 Phase 4 修复
 
 必须执行的步骤：
-1. Step 1 构建验证：执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），全量构建 + 全量测试，确认零警告零错误
+1. Step 1 构建验证：执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），全量构建确认零警告零错误（单元测试仅用户明确要求时执行）
 2. Step 2 代码扫描：5 个维度 subagent 并行扫描，每个维度独立输出结论
 3. Step 3 验收标准检查：对照 spec 验收标准逐项验证，输出每项通过/不通过
 

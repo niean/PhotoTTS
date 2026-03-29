@@ -40,7 +40,7 @@
     - 提示词：执行 `回填产品文档`
     - 建议周期：周
 - 其它
-    - 提示词：按照Anthropic最佳实践，检查项目Harness知识库的RULE、SKILL、Prompt等描述，给出必要的改进意见，让用户确认后才能修改，意见和修改都要按照等级分批次；
+    - 提示词：按照OpenAI HarnessEngineer指导、Anthropic最佳实践，检查项目Harness知识库的RULE、SKILL、Prompt等描述，给出必要的改进意见，让用户确认后才能修改，意见和修改都要按照等级分批次；
     - 提示词：检查Harness知识库，包括 AGENTS.md/CLAUDE.md、.harness/目录下的所有文档，修复错误、过时的描述；如遇AI只读的文档，让用户确认后再修改；
 
 

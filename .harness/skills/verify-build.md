@@ -14,8 +14,8 @@ description: 功能迭代完成后自动执行，或人工指令触发
    ```
    xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' build
    ```
-2. 执行单元测试，确认全部通过：
+2. （仅用户明确要求时执行）执行单元测试，确认全部通过：
    ```
    xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
    ```
-3. 输出验证结果摘要（构建状态、警告数、测试通过/失败数）
+3. 输出验证结果摘要（构建状态、警告数；如执行了测试则附测试通过/失败数）

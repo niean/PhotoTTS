@@ -36,6 +36,8 @@ AGENTS.md                  -- 入口文件（项目根目录）
   knowledge/               -- AI 知识库（AI 可读写）
   prd/                     -- 产品文档（AI 只读）
   guides/                  -- 方法论与参考文档（人工维护）
+  lessons/                 -- 教训库（AI 自主维护）
+  specs/                   -- 设计文档（AI 自主管理）
   plans/                   -- AI 执行计划（AI 自主管理）
 ```
 

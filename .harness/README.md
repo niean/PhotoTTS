@@ -36,12 +36,15 @@ Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |                        Phase 2 引用 superpowers/brainstorming.md
             |                        Phase 3 引用 superpowers/writing-plans.md
             |                        Phase 4 引用 superpowers/executing-plans.md 或 subagent-driven-development.md
+            |-- iterate-harness-docs.md  单 Agent，文档体系一致性维护
+            |-- fix-bug.md            Bug修复流程，引用 agents/orchestrator.md、reviewer.md
             |-- harness-ops/
             |   |-- governance-code.md    引用 agents/reviewer.md，调度 skills/subskills/
             |   |-- governance-capability.md  读取 AGENTS.md 注册表 + agents/、skills/（含 subskills/）
             |   |-- governance-all.md     编排 governance-code、governance-capability、backfill-knowledge、backfill-prd
             |   |-- extract-harness-tpl.md 读取全部 .harness/ 文件
             |   |-- backfill-prd.md       读取 prd/ 三个产品文档
+            |   |-- backfill-knowledge-from-lessons.md  将 lessons/ 教训回填到 knowledge/
             |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
             |-- verify-build.md       独立（仅含构建命令）
             |-- summarize-task.md     独立（仅含报告模板）
@@ -57,12 +60,20 @@ Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |   |   |-- subagent-driven-development/spec-reviewer-prompt.md    spec 合规审查模板
             |   |   |-- subagent-driven-development/code-quality-reviewer-prompt.md  代码质量审查模板
             |   |-- test-driven-development.md    TDD 方法论（被 subagent-driven-development 间接引用）
+            |   |   |-- test-driven-development/testing-anti-patterns.md        测试反模式参考
             |   |-- finishing-a-development-branch.md  分支收尾（被 executing-plans、subagent-driven-development 间接引用）
             |   |-- using-git-worktrees.md        工作树隔离（被 executing-plans、subagent-driven-development 间接引用）
             |   |-- requesting-code-review.md     请求代码审查（被 subagent-driven-development 间接引用）
+            |   |   |-- requesting-code-review/code-reviewer.md                代码审查者模板
             |   |-- verification-before-completion.md  完成前验证（被 systematic-debugging 间接引用）
             |   |-- systematic-debugging.md       系统化调试（独立技能，未被主流程调用）
+            |   |   |-- systematic-debugging/condition-based-waiting.md         条件等待策略
+            |   |   |-- systematic-debugging/defense-in-depth.md               深度防御策略
+            |   |   |-- systematic-debugging/root-cause-tracing.md             根因追踪策略
             |   |-- writing-skills.md             技能编写（独立技能，未被主流程调用）
+            |   |   |-- writing-skills/anthropic-best-practices.md             Anthropic 最佳实践参考
+            |   |   |-- writing-skills/persuasion-principles.md                说服力原则参考
+            |   |   |-- writing-skills/testing-skills-with-subagents.md        subagent 测试技能
             |   |-- dispatching-parallel-agents.md  并行 agent 调度（独立技能，未被主流程调用）
             |   |-- receiving-code-review.md      接收代码审查（独立技能，未被主流程调用）
             |   |-- using-superpowers.md          superpowers 入口（CC 插件自动加载）
@@ -72,7 +83,7 @@ Layer 3  .harness/skills/subskills/（Subskill 任务模板 -- "做什么"）
             |-- scan-*.md  引用源码路径，检查规则来自 AGENTS.md/03-conventions.md
             |              被 reviewer.md 和 governance-code.md 调用
             |
-数据层   .harness/knowledge/（知识库） + .harness/prd/（产品文档） + .harness/guides/（方法论）
+数据层   .harness/knowledge/（知识库） + .harness/prd/（产品文档） + .harness/guides/（方法论） + .harness/lessons/（教训库）
             |
             |-- knowledge/01-overview.md     指回 AGENTS.md（"操作约束见 AGENTS.md"）
             |-- knowledge/03-conventions.md  指回 AGENTS.md（声明自己是权威源，AGENTS.md为摘要）
@@ -81,6 +92,8 @@ Layer 3  .harness/skills/subskills/（Subskill 任务模板 -- "做什么"）
             |-- guides/00-harness-desc.md         通用方法论，人工维护
             |-- guides/01-harness-ops.md          项目维护手册，人工维护
             |-- guides/02-harness-dev.md          开发流程，人工维护
+            |-- lessons/general.md               通用教训（仅 Harness 框架相关），AI自主维护
+            |-- lessons/project.md               项目教训（绑定本项目），AI自主维护
             |
 辅助层   .harness/specs/（设计文档） + .harness/plans/（执行计划）
             |
@@ -103,8 +116,9 @@ knowledge/ 按"知识用途"而非"功能领域"组织，编号分段体现两�
 
 | 版本 | 日期 | 更新内容 |
 |-----|------|---------|
+| v0.9.0 | 2026-03-29 | 新增Lessons库，新增任务文档维护 |
 | v0.8.0 | 2026-03-27 | 融入Anthropic最佳实践 |
-| v0.7.0 | 2026-03-26 | 新增修复Bug流程 |
+| v0.7.0 | 2026-03-26 | 新增任务修复Bug |
 | v0.6.0 | 2026-03-24 | 融合superpowers |
 | v0.5.0 | 2026-03-18 | 兼容CC环境 |
 | v0.4.0 | 2026-03-17 | 增加Design能力(复用Plan) |

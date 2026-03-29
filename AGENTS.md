@@ -12,7 +12,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 
 任务开始时首先进行 任务分类和Skill路由（新 Task 或同一 Task 内的第 2+ 次迭代均需分类），必须立即执行以下步骤，禁止跳过：
 
-1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-3。否则：功能需求或修改代码 -> `Skill: 迭代功能`，Bug修复或异常行为修复 -> `Skill: 修复Bug`，其它任务按需路由到已注册 Skill 或直接执行
+1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称（如"治理代码"等）时，直接路由到对应 Skill，跳过步骤 2-3。否则：功能需求或修改代码 -> `Skill: 迭代功能`，Bug修复或异常行为修复 -> `Skill: 修复Bug`，修改文档需求 -> `Skill: 迭代Harness文档`，其它任务按需路由到已注册 Skill 或直接执行
 2. 读取 Skill 定义：立即读取对应的 Skill 文件（如 `.harness/skills/iterate-feature.md`）
 3. 遵循 Skill 流程：按 Skill 文件定义的 Phase 顺序执行；特别强调，`[GATE]` 标记的 Phase 必须在消息框展示意图、等待人工确认，否则禁止执行后续 Phase
 
@@ -29,7 +29,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 - `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `AskUserQuestion` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
 - `[GATE-ENTRY]` 标记的 Phase 开始前，必须执行前置条件检查：(1) 上一条用户消息包含明确确认（如"确认""Yes""ok""继续"等），(2) 前置 GATE Phase 不在当前回复中输出。任一条件不满足则停止并提示用户
-- 当前 GATE 点：迭代功能 Phase 2 -> Phase 3
+- 当前 GATE 点：迭代功能 Phase 2 -> Phase 3, 迭代Harness文档 Phase 2 -> Phase 3
 - 非 GATE Phase 禁止使用 `AskUserQuestion` 等待用户确认后再继续后续 Phase；AI 应按 Skill 定义自主推进流程
 
 
@@ -76,7 +76,9 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 | 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
 | 修复Bug | 人工下发Bug修复或异常行为修复需求 | .harness/skills/fix-bug.md |
 | 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
+| 从教训回填知识库 | 人工指令 | .harness/skills/harness-ops/backfill-knowledge-from-lessons.md |
 | 回填产品文档 | 人工指令 | .harness/skills/harness-ops/backfill-prd.md |
+| 迭代Harness文档 | 人工下发修改文档需求 | .harness/skills/iterate-harness-docs.md |
 | 治理代码 | 人工指令 | .harness/skills/harness-ops/governance-code.md |
 | 验证构建 | 功能迭代完成后自动执行，或人工指令 | .harness/skills/verify-build.md |
 | 治理技能 | 人工指令 | .harness/skills/harness-ops/governance-capability.md |
@@ -119,7 +121,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 ## 上下文管理
 
 - 首次加载（Task 首条消息）分层加载知识库：
-  1. 必读：读取 `.harness/knowledge/` 和 `.harness/prd/`（除 03-prd-specs.md）每个文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
+  1. 必读：读取 `.harness/knowledge/`、`.harness/prd/`（除 03-prd-specs.md）和 `.harness/lessons/` 每个文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
   2. 必读：完整读取 `01-overview.md`（项目概览）+ `22-file-map.md`（文件映射）
   3. 按需：根据任务类型完整读取相关文件（见下方"任务类型加载矩阵"）
 - 后续迭代（同一 Task 内），按需查阅 `.harness/knowledge/` 和 `.harness/prd/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
@@ -206,6 +208,7 @@ AGENTS.md              -- AI 知识库入口（本文件）
     completed/         -- 已完成计划归档（不入 git）
     debt-tracker.md    -- 技术债追踪
   guides/              -- 方法论与参考文档（人工维护）
+  lessons/             -- 教训库（AI自主维护：general仅Harness相关、project绑定本项目）
   knowledge/           -- AI 知识库（01~05 认知约束类, 21~22 工具索引类）
   prd/                 -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
 PhotoTTS/
@@ -239,6 +242,20 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 - 新源文件 -> 22-file-map.md
 - 新跨文件模式 -> 05-key-patterns.md
 - 产品方向调整 -> 提示用户，人工更新 prd/01-prd-sense.md 或触发 Skill: 回填产品文档
+
+## 教训库维护规则
+
+AI 自主维护 `.harness/lessons/`，人工可通过提示或建议触发新增/修正。
+教训是原始素材，knowledge/ 是提炼后的权威知识；教训通过人工触发的回填流程沉淀为知识。
+
+- 写入时机：Bug修复完成后，根因非显而易见时，自动提取教训写入；功能迭代中踩坑时同理
+- 分级：仅与 Harness 框架相关、不绑定具体语言/框架/项目的通用经验 -> general.md；绑定本项目的具体经验 -> project.md
+- 条目格式：`### L/P{序号}: 标题`，含现象/根因/教训/来源四字段
+- 编号：general 用 L001 递增，project 用 P001 递增
+- 去重：写入前检查是否已有同类教训，有则更新而非新增
+- 加载策略：任务启动只读 SUMMARY 索引，不完整加载；仅用户明确指令或当前根因与 SUMMARY 高度相关时按需读取详情
+- 回填：人工触发 `Skill: 回填知识库` 时，将已沉淀的教训抽象为通用规则写入 knowledge/，回填后删除原教训条目
+- 提取：`Skill: 提取Harness模板` 时 general.md 随模板带走，project.md 留在项目内
 
 ## 代码生成
 
@@ -294,3 +311,5 @@ cp PhotoTTS/Resources/config_example.json locals/config_local.json
 | .harness/guides/00-harness-desc.md | 了解 Harness 体系描述时 |
 | .harness/guides/01-harness-ops.md | 了解 Harness 运维操作时 |
 | .harness/guides/02-harness-dev.md | 了解 Harness 开发流程时 |
+| .harness/lessons/general.md | 用户指令或当前根因与 SUMMARY 高度相关时按需读取 |
+| .harness/lessons/project.md | 用户指令或当前根因与 SUMMARY 高度相关时按需读取 |
