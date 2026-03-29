@@ -530,6 +530,7 @@ struct PlayView: View {
             isPlaying = true
             playbackProgress = 0
             startPlaybackTimer()
+            UIApplication.shared.isIdleTimerDisabled = true
             setupRemoteTransportControls()
         } catch {
             os.Logger.audioPlayer.error("PlayView 创建播放器失败: \(error.localizedDescription)")
@@ -581,6 +582,7 @@ struct PlayView: View {
         player.play()
         isPlaying = true
         startPlaybackTimer()
+        UIApplication.shared.isIdleTimerDisabled = true
     }
 
     private func pauseIfPlaying() {

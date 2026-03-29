@@ -121,6 +121,8 @@ struct PhotoTTSApp: App {
             // 监听 App 进入前台（包含 Siri 拉起场景）
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    // 防息屏：每次回前台重新设置，防止系统重置
+                    UIApplication.shared.isIdleTimerDisabled = true
                     // 每次回到前台重新注册 Siri Shortcuts，防止系统索引丢失
                     Self.registerAppShortcuts(caller: "foreground")
                     loadPendingSiriSession()

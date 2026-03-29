@@ -608,6 +608,9 @@ struct MakeView: View {
         ocrStartTime = Date()
         ttsStartTime = nil
 
+        // 防息屏：制作过程耗时较长，防止系统重置 idleTimer（教训 L001/P001）
+        UIApplication.shared.isIdleTimerDisabled = true
+
         if let sessionId = bgMakeManager.startMaking(images: selectedImages) {
             observingTaskId = sessionId
             os.Logger.makeView.info("已启动后台制作任务: sessionId=\(sessionId)")

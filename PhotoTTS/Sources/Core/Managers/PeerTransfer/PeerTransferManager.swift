@@ -264,6 +264,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.transferState = .preparing
             self.transferProgress = 0
         }
+        UIApplication.shared.isIdleTimerDisabled = true
 
         Task {
             do {
@@ -625,6 +626,7 @@ extension PeerTransferManager: MCSessionDelegate {
         os.Logger.peerTransfer.info("开始接收: \(resourceName) from \(peerID.displayName)")
         DispatchQueue.main.async {
             self.transferState = .transferring
+            UIApplication.shared.isIdleTimerDisabled = true
         }
         beginBackgroundTask()
 
