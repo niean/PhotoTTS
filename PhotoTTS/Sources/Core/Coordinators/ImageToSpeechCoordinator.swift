@@ -41,6 +41,15 @@ struct StageResults {
     let validImageCount: Int?         // 有效图片数
     let llmStoryName: String?         // LLM阶段完成后的故事名
     let llmHighlights: String?        // LLM阶段完成后的要点
+
+    // 新增统计字段
+    let totalImageCount: Int?         // 总图片数
+    let ocrCompletedCount: Int?       // OCR已完成图片数
+    let ocrCharCount: Int?            // OCR识别总字数
+    let ocrDuration: TimeInterval?    // OCR耗时
+    let llmCharCount: Int?            // LLM分析字数
+    let llmDuration: TimeInterval?    // LLM耗时
+    let llmStatus: LLMStageStatus?    // LLM阶段状态
 }
 
 // MARK: - 处理进度
@@ -192,6 +201,8 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 let (combinedText, validImageCount) = try combineOCRResults(recognizedTexts)
 
                 await MainActor.run {
+                    // 计算 OCR 总字数
+                    let ocrCharCount = recognizedTexts.reduce(0) { $0 + $1.count }
                     progressHandler(ProcessingProgress(
                         stage: .ocr,
                         currentStep: 50,
@@ -202,7 +213,14 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             ocrTexts: recognizedTexts,
                             validImageCount: validImageCount,
                             llmStoryName: nil,
-                            llmHighlights: nil
+                            llmHighlights: nil,
+                            totalImageCount: images.count,
+                            ocrCompletedCount: images.count,
+                            ocrCharCount: ocrCharCount,
+                            ocrDuration: nil,
+                            llmCharCount: nil,
+                            llmDuration: nil,
+                            llmStatus: nil
                         )
                     ))
                 }
@@ -220,7 +238,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                         currentStep: 50,
                         totalSteps: 100,
                         message: "LLM分析: 分析中",
-                        percentage: 50.0
+                        percentage: 50.0,
+                        stageResults: StageResults(
+                            ocrTexts: nil,
+                            validImageCount: nil,
+                            llmStoryName: nil,
+                            llmHighlights: nil,
+                            totalImageCount: nil,
+                            ocrCompletedCount: nil,
+                            ocrCharCount: nil,
+                            ocrDuration: nil,
+                            llmCharCount: nil,
+                            llmDuration: nil,
+                            llmStatus: .inProgress
+                        )
                     ))
                 }
 
@@ -234,7 +265,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             currentStep: 70,
                             totalSteps: 100,
                             message: "LLM分析: 跳过（图片少于5张）",
-                            percentage: 70.0
+                            percentage: 70.0,
+                            stageResults: StageResults(
+                                ocrTexts: nil,
+                                validImageCount: nil,
+                                llmStoryName: nil,
+                                llmHighlights: nil,
+                                totalImageCount: nil,
+                                ocrCompletedCount: nil,
+                                ocrCharCount: nil,
+                                ocrDuration: nil,
+                                llmCharCount: nil,
+                                llmDuration: nil,
+                                llmStatus: .skipped
+                            )
                         ))
                     }
                 } else if let llmService = llmService {
@@ -254,6 +298,8 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
 
                         let capturedStoryName = llmResult?.storyName
                         let capturedHighlights = storyHighlights
+                        // 计算 LLM 字数
+                        let llmCharCount = (capturedStoryName?.count ?? 0) + (capturedHighlights?.count ?? 0)
                         await MainActor.run {
                             progressHandler(ProcessingProgress(
                                 stage: .llm,
@@ -265,7 +311,14 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                                     ocrTexts: recognizedTexts,
                                     validImageCount: validImageCount,
                                     llmStoryName: capturedStoryName,
-                                    llmHighlights: capturedHighlights
+                                    llmHighlights: capturedHighlights,
+                                    totalImageCount: nil,
+                                    ocrCompletedCount: nil,
+                                    ocrCharCount: nil,
+                                    ocrDuration: nil,
+                                    llmCharCount: llmCharCount,
+                                    llmDuration: nil,
+                                    llmStatus: .completed
                                 )
                             ))
                         }
@@ -277,7 +330,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                                 currentStep: 70,
                                 totalSteps: 100,
                                 message: "LLM分析: 跳过",
-                                percentage: 70.0
+                                percentage: 70.0,
+                                stageResults: StageResults(
+                                    ocrTexts: nil,
+                                    validImageCount: nil,
+                                    llmStoryName: nil,
+                                    llmHighlights: nil,
+                                    totalImageCount: nil,
+                                    ocrCompletedCount: nil,
+                                    ocrCharCount: nil,
+                                    ocrDuration: nil,
+                                    llmCharCount: nil,
+                                    llmDuration: nil,
+                                    llmStatus: .skipped
+                                )
                             ))
                         }
                     }
@@ -289,7 +355,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             currentStep: 70,
                             totalSteps: 100,
                             message: "LLM分析: 未配置",
-                            percentage: 70.0
+                            percentage: 70.0,
+                            stageResults: StageResults(
+                                ocrTexts: nil,
+                                validImageCount: nil,
+                                llmStoryName: nil,
+                                llmHighlights: nil,
+                                totalImageCount: nil,
+                                ocrCompletedCount: nil,
+                                ocrCharCount: nil,
+                                ocrDuration: nil,
+                                llmCharCount: nil,
+                                llmDuration: nil,
+                                llmStatus: .notConfigured
+                            )
                         ))
                     }
                 }
@@ -525,7 +604,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                     currentStep: Int(progress * 100),
                     totalSteps: 100,
                     message: "OCR识别进度: \(completedImages)/\(totalImages) (并发: \(concurrentCount))",
-                    percentage: progress * 100
+                    percentage: progress * 100,
+                    stageResults: StageResults(
+                        ocrTexts: nil,
+                        validImageCount: nil,
+                        llmStoryName: nil,
+                        llmHighlights: nil,
+                        totalImageCount: totalImages,
+                        ocrCompletedCount: completedImages,
+                        ocrCharCount: nil,
+                        ocrDuration: nil,
+                        llmCharCount: nil,
+                        llmDuration: nil,
+                        llmStatus: nil
+                    )
                 ))
             }
         }

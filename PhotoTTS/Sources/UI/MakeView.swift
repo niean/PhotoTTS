@@ -1243,7 +1243,8 @@ struct IntermediateResultsView: View {
                 // OCR 结果区
                 if !results.ocrTexts.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("OCR 识别结果")
+                        // 动态标题：展示进度或统计信息
+                        Text(ocrTitleText())
                             .font(Constants.Fonts.headline)
                             .foregroundColor(.secondary)
 
@@ -1268,7 +1269,8 @@ struct IntermediateResultsView: View {
                 let highlights: String = results.llmHighlights ?? ""
                 if !storyName.isEmpty || !highlights.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("绘本分析")
+                        // 动态标题：展示状态或统计信息
+                        Text(llmTitleText())
                             .font(Constants.Fonts.headline)
                             .foregroundColor(.secondary)
 
@@ -1293,6 +1295,56 @@ struct IntermediateResultsView: View {
             .padding(.vertical, 8)
         }
         .frame(minHeight: 200)
+    }
+
+    // MARK: - 标题辅助函数
+
+    /// OCR 标题文本
+    private func ocrTitleText() -> String {
+        let completed = results.ocrCompletedCount
+        let total = results.totalImageCount
+
+        // OCR 进行中：展示 M/N 图片
+        if completed > 0 && total > 0 && completed < total {
+            return "OCR识别结果（\(completed)/\(total)图片）"
+        }
+
+        // OCR 完成：展示统计信息
+        if completed == total && total > 0 {
+            let charCount = results.ocrCharCount
+            let duration = results.ocrDuration
+
+            if duration > 0 {
+                return "OCR识别结果（\(total)张，\(charCount)字，\(Int(duration))秒）"
+            } else {
+                return "OCR识别结果（\(total)张，\(charCount)字）"
+            }
+        }
+
+        // 默认标题
+        return "OCR识别结果"
+    }
+
+    /// LLM 标题文本
+    private func llmTitleText() -> String {
+        switch results.llmStatus {
+        case .completed:
+            let charCount = results.llmCharCount
+            let duration = results.llmDuration
+            if duration > 0 {
+                return "绘本分析（\(charCount)字，\(Int(duration))秒）"
+            } else {
+                return "绘本分析（\(charCount)字）"
+            }
+        case .skipped:
+            return "绘本分析（跳过）"
+        case .notConfigured:
+            return "绘本分析（未配置）"
+        case .inProgress:
+            return "绘本分析（分析中...）"
+        case .notStarted:
+            return "绘本分析"
+        }
     }
 }
 

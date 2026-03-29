@@ -3,12 +3,30 @@ import UIKit
 import Combine
 import os.log
 
+// MARK: - LLM阶段状态
+enum LLMStageStatus {
+    case notStarted    // 未开始
+    case inProgress    // 分析中
+    case completed     // 已完成
+    case skipped       // 跳过（图片少于5张）
+    case notConfigured // 未配置
+}
+
 // MARK: - 中间结果
 struct IntermediateResults {
     var ocrTexts: [String] = []
     var validImageCount: Int = 0
     var llmStoryName: String?
     var llmHighlights: String?
+
+    // 新增统计字段
+    var totalImageCount: Int = 0         // 总图片数
+    var ocrCompletedCount: Int = 0       // OCR已完成图片数（用于M/N展示）
+    var ocrCharCount: Int = 0            // OCR识别总字数
+    var ocrDuration: TimeInterval = 0    // OCR耗时（秒）
+    var llmCharCount: Int = 0            // LLM分析字数（故事名+要点）
+    var llmDuration: TimeInterval = 0    // LLM耗时（秒）
+    var llmStatus: LLMStageStatus = .notStarted  // LLM阶段状态
 }
 
 // MARK: - 后台制作任务
@@ -113,6 +131,33 @@ class MakeTask: ObservableObject, Identifiable {
             }
             if let highlights = stageResults.llmHighlights {
                 self.intermediateResults?.llmHighlights = highlights
+            }
+
+            // 同步新增统计字段
+            if let totalImageCount = stageResults.totalImageCount {
+                self.intermediateResults?.totalImageCount = totalImageCount
+            }
+            if let ocrCompletedCount = stageResults.ocrCompletedCount {
+                self.intermediateResults?.ocrCompletedCount = ocrCompletedCount
+            }
+            if let ocrCharCount = stageResults.ocrCharCount {
+                self.intermediateResults?.ocrCharCount = ocrCharCount
+            }
+            if let llmCharCount = stageResults.llmCharCount {
+                self.intermediateResults?.llmCharCount = llmCharCount
+            }
+            if let llmStatus = stageResults.llmStatus {
+                self.intermediateResults?.llmStatus = llmStatus
+            }
+
+            // OCR 耗时在阶段切换时更新
+            if processingProgress.stage == .llm {
+                self.intermediateResults?.ocrDuration = self.ocrDuration
+            }
+
+            // LLM 耗时在阶段切换时更新
+            if processingProgress.stage == .tts {
+                self.intermediateResults?.llmDuration = self.llmDuration
             }
         }
     }
