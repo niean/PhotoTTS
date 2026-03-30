@@ -50,7 +50,7 @@ description: 人工下发功能需求或修改代码时使用
 检查点：`[Phase 4 代码实现] 变更: file1.swift(修改), file2.swift(新增), ...; tasks: N/M 完成`
 
 ## Phase 5: 结果验收
-- Agent: Reviewer，按 `.harness/agents/reviewer.md` 执行
+- Agent: Reviewer，按 `.harness/agents/reviewer.md` 执行；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
 - 职责边界：Phase 4 per-task review 关注 task 级正确性（spec 合规 + 代码质量），Phase 5 关注项目级约束（架构边界、编码约定、安全规范、图片处理、日志规范）及整体验收标准
 - 扫描范围：仅本次变更文件
 - 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报

@@ -52,11 +52,19 @@ struct MakeView: View {
     
     // 后台制作：当前观察的任务 sessionId
     @State private var observingTaskId: String? = nil
+
+    // 记录再制作：图片加载中状态
+    @State private var isLoadingRecord: Bool = false
     
+    /// 是否显示制作过程覆盖层（制作中或出错未关闭）
+    private var showProcessingOverlay: Bool {
+        isProcessing || (error != nil && !processingOverlayDismissed)
+    }
+
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
-        
+
     var body: some View {
         NavigationStack {
             CustomZStack {
@@ -324,6 +332,9 @@ struct MakeView: View {
         
         // 清理后台制作观察
         observingTaskId = nil
+
+        // 清理记录加载状态
+        isLoadingRecord = false
     }
     
     /// 处理从首页跳转过来的待办：拍照、选图
@@ -349,6 +360,8 @@ struct MakeView: View {
         guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else { return }
         let count = record.totalImageCount
         guard count > 0 else { return }
+        // 立即显示加载状态，避免跳转后空白页
+        isLoadingRecord = true
         // 按点换算使解码边长不超过 saveImageMaxPixel，避免大图解码
         let scale = max(1, UIScreen.main.scale)
         let maxDim = Constants.ImageDisplay.saveImageMaxPixel / scale
@@ -360,6 +373,7 @@ struct MakeView: View {
                 }
             }
             DispatchQueue.main.async {
+                self.isLoadingRecord = false
                 self.selectedImages = images
                 self.currentImageIndex = 0
                 self.onImagesChanged()
@@ -375,6 +389,7 @@ struct MakeView: View {
             selectedImages: selectedImages,
             currentImageIndex: currentImageIndex,
             isProcessing: isProcessing,
+            isLoadingRecord: isLoadingRecord,
             processingProgress: processingProgress,
             currentOperation: currentOperation,
             ocrResult: ocrResult,
@@ -382,7 +397,7 @@ struct MakeView: View {
             audioData: audioData,
             audioResponse: audioResponse,
             error: error,
-            showProcessingOverlay: isProcessing || (error != nil && !processingOverlayDismissed),
+            showProcessingOverlay: showProcessingOverlay,
             onDismissErrorOverlay: { processingOverlayDismissed = true },
             onCancelProcessing: { cancelBackgroundTask() },
             isPlaying: false,
@@ -476,23 +491,49 @@ struct MakeView: View {
     
     // MARK: - 顶部导航视图
     private var customNavigationBar: some View {
-        CustomNavigationBar(title: recordPageNavigationTitle, trailing: {
-            Menu {
-                Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
-                    Label("保存", systemImage: "bookmark.fill")
-                }
-                .disabled(!canSaveSession())
-                Divider()
-                Button { clearAllState() } label: {
-                    Label("清空", systemImage: "trash.fill")
-                }
-            } label: {
-                Image(systemName: "plus.circle")
-                    .font(Constants.Fonts.listAddIcon)
-                    .foregroundColor(.blue)
-                    .background(Color.clear)
+        Group {
+            if isLoadingRecord {
+                CustomNavigationBar(title: "制作中")
+            } else if isProcessing {
+                CustomNavigationBar(title: "制作中", trailing: {
+                    Button {
+                        cancelBackgroundTask()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(Constants.Fonts.makeImageRemoveIcon)
+                            .foregroundColor(.blue)
+                    }
+                })
+            } else if error != nil && !processingOverlayDismissed {
+                CustomNavigationBar(title: "制作失败", trailing: {
+                    Button {
+                        processingOverlayDismissed = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(Constants.Fonts.makeImageDeleteIcon)
+                            .foregroundColor(.blue)
+                    }
+                })
+            } else {
+                CustomNavigationBar(title: recordPageNavigationTitle, trailing: {
+                    Menu {
+                        Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
+                            Label("保存", systemImage: "bookmark.fill")
+                        }
+                        .disabled(!canSaveSession())
+                        Divider()
+                        Button { clearAllState() } label: {
+                            Label("清空", systemImage: "trash.fill")
+                        }
+                    } label: {
+                        Image(systemName: "plus.circle")
+                            .font(Constants.Fonts.listAddIcon)
+                            .foregroundColor(.blue)
+                            .background(Color.clear)
+                    }
+                })
             }
-        })
+        }
     }
 
     // 数据和状态清理(不包括图片)
@@ -789,6 +830,7 @@ struct PhotoProcessingView: View {
     let selectedImages: [UIImage]
     let currentImageIndex: Int
     let isProcessing: Bool
+    let isLoadingRecord: Bool
     let processingProgress: Float
     let currentOperation: String
     let ocrResult: String
@@ -878,42 +920,55 @@ struct PhotoProcessingView: View {
     private func imagePreviewSection(layout: LayoutMetrics) -> some View {
         VStack(spacing: 2) {
             if selectedImages.isEmpty {
-                // 首页操作入口
-                VStack(spacing: 24) {
-                    Spacer()
-                    Spacer()
-                    // 拍照制作
-                    VStack(spacing: 12) {
-                        Image(systemName: "camera.fill")
-                            .font(Constants.Fonts.makeLargeIcon)
-                            .foregroundColor(.blue)
-                        Text("拍照制作")
-                            .font(Constants.Fonts.subheadline)
+                if isLoadingRecord {
+                    // 记录再制作：图片加载中
+                    VStack(spacing: 16) {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("正在加载图片...")
+                            .font(Constants.Fonts.body)
                             .foregroundColor(.secondary)
+                        Spacer()
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onTakePhoto()
-                    }
-                    .disabled(isProcessing || isPlaying || !allowChangeOperations)
+                } else {
+                    // 首页操作入口
+                    VStack(spacing: 24) {
+                        Spacer()
+                        Spacer()
+                        // 拍照制作
+                        VStack(spacing: 12) {
+                            Image(systemName: "camera.fill")
+                                .font(Constants.Fonts.makeLargeIcon)
+                                .foregroundColor(.blue)
+                            Text("拍照制作")
+                                .font(Constants.Fonts.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onTakePhoto()
+                        }
+                        .disabled(isProcessing || isPlaying || !allowChangeOperations)
 
-                    Spacer()
-                    // 选图制作
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(Constants.Fonts.makeLargeIcon)
-                            .foregroundColor(.blue)
-                        Text("选图制作")
-                            .font(Constants.Fonts.subheadline)
-                            .foregroundColor(.secondary)
+                        Spacer()
+                        // 选图制作
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(Constants.Fonts.makeLargeIcon)
+                                .foregroundColor(.blue)
+                            Text("选图制作")
+                                .font(Constants.Fonts.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onOpenPhotoPicker()
+                        }
+                        .disabled(!allowChangeOperations)
+                        Spacer()
+                        Spacer()
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenPhotoPicker()
-                    }
-                    .disabled(!allowChangeOperations)
-                    Spacer()
-                    Spacer()
                 }
             } else {
                 // !selectedImages.isEmpty
@@ -1148,38 +1203,7 @@ struct PhotoProcessingView: View {
                 }
             }
 
-            // 停止按钮（处理中）或 关闭按钮（出错时）
-            if isProcessing || error != nil {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button {
-                            if isProcessing {
-                                // 停止制作
-                                onCancelProcessing?()
-                            } else {
-                                // 关闭：出错了，关闭弹层
-                                onDismissErrorOverlay?()
-                            }
-                        } label: {
-                            // 停止按钮：使用 xmark.circle.fill，白底色，大小为缩略图删除按钮的1.5倍
-                            if isProcessing {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(Constants.Fonts.makeImageRemoveIcon)
-                                    .foregroundColor(.gray)
-                            } else {
-                                // 关闭按钮：保持原样式
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(Constants.Fonts.makeImageDeleteIcon)
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .padding(16)
-                    }
-                    Spacer()
-                }
-            }
+            // 停止/关闭按钮已移至顶导，此处不再展示
         }
         .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaTotalHeight)
         .background(
@@ -1215,7 +1239,7 @@ struct ProcessingStatusView: View {
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                 }
-                .padding(.top, 60)  // 顶部留出空间避开取消/关闭按钮
+                .padding(.top, 20)  // 顶部适当留白
                 .padding(.bottom, 8)
 
                 // 底部：阶段结果展示

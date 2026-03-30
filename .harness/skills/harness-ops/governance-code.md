@@ -16,7 +16,7 @@ description: 人工指令触发代码治理
 - 读取 AGENTS.md 中的代码生成、质量守护、安全规范，启动 Phase 2
 
 ## Phase 2: 扫描
-- Agent: Reviewer（subagent 并行）
+- Agent: Reviewer（subagent 并行）；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
 - 通过 `use_subagents` 启动扫描，读取 `.harness/skills/subskills/` 对应模板作为 prompt。无 subagent 能力时主 Agent 顺序执行
 - 第一批 5 个维度：架构边界（scan-architecture.md）、编码约定（scan-conventions.md）、安全规范（scan-security.md）、图片处理（scan-image-handling.md）、日志规范（scan-logging.md）
 - 第二批：废弃代码（scan-dead-code.md）
@@ -37,7 +37,7 @@ description: 人工指令触发代码治理
 检查点：`[Phase 4 修复] 修复N项, 删除M个废弃项, 更新file-map: 是/否`
 
 ## Phase 5: 验证
-- Agent: Reviewer
+- Agent: Reviewer；沿用 Phase 2 传入的 model 参数
 
 ### Step 5a: 构建验证（主 Agent）
 执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），确认零警告零错误。失败回 Phase 4。

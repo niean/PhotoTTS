@@ -29,7 +29,7 @@ description: 修复Bug或异常行为修复时使用
 检查点：`[Phase 2 修复Bug] bug: ..., root_cause: ..., 变更: file1.swift(修改), ...; test: N新增/M通过`
 
 ## Phase 3: 结果验收
-- Agent: Reviewer，按 `.harness/agents/reviewer.md` 执行
+- Agent: Reviewer，按 `.harness/agents/reviewer.md` 执行；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
 - 扫描范围：仅本次变更文件
 - 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报
 

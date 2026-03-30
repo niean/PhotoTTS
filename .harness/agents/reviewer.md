@@ -8,6 +8,7 @@
 
 - 变更文件列表（Phase 4 检查点摘要）
 - spec 中的 test_criteria 和 constraints
+- model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；未指定或指定模型不可用时，使用主 Agent 的模型
 
 ## 验收流程
 
@@ -17,7 +18,7 @@
 
 ### Step 2: 代码扫描
 
-必须通过 Agent 工具（subagent_type=general-purpose,model=opus）并行启动扫描，每个维度一个 subagent，subagent使用独立上下文。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。每个维度必须有独立扫描结论，禁止跳过或虚报。
+必须通过 Agent 工具（subagent_type=general-purpose,model={输入参数 model}）并行启动扫描，每个维度一个 subagent，subagent使用独立上下文。model 取值优先级：用户通过输入参数指定的模型 > 主 Agent 当前使用的模型；若指定模型不可用则回退到主 Agent 模型。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。每个维度必须有独立扫描结论，禁止跳过或虚报。
 
 扫描模板列表：
 
