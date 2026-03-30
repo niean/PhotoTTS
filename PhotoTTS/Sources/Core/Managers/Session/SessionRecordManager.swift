@@ -508,9 +508,11 @@ class SessionRecordManager {
         // 资源文件被扁平化复制到 Bundle 根目录，直接使用文件名
         let resourceName = "\(directoryName)-\(randomIndex)"
 
-        // 从 Bundle 加载
-        guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
-            logger.warning("要点图片不存在: \(resourceName).jpg")
+        // 从 Bundle 加载（兼容 jpg/png 两种格式）
+        let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
+            ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
+        guard let imageURL else {
+            logger.warning("要点图片不存在: \(resourceName).jpg/.png")
             return nil
         }
 
@@ -696,8 +698,8 @@ class SessionRecordManager {
               let contents = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             return []
         }
-        // 只返回 jpg 文件
-        return contents.filter { $0.pathExtension.lowercased() == "jpg" }.sorted { $0.path < $1.path }
+        // 返回 jpg/png 文件
+        return contents.filter { ["jpg", "png"].contains($0.pathExtension.lowercased()) }.sorted { $0.path < $1.path }
     }
 
     /// 保存用户上传的要点图片
@@ -783,7 +785,9 @@ class SessionRecordManager {
     /// - Returns: 缩略图
     func loadSystemEndPictThumbnail(direction: String, index: Int, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
         let resourceName = "\(direction)-\(index)"
-        guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
+        let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
+            ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
+        guard let imageURL else {
             return nil
         }
         return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)

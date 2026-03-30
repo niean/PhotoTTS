@@ -398,10 +398,10 @@ extension Constants {
         static let horizontalDirectoryName = "h"
         /// 纵向动画（topToBottom）对应的结束图目录名
         static let verticalDirectoryName = "z"
-        /// 横向目录图片数量（系统内置，h-0 ~ h-14）
-        static let horizontalImageCount = 15
-        /// 纵向目录图片数量（系统内置，z-0 ~ z-14）
-        static let verticalImageCount = 15
+        /// 横向目录图片数量（系统内置，h-0 ~ h-24）
+        static let horizontalImageCount = 25
+        /// 纵向目录图片数量（系统内置，z-0 ~ z-4）
+        static let verticalImageCount = 5
         /// Bundle 中 EndPicts 根目录名
         static let bundleDirectoryName = "EndPicts"
         /// 用户上传要点图片存储目录（Documents/EndPicts/）

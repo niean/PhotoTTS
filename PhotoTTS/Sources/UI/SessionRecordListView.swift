@@ -1118,10 +1118,6 @@ struct SessionRecordRow: View {
         mode == .embedded && onLoad != nil
     }
 
-    // 计算属性：是否展示更多按钮（非 embedded 模式，非默认记录，有导出回调）
-    private var showMoreButton: Bool {
-        mode != .embedded && !metadata.isDefault && onExport != nil
-    }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -1208,26 +1204,6 @@ struct SessionRecordRow: View {
                         .buttonStyle(.plain)
                     }
 
-                    // 更多按钮（非 embedded 模式）
-                    if showMoreButton {
-                        Menu {
-                            Button(action: onExport!) {
-                                Label("导出", systemImage: "square.and.arrow.up")
-                            }
-                            if let onDeviceTransfer {
-                                Button(action: onDeviceTransfer) {
-                                    Label("传输", systemImage: "antenna.radiowaves.left.and.right")
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(Constants.Fonts.recordIcon)
-                                .foregroundColor(.gray)
-                                .frame(width: scaled(24), height: scaled(24))
-                        }
-                        .menuStyle(.borderlessButton)
-                        .buttonStyle(.plain)
-                    }
                 }
             }
         }
