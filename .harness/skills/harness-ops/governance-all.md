@@ -29,7 +29,7 @@ description: 人工指令触发全部治理
 
 ### Step 3 -- 回填知识库
 - Agent: Orchestrator 调度，委托 Skill: 回填知识库（单 Agent）
-- 执行 `.harness/skills/backfill-knowledge.md`
+- 执行 `.harness/skills/harness-ops/backfill-knowledge.md`
 - 摘要：`[Step 3 回填知识库] knowledge/ 修正N处，AGENTS.md 更新M处`
 
 ### Step 4 -- 回填产品文档

@@ -75,7 +75,7 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 |-------|------|------|
 | 迭代功能 | 人工下发功能需求或修改代码 | .harness/skills/iterate-feature.md |
 | 修复Bug | 人工下发Bug修复或异常行为修复需求 | .harness/skills/fix-bug.md |
-| 回填知识库 | 人工指令 | .harness/skills/backfill-knowledge.md |
+| 回填知识库 | 人工指令 | .harness/skills/harness-ops/backfill-knowledge.md |
 | 从教训回填知识库 | 人工指令 | .harness/skills/harness-ops/backfill-knowledge-from-lessons.md |
 | 回填产品文档 | 人工指令 | .harness/skills/harness-ops/backfill-prd.md |
 | 迭代Harness文档 | 人工下发修改文档需求 | .harness/skills/iterate-harness-docs.md |

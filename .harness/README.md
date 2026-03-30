@@ -45,7 +45,7 @@ Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |   |-- extract-harness-tpl.md 读取全部 .harness/ 文件
             |   |-- backfill-prd.md       读取 prd/ 三个产品文档
             |   |-- backfill-knowledge-from-lessons.md  将 lessons/ 教训回填到 knowledge/
-            |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
+            |   |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
             |-- verify-build.md       独立（仅含构建命令）
             |-- summarize-task.md     独立（仅含报告模板）
             |-- superpowers/     superpowers 方法论技能参考（开发方法论，英文原版适配）

@@ -12,7 +12,7 @@ description: 人工指令触发知识库回填
 ## 步骤
 
 ### Step 1 -- 读取现状
-读取 AGENTS.md + .harness/knowledge/ 全部 + prd/ 目录结构 + skills/ 目录（含 subskills/），按需扫描源码目录。
+读取 AGENTS.md + .harness/knowledge/ 全部 + prd/ 目录结构 + skills/ 目录（含 subskills/）+ README.md文件，按需扫描源码目录。
 
 ### Step 2 -- 更新 knowledge/ 知识库
 对比实际代码与文档，修正过时描述，简化压缩内容。
