@@ -234,7 +234,7 @@ class SettingsManager {
             if let stored = stored, !stored.isEmpty {
                 return stored
             }
-            return UIDevice.current.name
+            return filterInvalidPrefix(from: UIDevice.current.name)
         }
         set {
             let trimmed = String(newValue.prefix(AppConstants.Identity.nameMaxLength))
@@ -244,6 +244,22 @@ class SettingsManager {
                 userDefaults.set(trimmed, forKey: AppConstants.UserDefaultsKeys.identityName)
             }
         }
+    }
+
+    // MARK: - 私有方法 - 名称过滤
+
+    /// 过滤设备名称中的无效前缀（如 "Clone 1 of"）
+    /// - Parameter name: 原始设备名称
+    /// - Returns: 过滤后的名称
+    private func filterInvalidPrefix(from name: String) -> String {
+        // 匹配 "Clone N of " 格式（N 为任意数字，支持多空格）
+        let pattern = "^Clone\\s+\\d+\\s+of\\s+"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+            return name
+        }
+        let range = NSRange(name.startIndex..., in: name)
+        let result = regex.stringByReplacingMatches(in: name, options: [], range: range, withTemplate: "")
+        return result.isEmpty ? name : result
     }
 
     // MARK: - 应用设置

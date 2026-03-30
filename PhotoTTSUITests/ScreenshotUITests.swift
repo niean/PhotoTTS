@@ -5,10 +5,6 @@ import XCTest
 ///
 /// 截图清单:
 ///   01_home     - 首页（含绘本列表）
-///   02_make     - 制作页（拍照/选图制作界面）
-///   03_message  - 消息页
-///   04_me       - 我的页（设置页）
-///   05_play     - 播放页（播放 "26.03.10 使用介绍"）
 final class ScreenshotUITests: XCTestCase {
 
     private var app: XCUIApplication!
@@ -25,64 +21,64 @@ final class ScreenshotUITests: XCTestCase {
 
     @MainActor
     func testCaptureAllScreenshots() throws {
-        throw XCTSkip("App Store 截图测试，发版前通过 take-screenshots.sh 手动执行")
-        // let deviceName = UIDevice.current.name.replacingOccurrences(of: " ", with: "_")
+        // throw XCTSkip("App Store 截图测试，发版前通过 take-screenshots.sh 手动执行")
+        let deviceName = UIDevice.current.name.replacingOccurrences(of: " ", with: "_")
         
-        // let makeTabForHome = app.tabBars.buttons["制作"]
-        // if makeTabForHome.waitForExistence(timeout: 3) {
-        //     makeTabForHome.tap()
-        //     sleep(2)
-        // }
-        // sleep(10)
+        let makeTabForHome = app.tabBars.buttons["制作"]
+        if makeTabForHome.waitForExistence(timeout: 3) {
+            makeTabForHome.tap()
+            sleep(2)
+        }
+        sleep(10)
         
-        // // 1. 首页截图
-        // let homeTabForHome = app.tabBars.buttons["首页"]
-        // if homeTabForHome.waitForExistence(timeout: 3) {
-        //     homeTabForHome.tap()
-        //     sleep(3)
-        //     captureScreenshot(named: "01_home_\(deviceName)")
-        // }
+        // 1. 首页截图
+        let homeTabForHome = app.tabBars.buttons["首页"]
+        if homeTabForHome.waitForExistence(timeout: 3) {
+            homeTabForHome.tap()
+            sleep(3)
+            captureScreenshot(named: "01_home_\(deviceName)")
+        }
         
-        // // 2. 制作页截图
-        // let makeTabButton = app.tabBars.buttons["制作"]
-        // if makeTabButton.waitForExistence(timeout: 5) {
-        //     makeTabButton.tap()
-        //     sleep(3)
-        //     captureScreenshot(named: "02_make_\(deviceName)")
-        // }
+        // 2. 制作页截图
+        let makeTabButton = app.tabBars.buttons["制作"]
+        if makeTabButton.waitForExistence(timeout: 5) {
+            makeTabButton.tap()
+            sleep(3)
+            captureScreenshot(named: "02_make_\(deviceName)")
+        }
         
-        // // 3. 管理页截图
-        // let manageTabButton = app.tabBars.buttons["管理"]
-        // if manageTabButton.waitForExistence(timeout: 3) {
-        //     manageTabButton.tap()
-        //     sleep(2)
-        //     captureScreenshot(named: "03_manage_\(deviceName)")
-        // }
+        // 3. 管理页截图
+        let manageTabButton = app.tabBars.buttons["管理"]
+        if manageTabButton.waitForExistence(timeout: 3) {
+            manageTabButton.tap()
+            sleep(2)
+            captureScreenshot(named: "03_manage_\(deviceName)")
+        }
         
-        // // 4. 我的页截图
-        // let meTabButton = app.tabBars.buttons["我的"]
-        // if meTabButton.waitForExistence(timeout: 3) {
-        //     meTabButton.tap()
-        //     sleep(2)
-        //     captureScreenshot(named: "04_me_\(deviceName)")
-        // }
+        // 4. 我的页截图
+        let meTabButton = app.tabBars.buttons["我的"]
+        if meTabButton.waitForExistence(timeout: 3) {
+            meTabButton.tap()
+            sleep(2)
+            captureScreenshot(named: "04_me_\(deviceName)")
+        }
         
-        // // 5. 播放页截图
-        // let homeTabButton = app.tabBars.buttons["首页"]
-        // if homeTabButton.waitForExistence(timeout: 3) {
-        //     homeTabButton.tap()
-        //     sleep(2)
-        // }
+        // 5. 播放页截图
+        let homeTabButton = app.tabBars.buttons["首页"]
+        if homeTabButton.waitForExistence(timeout: 3) {
+            homeTabButton.tap()
+            sleep(2)
+        }
         
-        // let playButton = app.buttons["play.circle"].firstMatch
-        // if playButton.waitForExistence(timeout: 5) {
-        //     playButton.tap()
-        //     sleep(3)
-        //     let window = app.windows.firstMatch
-        //     window.tap()
-        //     sleep(1)
-        //     captureScreenshot(named: "05_play_\(deviceName)")
-        // }
+        let playButton = app.buttons["play.circle"].firstMatch
+        if playButton.waitForExistence(timeout: 5) {
+            playButton.tap()
+            sleep(3)
+            let window = app.windows.firstMatch
+            window.tap()
+            sleep(1)
+            captureScreenshot(named: "05_play_\(deviceName)")
+        }
     }
 
     // MARK: - 辅助方法

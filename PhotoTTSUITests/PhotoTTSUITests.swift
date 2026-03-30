@@ -9,19 +9,19 @@ final class PhotoTTSUITests: XCTestCase {
     @MainActor
     func testAppLaunch() throws {
         throw XCTSkip("性能基准测试，按需手动执行")
-        // let app = XCUIApplication()
-        // app.launch()
-        // let tabBar = app.tabBars.firstMatch
-        // XCTAssertTrue(tabBar.waitForExistence(timeout: 5), "底导 TabBar 应在启动后可见")
+        let app = XCUIApplication()
+        app.launch()
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5), "底导 TabBar 应在启动后可见")
     }
     
     @MainActor
     func testLaunchPerformance() throws {
         throw XCTSkip("性能基准测试，按需手动执行")
-        // if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 7.0, *) {
-        //     measure(metrics: [XCTApplicationLaunchMetric()]) {
-        //         XCUIApplication().launch()
-        //     }
-        // }
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 7.0, *) {
+            measure(metrics: [XCTApplicationLaunchMetric()]) {
+                XCUIApplication().launch()
+            }
+        }
     }
 }

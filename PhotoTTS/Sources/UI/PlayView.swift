@@ -774,7 +774,7 @@ struct PlayView: View {
 
     private func startControlBarAutoHideTimer() {
         controlBarAutoHideTimer?.invalidate()
-        controlBarAutoHideTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+        controlBarAutoHideTimer = Timer.scheduledTimer(withTimeInterval: Constants.Playback.controlBarAutoHideInterval, repeats: false) { _ in
             DispatchQueue.main.async {
                 withAnimation(.easeOut(duration: 0.3)) {
                     controlBarType = nil
@@ -935,7 +935,7 @@ private struct PlayerControlLayer: View {
                 }
 
                 // 操作按钮（含设置按钮）
-                HStack(spacing: 20) {
+                HStack(spacing: Constants.PlayerControl.buttonSpacing) {
                     Button(action: {
                         onInteraction()
                         onTogglePlayback()
@@ -1055,7 +1055,7 @@ private struct PlayerControlLayer: View {
                             .padding(.horizontal, scaled(14))
 
                         // 倍速选择区域
-                        VStack(alignment: .leading, spacing: scaled(8)) {
+                        VStack(alignment: .leading, spacing: scaled(Constants.PlayerControl.settingsPanelSpacing)) {
                             Text("倍速")
                                 .font(Constants.Fonts.playNextLabel)
                                 .foregroundColor(.white)

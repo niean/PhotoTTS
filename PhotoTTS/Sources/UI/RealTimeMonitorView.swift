@@ -11,10 +11,7 @@ import SwiftUI
 struct RealTimeMonitorView: View {
     @ObservedObject private var monitor = PerformanceMonitorManager.shared
     @Environment(\.dismiss) private var dismiss
-    
-    private let iconSize: CGFloat = 24
-    private let horizontalPadding: CGFloat = 16
-    
+
     var body: some View {
         CustomZStack {
             // 主内容区

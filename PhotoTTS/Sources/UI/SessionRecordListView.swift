@@ -167,12 +167,7 @@ struct SessionRecordListView: View {
             return f
         }()
 
-        return Button(action: {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                expandedGroup = isExpanded ? nil : key
-            }
-        }) {
-            HStack(spacing: scaled(8)) {
+        return HStack(spacing: scaled(8)) {
                 Image(systemName: "chevron.right")
                     .font(Constants.Fonts.groupChevron)
                     .foregroundColor(.secondary)
@@ -195,8 +190,11 @@ struct SessionRecordListView: View {
             .padding(.horizontal, scaled(16))
             .padding(.vertical, scaled(12))
             .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    expandedGroup = isExpanded ? nil : key
+                }
+            }
     }
 
     // 搜索栏（微信风格，外层 padding 由 listRowInsets 控制）

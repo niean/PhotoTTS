@@ -252,6 +252,8 @@ extension Constants {
         static let eyeProtectionBackgroundColor = Color(red: 0.85, green: 0.95, blue: 0.88)
         /// 播放器控制层无操作自动隐藏间隔（秒）
         static let overlayAutoHideInterval: TimeInterval = 3
+        /// 控制条自动隐藏间隔（秒）
+        static let controlBarAutoHideInterval: TimeInterval = 1.5
         /// 进度条轨道高度（pt）
         static let progressBarHeight: CGFloat = 3
         /// 进度条滑块直径（pt）
@@ -263,7 +265,15 @@ extension Constants {
         /// 连播过渡页面最短显示时长（秒）
         static let transitionMinDisplayDuration: TimeInterval = 3
     }
-    
+
+    // MARK: - 播放器控制层布局
+    struct PlayerControl {
+        /// 操作按钮间距（pt）
+        static let buttonSpacing: CGFloat = 20
+        /// 设置面板内部间距（pt），配合 scaled() 使用
+        static let settingsPanelSpacing: CGFloat = 8
+    }
+
     // MARK: - 钥匙串键值
     struct KeychainKeys {
         static let doubaoAPIKey = "doubao_api_key"

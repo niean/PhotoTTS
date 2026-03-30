@@ -147,13 +147,13 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 ### 检查点摘要模板
 
-Phase 间交接使用结构化检查点摘要（不超过 5 行），标准格式：
+Phase 间交接使用结构化检查点摘要（不超过 10 行），标准格式：
 
 ```
 [Phase N: 名称] 目标: {一句话}; 产出: {文件/决策}; 变更: {file1(修改), file2(新增)}; 状态: {完成/部分完成}; 后续依赖: {下一Phase需要的关键信息}
 ```
 
-各 Skill 可在此模板基础上定义更具体的字段（如 iterate-feature 的 scope/tasks 字段），但必须保持单行格式、不超过 5 行。
+各 Skill 可在此模板基础上定义更具体的字段（如 iterate-feature 的 scope/tasks 字段），但必须保持单行格式、不超过 10 行。
 
 ## 执行计划管理
 
@@ -198,8 +198,8 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
   README.md            -- Harness 工程模板说明
-  agents/              -- Agent 角色模板（Orchestrator、Reviewer）
-  skills/              -- Skill 定义（迭代功能、回填知识库、构建验证、总结任务）
+  agents/              -- Agent 角色模板（Orchestrator、Designer、Planner、Coder、Reviewer）
+  skills/              -- Skill 定义（迭代功能、修复Bug、迭代Harness文档、回填知识库、从教训回填知识库、构建验证、总结任务）
     harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板、回填产品文档）
     subskills/         -- Subskill 扫描模板
     superpowers/   -- superpowers 方法论技能（开发方法论，本地适配版）

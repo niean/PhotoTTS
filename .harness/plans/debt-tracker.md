@@ -13,10 +13,7 @@
 | DEBT005 | 图片处理-getImages()使用UIImage(data:)全尺寸解码，未经Image I/O降采样，应标记废弃或改用SessionRecordManager.loadImage | medium | plan-250319-playback-direction | 2026-03-19 | open |
 | DEBT006 | 编码约定-PhotoTTSApp.swift第158行`2.0`（Siri启动延迟秒数）硬编码为魔法值，未收归Constants.swift | low | plan-260320-remove-message-tab | 2026-03-20 | open |
 | DEBT007 | 图片处理-PlayerImageView第1194行CGImageSourceCreateImageAtIndex fallback全尺寸解码，未经降采样，违反Image I/O规范 | medium | plan-260324-continuous-playback | 2026-03-24 | open |
-| DEBT008 | 编码约定-PlayView.swift第746行控制条自动隐藏间隔`1.5`秒硬编码；第937-939/1058-1059行padding数值硬编码，未归入Constants.swift | low | plan-260324-progress-drag-while-playing | 2026-03-24 | open |
-| DEBT009 | 编码约定-RealTimeMonitorView.swift第15-16行本地常量iconSize/horizontalPadding未统一到Constants.swift | low | plan-260326-early-start-monitor | 2026-03-26 | open |
-| DEBT010 | 测试-PeerTransferManagerTests.testArchiveEmptyDirectory()失败，需排查修复 | medium | plan-260326-early-start-monitor | 2026-03-26 | open |
-| DEBT011 | 测试-AliqwenTTSTests.testFullConfigRequest()/testMinimalRequest()失败，需排查修复 | medium | plan-260326-early-start-monitor | 2026-03-26 | open |
+| DEBT008 | 编码约定-PlayView.swift第746行控制条自动隐藏间隔`1.5`秒硬编码；第937-939/1058-1059行padding数值硬编码，未归入Constants.swift | low | plan-260324-progress-drag-while-playing | 2026-03-24 | resolved |
 | DEBT012 | 编码约定-CustomCameraView.swift约30+处UI布局魔法值（圆角/边框/字号/间距等）硬编码，未集中到Constants.swift | low | plan-260329-camera-thumbnail | 2026-03-29 | open |
 
 ---
