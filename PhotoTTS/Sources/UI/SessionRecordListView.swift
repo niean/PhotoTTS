@@ -714,10 +714,11 @@ struct SessionRecordListView: View {
                     }
                     .tint(.blue)
                 } else if !isDefault {
-                    Button("删除", role: .destructive) {
+                    Button("删除") {
                         sessionToDelete = metadata
                         showDeleteConfirmation = true
                     }
+                    .tint(.red)
 
                     Button("制作") {
                         onLoadToMake?(metadata.id)
@@ -836,13 +837,29 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 删除会话记录
+    // 删除会话记录（乐观删除：先更新 UI，再后台删磁盘）
     private func deleteSession(_ id: String) {
+        // 立即从本地数组移除，避免 loadPage() 的 isLoading 闪变
+        withAnimation {
+            if isGroupedMode {
+                allMetadataList.removeAll { $0.id == id }
+                totalCount = allMetadataList.count
+                rebuildGroups()
+            } else {
+                pagedMetadataList.removeAll { $0.id == id }
+                totalCount = max(0, totalCount - 1)
+            }
+        }
+        sessionToDelete = nil
+
+        // 后台执行磁盘删除
         DispatchQueue.global(qos: .userInitiated).async {
-            let success = SessionRecordManager.shared.deleteSession(id: id)
+            let _ = SessionRecordManager.shared.deleteSession(id: id)
             DispatchQueue.main.async {
-                if success {
-                    loadPage()
+                // 当前页为空但还有数据时，回退到上一页
+                if !self.isGroupedMode && self.pagedMetadataList.isEmpty && self.totalCount > 0 && self.currentPage > 1 {
+                    self.currentPage -= 1
+                    self.loadPage()
                 }
             }
         }
@@ -933,7 +950,11 @@ struct SessionRecordListView: View {
             let success = SessionRecordManager.shared.updateSession(id: id, name: name, avatarImageIndex: avatarImageIndex, animationStyle: animationStyle)
             DispatchQueue.main.async {
                 if success {
-                    loadPage()
+                    if isGroupedMode {
+                        loadAllMetadata()
+                    } else {
+                        loadPage()
+                    }
                 }
                 completion()
             }
