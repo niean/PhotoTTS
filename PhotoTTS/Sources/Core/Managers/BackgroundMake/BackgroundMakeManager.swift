@@ -149,16 +149,17 @@ class MakeTask: ObservableObject, Identifiable {
             if let llmStatus = stageResults.llmStatus {
                 self.intermediateResults?.llmStatus = llmStatus
             }
+        }
 
-            // OCR 耗时在阶段切换时更新
-            if processingProgress.stage == .llm {
-                self.intermediateResults?.ocrDuration = self.ocrDuration
-            }
+        // 耗时同步放在 stageResults 守卫外部，确保即使 stageResults 为 nil 也能同步
+        // OCR 耗时在阶段切换时更新
+        if processingProgress.stage == .llm {
+            self.intermediateResults?.ocrDuration = self.ocrDuration
+        }
 
-            // LLM 耗时在阶段切换时更新
-            if processingProgress.stage == .tts {
-                self.intermediateResults?.llmDuration = self.llmDuration
-            }
+        // LLM 耗时在阶段切换时更新
+        if processingProgress.stage == .tts {
+            self.intermediateResults?.llmDuration = self.llmDuration
         }
     }
 

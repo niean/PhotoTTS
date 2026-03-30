@@ -598,15 +598,25 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
             // 更新进度 (0-50%)
             let completedImages = allResults.count
             let progress = Double(completedImages) / Double(totalImages) * 0.5
+            // 构建已完成部分的文字数组（按原始索引排序，未完成位置为空字符串）
+            let sortedPartial = allResults.sorted { $0.0 < $1.0 }
+            var partialTexts: [String] = Array(repeating: "", count: totalImages)
+            for (index, text) in sortedPartial {
+                if index < partialTexts.count {
+                    partialTexts[index] = text
+                }
+            }
+            // 只传已完成部分（截取到已完成数量）
+            let partialOcrTexts = Array(partialTexts.prefix(completedImages))
             await MainActor.run {
                 progressHandler(ProcessingProgress(
                     stage: .ocr,
                     currentStep: Int(progress * 100),
                     totalSteps: 100,
-                    message: "OCR识别进度: \(completedImages)/\(totalImages) (并发: \(concurrentCount))",
+                    message: "OCR识别进度: \(completedImages)/\(totalImages)",
                     percentage: progress * 100,
                     stageResults: StageResults(
-                        ocrTexts: nil,
+                        ocrTexts: partialOcrTexts,
                         validImageCount: nil,
                         llmStoryName: nil,
                         llmHighlights: nil,

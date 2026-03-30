@@ -1332,18 +1332,18 @@ struct IntermediateResultsView: View {
             let charCount = results.llmCharCount
             let duration = results.llmDuration
             if duration > 0 {
-                return "绘本分析（\(charCount)字，\(Int(duration))秒）"
+                return "LLM绘本分析（\(charCount)字，\(Int(duration))秒）"
             } else {
-                return "绘本分析（\(charCount)字）"
+                return "LLM绘本分析（\(charCount)字）"
             }
         case .skipped:
-            return "绘本分析（跳过）"
+            return "LLM绘本分析（跳过）"
         case .notConfigured:
-            return "绘本分析（未配置）"
+            return "LLM绘本分析（未配置）"
         case .inProgress:
-            return "绘本分析（分析中...）"
+            return "LLM绘本分析（分析中...）"
         case .notStarted:
-            return "绘本分析"
+            return "LLM绘本分析"
         }
     }
 }
