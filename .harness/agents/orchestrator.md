@@ -9,8 +9,7 @@
 | 场景 | Orchestrator 行为 |
 |------|-------------------|
 | 调度/编排/上下文管理 | 直接执行，不阅读源码 |
-| 简单修复或小范围变更（3 文件以内） | Inline 执行代码实现 |
-| 复杂实现（3+ 文件或涉及新模块） | 委派 subagent 执行 |
+| 代码实现 | 委派 Coder（按 coder.md 执行） |
 | 代码扫描/验收 | 委派 Reviewer |
 | 知识回填/任务总结 | 直接执行 |
 
@@ -40,7 +39,7 @@
 - Phase 1 任务调度：Orchestrator
 - Phase 2 需求探索与设计：`[GATE]` 按 superpowers brainstorming 流程执行，spec 落盘后必须使用 `AskUserQuestion` 等待用户确认后结束回复，禁止同一回复内继续 Phase 3
 - Phase 3 计划制定：`[GATE-ENTRY]` 必须确认用户已在上一条消息中明确确认 spec，按 superpowers writing-plans 流程执行
-- Phase 4 代码实现：按 superpowers executing-plans 或 subagent-driven-development 流程执行
+- Phase 4 代码实现：Coder -- 按 coder.md 执行，可传入 model 参数
 - Phase 5 结果验收：Reviewer -- 5 维度代码扫描 + 验收标准逐项检查
 - Phase 6 知识回填：Orchestrator，回填知识库
 - Phase 7 任务总结：Orchestrator，自动触发 Skill: 总结任务，输出报告 -> 计划归档 -> 结束任务（同一回复）

@@ -37,6 +37,10 @@ digraph when_to_use {
 - Two-stage review after each task: spec compliance first, then code quality
 - Faster iteration (no human-in-loop between tasks)
 
+## Input Parameters
+
+- model（可选）：调用方指定的 LLM 模型名称（如 opus、sonnet）；指定时所有 subagent 分派使用此模型，覆盖 Model Selection 节的复杂度策略；未指定时按 Model Selection 节的复杂度策略选择模型；指定模型不可用时回退到复杂度策略
+
 ## The Process
 
 ```dot

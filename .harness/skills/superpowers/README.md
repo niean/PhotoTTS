@@ -105,6 +105,7 @@
 | Integration | using-git-worktrees REQUIRED + finishing REQUIRED | 仅保留 writing-plans + requesting-code-review | worktree/finishing 已移除 |
 | 末尾流程图 | finishing-a-development-branch | 改为 "Announce completion" | 收尾由调用方接管 |
 | [FINAL_REVIEW_STEP] | 流程图节点 + 示例中的 FINAL_REVIEW_STEP | 已删除 | review 由调用方接管 |
+| When to Use 与 The Process 之间 | 原版无此节 | 新增 Input Parameters 节（model 可选参数） | 支持调用方传入 model 覆盖 Model Selection 策略 |
 
 ### 2.8 implementer-prompt.md
 

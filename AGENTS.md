@@ -64,7 +64,8 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 | Agent | 运行形态 | 模板文件 | 职责 |
 |-------|---------|---------|------|
-| Orchestrator | 主 Agent | .harness/agents/orchestrator.md | 任务路由、流程编排、上下文管理、代码实现 |
+| Orchestrator | 主 Agent | .harness/agents/orchestrator.md | 任务路由、流程编排、上下文管理 |
+| Coder | subagent + 主 Agent | .harness/agents/coder.md | 代码实现 |
 | Reviewer | subagent + 主 Agent | .harness/agents/reviewer.md | 代码扫描、构建验证、验收 |
 
 ## Skills（可复用操作）

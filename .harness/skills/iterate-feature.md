@@ -39,12 +39,7 @@ description: 人工下发功能需求或修改代码时使用
 检查点：`[Phase 3 计划制定] tasks: N 个, steps: M 步, 执行方式: subagent/inline`
 
 ## Phase 4: 代码实现
-- 按 Phase 3 确定的执行方式，读取对应的 superpowers 文件并按其流程执行：
-  - Subagent-Driven: `.harness/skills/superpowers/subagent-driven-development.md`（核心：分派独立 task 到 subagent 并行实现，主 Agent 逐 task review）
-  - Inline Execution: `.harness/skills/superpowers/executing-plans.md`（核心：主 Agent 按 plan 逐 task 串行实现，每 task 完成后 self-review）
-- 按 plan 逐 task 实现，不含 git commit
-- build 必须 zero warnings（含 IDE 配置警告、工具级警告）
-- TDD 适用范围：Manager/Coordinator/Service/Handler 等可独立测试的逻辑层必须 TDD（failing test → implement → verify）；SwiftUI View、App 生命周期、纯 UI 布局等不要求 TDD，直接实现后通过构建验证即可
+- Agent: Coder，按 `.harness/agents/coder.md` 执行；可传入 model 参数指定实现使用的 LLM 模型
 - superpowers 行为覆盖：见本文件末尾"superpowers 行为覆盖"节
 
 检查点：`[Phase 4 代码实现] 变更: file1.swift(修改), file2.swift(新增), ...; tasks: N/M 完成`
