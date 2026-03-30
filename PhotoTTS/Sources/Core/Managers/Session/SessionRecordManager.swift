@@ -670,11 +670,13 @@ class SessionRecordManager {
         if selectedIndex < systemImageCount {
             // 选中系统内置图片（索引从 0 开始，文件名从 0 开始）
             let resourceName = "\(directionName)-\(selectedIndex)"
-            guard let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg") else {
-                logger.warning("系统要点图片不存在: \(resourceName).jpg")
+            let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
+                ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
+            guard let imageURL else {
+                logger.warning("系统要点图片不存在: \(resourceName).jpg/.png")
                 return nil
             }
-            logger.info("播放要点图片: \(resourceName).jpg (系统内置)")
+            logger.info("播放要点图片: \(resourceName).\(imageURL.pathExtension) (系统内置)")
             return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
         } else {
             // 选中用户上传图片
