@@ -19,6 +19,7 @@ description: 人工下发功能需求或修改代码时使用
 - 确认约束与产品方向，启动 Phase 2
 
 ## Phase 2: 需求探索与设计 `[GATE]`
+- Agent: Designer
 - 读取 `.harness/skills/superpowers/brainstorming.md`，按其流程执行到 step 7（Spec review loop）后终止；step 8-9 由本 Phase GATE 和 Phase 3 接管（见"流程控制覆盖"节）
 - 核心步骤：探索项目上下文 → 逐一提问理解需求 → 提出 2-3 方案含推荐 → 呈现设计 → 用户确认设计 → 写 spec → spec review loop
 - spec 落盘到 `.harness/specs/active/spec-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > Spec 文件模板）
@@ -30,6 +31,7 @@ description: 人工下发功能需求或修改代码时使用
 检查点：`[Phase 2 需求探索与设计] goal: ..., scope: N 文件, 方案: 已确认`
 
 ## Phase 3: 计划制定 `[GATE-ENTRY]`
+- Agent: Planner
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认 spec；若 Phase 2 在当前回复中刚输出，说明 GATE 被违反，必须停止
 - 读取 `.harness/skills/superpowers/writing-plans.md`，按其流程执行到 "Plan Review Loop" 后终止；"Execution Handoff" 由本 Phase 自行执行（见"流程控制覆盖"节）
 - 核心步骤：读取 spec + 代码 → 拆分 task（含文件结构 + TDD 步骤）→ 写 plan → plan review loop
@@ -39,7 +41,7 @@ description: 人工下发功能需求或修改代码时使用
 检查点：`[Phase 3 计划制定] tasks: N 个, steps: M 步, 执行方式: subagent/inline`
 
 ## Phase 4: 代码实现
-- Agent: Coder，按 `.harness/agents/coder.md` 执行；可传入 model 参数指定实现使用的 LLM 模型
+- Agent: Coder，按 `.harness/agents/coder.md` 执行；Subagent-Driven 模式可传入 model 参数，Inline Execution 始终使用主 Agent 模型
 - superpowers 行为覆盖：见本文件末尾"superpowers 行为覆盖"节
 
 检查点：`[Phase 4 代码实现] 变更: file1.swift(修改), file2.swift(新增), ...; tasks: N/M 完成`
@@ -71,7 +73,7 @@ description: 人工下发功能需求或修改代码时使用
 
 ## 上下文管理
 
-1. Phase 2 brainstorming 在主 Agent 上下文中执行（逐一提问需要对话交互）
+1. Phase 2 Designer 在主 Agent 上下文中执行（逐一提问需要对话交互）
 2. Phase 3 后仅保留 spec + plan，不保留产品文档原文
 3. Phase 4 按 plan 逐 task 加载必要源文件
 4. Phase 5 扫描 subagent 有独立上下文

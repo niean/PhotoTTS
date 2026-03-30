@@ -9,7 +9,7 @@
 - plan 文件路径（Phase 3 检查点摘要）
 - spec 文件路径
 - 执行方式（Subagent-Driven / Inline Execution）
-- model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；未指定或指定模型不可用时，使用主 Agent 的模型
+- model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；仅 Subagent-Driven 模式支持，Inline Execution 始终使用主 Agent 模型
 
 ## 执行流程
 
@@ -21,7 +21,7 @@
 
 ### Inline Execution
 
-读取 .harness/skills/superpowers/executing-plans.md，按其流程执行。若指定了 model 且与主 Agent 模型不同，禁止在主 Agent 上下文中直接实现代码，必须将每个 task 以 subagent 方式分派执行（通过 Agent 工具的 model 参数传入指定模型）。
+读取 .harness/skills/superpowers/executing-plans.md，按其流程执行。始终使用主 Agent 模型，不接受用户指定 model。
 
 ## 约束
 

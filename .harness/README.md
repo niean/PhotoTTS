@@ -27,15 +27,17 @@ Layer 0  AGENTS.md（顶层入口、注册表、规则摘要）
             |
 Layer 1  .harness/agents/（Agent 角色定义 -- "谁来做"）
             |
-            |-- orchestrator.md  读取 AGENTS.md，引用 iterate-feature.md、coder.md、reviewer.md
+            |-- orchestrator.md  读取 AGENTS.md，引用 iterate-feature.md、coder.md、reviewer.md、designer.md、planner.md
+            |-- designer.md     引用 superpowers/brainstorming.md（需求探索与设计）
+            |-- planner.md      引用 superpowers/writing-plans.md（计划制定）
             |-- coder.md        引用 superpowers/subagent-driven-development.md、executing-plans.md
             |-- reviewer.md      引用 skills/subskills/scan-*.md（调度扫描）
             |
 Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |
-            |-- iterate-feature.md    引用 agents/orchestrator.md、coder.md、reviewer.md
-            |                        Phase 2 引用 superpowers/brainstorming.md
-            |                        Phase 3 引用 superpowers/writing-plans.md
+            |-- iterate-feature.md    引用 agents/orchestrator.md、designer.md、planner.md、coder.md、reviewer.md
+            |                        Phase 2 引用 agents/designer.md、superpowers/brainstorming.md
+            |                        Phase 3 引用 agents/planner.md、superpowers/writing-plans.md
             |                        Phase 4 引用 superpowers/executing-plans.md 或 subagent-driven-development.md
             |-- iterate-harness-docs.md  单 Agent，文档体系一致性维护
             |-- fix-bug.md            Bug修复流程，引用 agents/orchestrator.md、reviewer.md
