@@ -108,19 +108,86 @@ subagent 是通过 `use_subagents` 启动的独立上下文窗口，是运行方
 
 ## 4. Skills
 
-Skill 是可复用的 AI 操作单元：名称 kebab-case，触发方式（人工/自动/调用），有序步骤，结构化输出。所有 Skill 必须在 AGENTS.md 注册。
+Skill 是可复用的多 Phase 工作流，编排 Agent 角色完成特定任务。所有 Skill 必须在 AGENTS.md 注册。
 
-文件格式：
+### 4.1 核心要素
+
+| 要素 | 说明 |
+|------|------|
+| 触发方式 | 人工指令、AI 自动触发、被其它 Skill 调用 |
+| Phase 编排 | 有序 Phase 序列，每个 Phase 指定执行 Agent |
+| 门禁（GATE） | 标记 `[GATE]` 的 Phase 结束后必须等待人工确认，才能进入下一 Phase |
+| 检查点交接 | Phase 间通过结构化摘要（不超过 10 行）传递上下文，不搬运原文 |
+| 上下文管理 | 每个 Phase 只加载必需文件，Skill 可定义比全局更具体的加载策略 |
+
+### 4.2 设计原则
+
+参照 Anthropic Skill 最佳实践与 Harness 工程约束：
+
+- 简洁优先：Skill 文件是流程骨架，不是教程；AI 已具备通用能力，只补充它不知道的上下文
+- 自由度分级：流程关键路径（构建、安全扫描）用低自由度（精确命令）；探索性任务（需求设计）用高自由度（启发式指引）
+- 渐进加载：Skill 主文件作为目录，详细内容拆分到子文件（superpowers/、subskills/），按需读取
+- 反馈闭环：扫描 -> 修复 -> 验证的循环结构，确保问题不遗漏
+
+### 4.3 文件格式
+
+Skill 主文件（`.harness/skills/` 下）：
 
 ```markdown
-# Skill: {名称}
+---
+name: skill-name
+description: 一句话描述 Skill 用途和触发时机
+---
 
-触发：{触发条件}
+# Skill: {显示名}
 
-步骤：
-1. {步骤1}
-2. {步骤2}
-...
+触发：{触发条件}。
+
+本 Skill 采用{单 Agent / 多 Agent}架构。
+
+---
+
+## Phase 1: {阶段名}
+- Agent: {执行角色}
+- {具体步骤}
+
+检查点：`[Phase 1 {名称}] 目标: ...; 产出: ...; 状态: ...`
+
+## Phase 2: {阶段名} [GATE]
+- Agent: {执行角色}
+- {具体步骤}
+（GATE: 输出摘要，等待用户确认后进入下一 Phase）
+
+## Phase 3: {阶段名} [GATE-ENTRY]
+- Agent: {执行角色}
+- {具体步骤}
+
+---
+
+## 上下文管理
+{Skill 级别的加载策略，覆盖全局默认}
+```
+
+### 4.4 Subskill
+
+Subskill 是原子任务模板（无 Phase 编排、无决策），由 Skill 或 Agent 通过 subagent 机制调度。详见 3.1 内容层级。
+
+文件格式（`.harness/skills/subskills/` 下）：
+
+```markdown
+# Subskill: {显示名}
+
+## 任务
+{一句话描述}
+
+## 输入
+- {files}：文件路径列表
+
+## 检查规则
+{逐条列出}
+
+## 输出格式
+{结构化表格模板}
 ```
 
 ---

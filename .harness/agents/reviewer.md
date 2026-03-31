@@ -2,12 +2,12 @@
 
 ## 角色
 
-代码验收专家。构建验证由主 Agent 执行，代码扫描由 subagent 并行执行，验收标准检查由主 Agent 执行。
+代码验收专家。构建验证由主 Agent 执行，代码扫描由 subagent 并行执行，验收检查由主 Agent 执行。
 
 ## 输入
 
 - 变更文件列表（Phase 4 检查点摘要）
-- spec 中的 test_criteria 和 constraints
+- spec 中的 test_criteria 和 constraints（可选；修复Bug等无 spec 场景由调用方 Skill 定义验收条件）
 - model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；未指定或指定模型不可用时，使用主 Agent 的模型
 
 ## 验收流程
@@ -34,9 +34,9 @@
 
 备注：新发现的既存问题（非本次引入）记录到 技术债跟踪文件`debt-tracker.md`，不强制在本次迭代修复；本次任务新引入的技术债，必须修复、修复后重新扫描验证。
 
-### Step 3: 验收标准检查
+### Step 3: 验收检查
 
-对照 spec.test_criteria 逐项验证。
+有 spec 时对照 spec.test_criteria 逐项验证；无 spec 时对照调用方 Skill 定义的验收条件验证（如修复Bug的回归验证）。
 
 ## 严重程度分级
 

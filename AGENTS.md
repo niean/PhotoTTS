@@ -199,8 +199,8 @@ AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
   README.md            -- Harness 工程模板说明
   agents/              -- Agent 角色模板（Orchestrator、Designer、Planner、Coder、Reviewer）
-  skills/              -- Skill 定义（迭代功能、修复Bug、迭代Harness文档、回填知识库、从教训回填知识库、构建验证、总结任务）
-    harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板、回填产品文档）
+  skills/              -- Skill 定义（迭代功能、修复Bug、迭代Harness文档、验证构建、总结任务）
+    harness-ops/       -- Harness 运维类 Skill（治理代码、治理技能、治理全部、提取模板、回填知识库、从教训回填知识库、回填产品文档）
     subskills/         -- Subskill 扫描模板
     superpowers/   -- superpowers 方法论技能（开发方法论，本地适配版）
   specs/               -- 设计文档（WHAT：需求、架构、设计决策）
