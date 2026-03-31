@@ -1,9 +1,9 @@
 ---
-name: governance-code
+name: governance-code-manual
 description: 人工指令触发代码治理
 ---
 
-# Skill: 治理代码
+# Skill: 治理代码-人工
 
 触发：人工指令。对项目代码进行完整质量治理。
 
@@ -40,7 +40,7 @@ description: 人工指令触发代码治理
 - Agent: Reviewer；沿用 Phase 2 传入的 model 参数
 
 ### Step 5a: 构建验证（主 Agent）
-执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），确认零警告零错误。失败回 Phase 4。
+执行 `Skill: 结果验收`（`.harness/skills/harness/verify-acceptance.md`），scope=build_only，确认零警告零错误。失败回 Phase 4。
 
 ### Step 5b: 回归扫描（可选，修复涉及面广时）
 对修复涉及的文件重新执行 Phase 2 中相关维度的扫描，确认无新增违规或残留问题。无 subagent 时主 Agent 顺序执行。

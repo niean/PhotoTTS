@@ -1,11 +1,11 @@
 ---
-name: governance-capability
+name: governance-capability-manual
 description: 人工指令触发技能治理
 ---
 
-# Skill: 治理技能
+# Skill: 治理技能-人工
 
-触发：人工指令，或由 Skill: 治理全部 Step 2 调用。对 .harness/agents/、skills/（含 subskills/）进行扫描与提取。
+触发：人工指令，或由 Skill: 治理全部-人工 Step 2 调用。对 .harness/agents/、skills/（含 subskills/）进行扫描与提取。
 
 本 Skill 采用多 Agent 编排，每个 Step 指定执行角色。Step 间通过"检查点摘要"（按 AGENTS.md 检查点摘要模板，不超过 5 行）交接上下文。
 

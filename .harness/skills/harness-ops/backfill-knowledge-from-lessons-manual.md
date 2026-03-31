@@ -1,13 +1,11 @@
 ---
-name: backfill-knowledge-from-lessons
+name: backfill-knowledge-from-lessons-manual
 description: 人工指令触发，将教训库中已沉淀的教训抽象为通用规则回填到知识库
 ---
 
-# Skill: 从教训回填知识库
+# Skill: 从教训回填知识库-人工
 
 触发：人工指令。将 `.harness/lessons/` 中已沉淀的教训抽象为通用规则，回填到 `.harness/knowledge/`，回填后删除原教训条目。
-
-本 Skill 采用单 Agent 架构，由主 Agent 直接执行。
 
 ---
 

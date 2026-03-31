@@ -49,7 +49,8 @@ Layer 2  .harness/skills/（Skill 流程定义 -- "怎么做"）
             |   |-- backfill-prd.md       读取 prd/ 三个产品文档
             |   |-- backfill-knowledge-from-lessons.md  将 lessons/ 教训回填到 knowledge/
             |   |-- backfill-knowledge.md 读取 AGENTS.md、knowledge/、skills/目录（含 subskills/）
-            |-- verify-build.md       独立（仅含构建命令）
+            |-- harness/
+            |   |-- verify-acceptance.md  结果验收（构建验证 + 代码扫描 + 验收检查，通过 scope 参数控制执行范围）
             |-- summarize-task.md     独立（仅含报告模板）
             |-- superpowers/     superpowers 方法论技能参考（开发方法论，英文原版适配）
             |   |-- brainstorming.md              需求探索与设计（iterate-feature Phase 2 调用）

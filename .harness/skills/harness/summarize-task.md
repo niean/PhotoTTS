@@ -7,8 +7,6 @@ description: AI 自动触发，任务完成后输出总结
 
 触发：AI 自动触发，按 `Skill: 迭代功能` 或 `Skill: 修复Bug` 完整流程执行的任务完成后 必须自动执行
 
-本 Skill 采用单 Agent 架构，由主 Agent 直接执行。
-
 ## 步骤
 
 1. 回顾任务完整过程

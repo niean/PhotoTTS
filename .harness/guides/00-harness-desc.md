@@ -10,20 +10,16 @@
 ## 0. 分层架构
 
 ```
-1. Subskill = 原子操作
-   操作层面最小复用单位，不可再拆，只做底层动作。
-
-2. Skill = 原子功能
-   功能层面最小复用单位，内部可编排多个 Subskill，对外呈现单一能力。
-
-3. Subagent = 角色化执行单元
-   绑定特定 Role（Coder / Tester / Scheduler 等），
-   负责编排、调度、组合 Skill，完成该角色职责。
-
-4. Agent / Workflow = 全局任务编排
+1. Agent / Workflow = 全局任务编排
    顶层调度者，拆解复杂任务，
    按流程编排不同 Role 的 Subagent，实现端到端目标。
-
+2. Subagent = 角色化执行单元
+   绑定特定 Role（Coder / Tester / Scheduler 等），
+   负责编排、调度、组合 Skill，完成该角色职责。
+3. Skill = 原子功能
+   功能层面最小复用单位，内部可编排多个 Subskill，对外呈现单一能力。
+4. Subskill = 原子操作
+   操作层面最小复用单位，不可再拆，只做底层动作。
 
 Agent / Workflow
    ↓ 调度不同角色
@@ -122,7 +118,7 @@ subagent 是通过 `use_subagents` 启动的独立上下文窗口，是运行方
 
 ### 3.3 层级间关系
 
-- Skill 编排 Agent：每个 Phase 指定执行 Agent
+- Skill 不声明自身由哪个 Agent 执行，执行角色由上层指定
 - Skill/Agent 调用 Subskill：通过 subagent 机制并行启动
 - Agent 不反向引用 Skill（如具体 Phase 编号、Skill 文件名），不定义执行流程
 - Subskill 不反向引用 Skill 或 Agent
@@ -172,32 +168,29 @@ description: 一句话描述 Skill 用途和触发时机
 
 # Skill: {显示名}
 
-触发：{触发条件}。
+触发：{触发条件}。{一句话描述目标}。
 
-本 Skill 采用{单 Agent / 多 Agent}架构。
+## 输入
 
----
+| 参数 | 必需 | 说明 |
+|------|------|------|
+| {param} | {是/否} | {说明} |
 
-## Phase 1: {阶段名}
-- Agent: {执行角色}
-- {具体步骤}
+## 步骤
 
-检查点：`[Phase 1 {名称}] 目标: ...; 产出: ...; 状态: ...`
+### Step 1 -- {步骤名}
+{具体步骤}
 
-## Phase 2: {阶段名} [GATE]
-- Agent: {执行角色}
-- {具体步骤}
-（GATE: 输出摘要，等待用户确认后进入下一 Phase）
+### Step 2 -- {步骤名}
+{具体步骤}
 
-## Phase 3: {阶段名} [GATE-ENTRY]
-- Agent: {执行角色}
-- {具体步骤}
-
----
-
-## 上下文管理
-{Skill 级别的加载策略，覆盖全局默认}
+## 输出
+{输出格式或模板}
 ```
+
+可选节（按需添加，不作为默认结构）：
+- `## 上下文管理`：Skill 有特殊加载策略时添加
+- `检查点`：多 Phase Workflow 中 Agent 交接时添加
 
 ### 4.4 Subskill
 

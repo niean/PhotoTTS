@@ -29,17 +29,10 @@ description: 修复Bug或异常行为修复时使用
 检查点：`[Phase 2 修复Bug] bug: ..., root_cause: ..., 变更: file1.swift(修改), ...; test: N新增/M通过`
 
 ## Phase 3: 结果验收
-- Agent: Reviewer，使用 `.harness/agents/reviewer.md` 定义的能力；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
-- 扫描范围：仅本次变更文件
-- 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报
+- 执行 `Skill: 结果验收`（`.harness/skills/harness/verify-acceptance.md`），scope=full，传入变更文件列表和回归验证条件（修复测试通过 + 既有测试无回归 + Bug 现象已消除）
+- 不通过时回到 Phase 2 修复
 
-必须执行的步骤：
-1. Step 1 构建验证：执行 `Skill: 验证构建`（`.harness/skills/verify-build.md`），全量构建确认零警告零错误（单元测试仅用户明确要求时执行）
-2. Step 2 代码扫描：根据变更范围选择相关维度 subagent 扫描（无需全部 5 维度，按实际变更涉及的维度执行），每个维度独立输出结论
-3. Step 3 回归验证：确认修复测试通过 + 既有测试无回归 + Bug 现象已消除
-- 扫描违规或验收不通过时回到 Phase 2 修复
-
-检查点：`[Phase 3 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 回归: 通过/失败`
+检查点：`[Phase 3 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 验收标准: K项通过`
 
 ## Phase 4: 知识回填
 - Agent: Orchestrator
@@ -48,7 +41,7 @@ description: 修复Bug或异常行为修复时使用
 
 ## Phase 5: 任务总结
 - Agent: Orchestrator
-- 自动触发 Skill: 总结任务（`.harness/skills/summarize-task.md`）
+- 自动触发 Skill: 总结任务（`.harness/skills/harness/summarize-task.md`）
 - 执行顺序：输出总结报告 -> 结束任务，在同一条回复中完成
 
 ---

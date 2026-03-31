@@ -1,13 +1,11 @@
 ---
-name: extract-harness-tpl
+name: extract-harness-tpl-manual
 description: 人工指令触发 Harness 模板提取
 ---
 
-# Skill: 提取Harness模板
+# Skill: 提取Harness模板-人工
 
 触发：人工指令。从当前 Harness 工程蒸馏出项目无关的通用模板。
-
-本 Skill 采用单 Agent 架构，由主 Agent 直接执行。
 
 自动执行约束：在用户指定目标目录下，新建/修改文件无需逐一确认。
 
@@ -31,7 +29,7 @@ description: 人工指令触发 Harness 模板提取
 2. AGENTS.md+README：剥离项目专属信息，替换为 `{{占位符}}`
 3. 保留通用框架/结构/流程
 4. 通用规范原文保留；项目规范保留骨架，专属条目替换占位符
-5. Subskills 保留通用维度的 scan-*.md（如架构、编码、安全、日志、废弃代码），剥离项目专属信息、替换为 `{{占位符}}`，剔除仅项目专属维度（如 scan-image-handling.md）；引用 subskills 的文件（agents/reviewer.md、skills/harness-ops/governance-code.md、AGENTS.md）同步蒸馏，项目专属维度的引用替换为占位符，通用维度的引用保留
+5. Subskills 保留通用维度的 scan-*.md（如架构、编码、安全、日志、废弃代码），剥离项目专属信息、替换为 `{{占位符}}`，剔除仅项目专属维度（如 scan-image-handling.md）；引用 subskills 的文件（agents/reviewer.md、skills/harness-ops/governance-code-manual.md、AGENTS.md）同步蒸馏，项目专属维度的引用替换为占位符，通用维度的引用保留
 6. knowledge/ 和 prd/ 文件保留结构，正文替换占位符；特例：prd/03-prd-specs.md也需要蒸馏为模板
 7. Plans 保留目录结构；特例：debt-tracker.md 也需要蒸馏为模板
 8. 禁用 emoji/加粗/斜体

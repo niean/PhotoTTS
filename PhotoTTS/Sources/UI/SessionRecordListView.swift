@@ -402,6 +402,7 @@ struct SessionRecordListView: View {
                 .frame(maxWidth: maxContentWidth)
                 .padding(.top, showTopNav ? (scaled(45)) : 0)
                 .coordinateSpace(name: "listOuter")
+                .background(Color(.systemBackground))
             }
             
                 if showTopNav {

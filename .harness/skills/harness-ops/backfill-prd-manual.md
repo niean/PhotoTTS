@@ -1,13 +1,11 @@
 ---
-name: backfill-prd
+name: backfill-prd-manual
 description: 人工指令触发产品文档回填
 ---
 
-# Skill: 回填产品文档
+# Skill: 回填产品文档-人工
 
 触发：人工指令。从知识库和近期变更中提取产品文档变化，经人工确认后更新 prd/ 目录（AI只读，需人工确认方可修改）。
-
-本 Skill 采用单 Agent 架构，由主 Agent 直接执行。
 
 ## 步骤
 
