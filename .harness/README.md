@@ -25,7 +25,7 @@ Layer 0  AGENTS.md（顶层入口、注册表、规则摘要）
             |-- 索引 --> knowledge/、prd/、guides/ 全部文件
             |-- 摘要引用 --> knowledge/03-conventions.md（权威源）
             |
-Layer 1  .harness/agents/（Agent 角色定义 -- "谁来做"）
+Layer 1  .harness/agents/（Agent 角色与能力 -- "谁来做、能做什么"）
             |
             |-- orchestrator.md  读取 AGENTS.md，引用 iterate-feature.md、coder.md、reviewer.md、designer.md、planner.md
             |-- designer.md     引用 superpowers/brainstorming.md（需求探索与设计）

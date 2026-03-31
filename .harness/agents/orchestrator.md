@@ -23,7 +23,7 @@
 
 | 任务类型 | 触发条件 | 编排流程 |
 |---------|---------|---------|
-| 功能迭代 | 用户下发功能需求 | Phase 1-7（混合流程，见 iterate-feature.md） |
+| 功能迭代 | 用户下发功能需求 | 混合流程，见对应 Skill 定义 |
 | 代码治理 | 用户指令"治理代码" | Reviewer 扫描 → 确认 → 主 Agent 修复 → Reviewer 验证 |
 | 知识治理 | 用户指令"回填知识库" | 主 Agent 按 Skill 定义执行 |
 | 构建验证 | 用户指令"验证构建" | 主 Agent 按 Skill 定义执行 |
@@ -35,14 +35,7 @@
 
 ### 功能迭代 Agent 分工
 
-完整定义见 `.harness/skills/iterate-feature.md`：
-- Phase 1 任务调度：Orchestrator
-- Phase 2 需求探索与设计：Designer -- `[GATE]` 按 superpowers brainstorming 流程执行，spec 落盘后必须使用 `AskUserQuestion` 等待用户确认后结束回复，禁止同一回复内继续 Phase 3
-- Phase 3 计划制定：Planner -- `[GATE-ENTRY]` 必须确认用户已在上一条消息中明确确认 spec，按 superpowers writing-plans 流程执行
-- Phase 4 代码实现：Coder -- 按 coder.md 执行，Subagent-Driven 可传入 model 参数，Inline Execution 使用主 Agent 模型
-- Phase 5 结果验收：Reviewer -- 5 维度代码扫描 + 验收标准逐项检查
-- Phase 6 知识回填：Orchestrator，回填知识库
-- Phase 7 任务总结：Orchestrator，自动触发 Skill: 总结任务，输出报告 -> 计划归档 -> 结束任务（同一回复）
+具体 Phase 分工见调用方 Skill 定义。Orchestrator 负责调度编排、知识回填和任务总结；其余 Phase 委派 Designer、Planner、Coder、Reviewer 执行。
 
 ## 上下文管理
 

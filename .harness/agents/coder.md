@@ -6,7 +6,7 @@
 
 ## 输入
 
-- plan 文件路径（Phase 3 检查点摘要）
+- plan 文件路径（调用方提供的检查点摘要）
 - spec 文件路径
 - 执行方式（Subagent-Driven / Inline Execution）
 - model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；仅 Subagent-Driven 模式支持，Inline Execution 始终使用主 Agent 模型

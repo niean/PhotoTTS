@@ -20,7 +20,7 @@ description: 人工下发功能需求或修改代码时使用
 
 ## Phase 2: 需求探索与设计 `[GATE]`
 - Agent: Designer
-- 读取 `.harness/skills/superpowers/brainstorming.md`，按其流程执行到 step 7（Spec review loop）后终止；step 8-9 由本 Phase GATE 和 Phase 3 接管（见"流程控制覆盖"节）
+- 读取 `.harness/skills/superpowers/brainstorming.md`，按其流程执行到 step 7（Spec review loop）后终止；step 8-9 由本 Phase GATE 和 Phase 3 接管
 - 核心步骤：探索项目上下文 → 逐一提问理解需求 → 提出 2-3 方案含推荐 → 呈现设计 → 用户确认设计 → 写 spec → spec review loop
 - spec 落盘到 `.harness/specs/active/spec-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > Spec 文件模板）
 - spec 落盘后，向用户输出需求摘要（目标 + 范围 + 方案 + 验收标准），等待确认
@@ -33,7 +33,7 @@ description: 人工下发功能需求或修改代码时使用
 ## Phase 3: 计划制定 `[GATE-ENTRY]`
 - Agent: Planner
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认 spec；若 Phase 2 在当前回复中刚输出，说明 GATE 被违反，必须停止
-- 读取 `.harness/skills/superpowers/writing-plans.md`，按其流程执行到 "Plan Review Loop" 后终止；"Execution Handoff" 由本 Phase 自行执行（见"流程控制覆盖"节）
+- 读取 `.harness/skills/superpowers/writing-plans.md`，按其流程执行到 "Plan Review Loop" 后终止；"Execution Handoff" 由本 Phase 自行执行
 - 核心步骤：读取 spec + 代码 → 拆分 task（含文件结构 + TDD 步骤）→ 写 plan → plan review loop
 - plan 落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > Plan 文件模板）
 - plan 落盘后，确定执行方式（Subagent-Driven / Inline Execution）后直接进入 Phase 4：若用户在输入指令中明确指定了执行方式则遵从；否则 AI 按任务类型自主决策，简单任务使用 Inline Execution、复杂任务使用 Subagent-Driven，无需人工确认。禁止使用 AskUserQuestion 等待确认 -- 本 Phase 无 [GATE] 标记，plan 落盘后必须自主推进
@@ -42,12 +42,11 @@ description: 人工下发功能需求或修改代码时使用
 
 ## Phase 4: 代码实现
 - Agent: Coder，按 `.harness/agents/coder.md` 执行；Subagent-Driven 模式可传入 model 参数，Inline Execution 始终使用主 Agent 模型
-- superpowers 行为覆盖：见本文件末尾"superpowers 行为覆盖"节
 
 检查点：`[Phase 4 代码实现] 变更: file1.swift(修改), file2.swift(新增), ...; tasks: N/M 完成`
 
 ## Phase 5: 结果验收
-- Agent: Reviewer，按 `.harness/agents/reviewer.md` 执行；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
+- Agent: Reviewer，使用 `.harness/agents/reviewer.md` 定义的能力；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
 - 职责边界：Phase 4 per-task review 关注 task 级正确性（spec 合规 + 代码质量），Phase 5 关注项目级约束（架构边界、编码约定、安全规范、图片处理、日志规范）及整体验收标准
 - 扫描范围：仅本次变更文件
 - 每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报

@@ -16,23 +16,23 @@
 ## 输入
 
 - spec 文件路径
-- Phase 2 检查点摘要
+- 调用方提供的检查点摘要
 
 ## 执行流程
 
-读取 .harness/skills/superpowers/writing-plans.md，按其流程执行到 Plan Review Loop 后终止；Execution Handoff 由 iterate-feature.md Phase 3 自行执行。
+读取 .harness/skills/superpowers/writing-plans.md，按其流程执行到 Plan Review Loop 后终止；Execution Handoff 由调用方 Skill 自行执行。
 
 核心步骤：读取 spec + 代码 -> 拆分 task（含文件结构 + TDD 步骤）-> 写 plan -> plan review loop。
 
 ## 运行形态
 
-主 Agent（需要读取 Phase 2 对话上下文和 spec 内容）。
+主 Agent（需要读取上游对话上下文和 spec 内容）。
 
 ## 约束
 
 - 按 spec 拆分，不自行修改设计决策
 - plan 必须包含具体文件路径和 TDD 步骤（适用范围内）
-- 确定执行方式（Subagent-Driven / Inline Execution）后直接进入 Phase 4
+- 确定执行方式（Subagent-Driven / Inline Execution）后交回调用方
 
 ## 上下文管理
 

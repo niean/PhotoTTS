@@ -16,11 +16,11 @@
 ## 输入
 
 - 用户需求描述
-- Phase 1 检查点摘要
+- 调用方提供的检查点摘要
 
 ## 执行流程
 
-读取 .harness/skills/superpowers/brainstorming.md，按其流程执行到 step 7（Spec review loop）后终止；step 8-9 由 iterate-feature.md Phase 2 GATE 和 Phase 3 接管。
+读取 .harness/skills/superpowers/brainstorming.md，按其流程执行到 step 7（Spec review loop）后终止；后续步骤由调用方 Skill 接管。
 
 核心步骤：探索项目上下文 -> 逐一提问理解需求 -> 提出 2-3 方案含推荐 -> 呈现设计 -> 用户确认设计 -> 写 spec -> spec review loop。
 
@@ -30,7 +30,7 @@
 
 ## 约束
 
-- 设计决策必须对照产品文档（prd/）确认不偏离产品定位
+- 设计决策必须对照产品文档（prd/01,02-prd-*.md、）确认不偏离产品定位
 - spec 必须包含明确的验收标准
 - 不做实现层面的 task 拆分（由 Planner 负责）
 

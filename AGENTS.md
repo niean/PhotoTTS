@@ -97,12 +97,12 @@ Skill 定义"做什么"，Agent 定义"谁来做"。多 Agent Skill 的每个 Ph
 
 | Subskill | 文件 | 调用方 |
 |----------|------|--------|
-| 扫描架构边界 | .harness/skills/subskills/scan-architecture.md | Reviewer Step 1, 治理代码 Phase 2 |
-| 扫描编码约定 | .harness/skills/subskills/scan-conventions.md | Reviewer Step 1, 治理代码 Phase 2 |
-| 扫描安全规范 | .harness/skills/subskills/scan-security.md | Reviewer Step 1, 治理代码 Phase 2 |
-| 扫描图片处理 | .harness/skills/subskills/scan-image-handling.md | Reviewer Step 1, 治理代码 Phase 2 |
-| 扫描日志规范 | .harness/skills/subskills/scan-logging.md | Reviewer Step 1, 治理代码 Phase 2 |
-| 扫描废弃代码 | .harness/skills/subskills/scan-dead-code.md | 治理代码 Phase 2, Reviewer Step 1（可选） |
+| 扫描架构边界 | .harness/skills/subskills/scan-architecture.md | Reviewer 代码扫描, 治理代码 Phase 2 |
+| 扫描编码约定 | .harness/skills/subskills/scan-conventions.md | Reviewer 代码扫描, 治理代码 Phase 2 |
+| 扫描安全规范 | .harness/skills/subskills/scan-security.md | Reviewer 代码扫描, 治理代码 Phase 2 |
+| 扫描图片处理 | .harness/skills/subskills/scan-image-handling.md | Reviewer 代码扫描, 治理代码 Phase 2 |
+| 扫描日志规范 | .harness/skills/subskills/scan-logging.md | Reviewer 代码扫描, 治理代码 Phase 2 |
+| 扫描废弃代码 | .harness/skills/subskills/scan-dead-code.md | 治理代码 Phase 2, Reviewer 代码扫描（可选） |
 
 ## 文件与文档
 

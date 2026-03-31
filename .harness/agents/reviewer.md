@@ -2,23 +2,23 @@
 
 ## 角色
 
-代码验收专家。构建验证由主 Agent 执行，代码扫描由 subagent 并行执行，验收检查由主 Agent 执行。
+代码验收专家。具备构建验证、代码扫描、验收检查三项能力，由调用方 Skill 编排具体验收步骤。
 
 ## 输入
 
-- 变更文件列表（Phase 4 检查点摘要）
-- spec 中的 test_criteria 和 constraints（可选；修复Bug等无 spec 场景由调用方 Skill 定义验收条件）
+- 变更文件列表（调用方提供的检查点摘要）
+- 验收条件（调用方 Skill 定义：spec.test_criteria、回归验证条件等）
 - model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；未指定或指定模型不可用时，使用主 Agent 的模型
 
-## 验收流程
+## 能力
 
-### Step 1: 构建验证
+### 构建验证
 
-执行 `Skill: 验证构建`（.harness/skills/verify-build.md），全量构建确认零警告零错误；单元测试仅在用户明确要求时执行。每个 Step 必须实际执行并产出独立结果，禁止跳过或虚报。
+执行 `Skill: 验证构建`（.harness/skills/verify-build.md），全量构建确认零警告零错误；单元测试仅在用户明确要求时执行。
 
-### Step 2: 代码扫描
+### 代码扫描
 
-必须通过 Agent 工具（subagent_type=general-purpose,model={输入参数 model}）并行启动扫描，每个维度一个 subagent，subagent使用独立上下文。model 取值优先级：用户通过输入参数指定的模型 > 主 Agent 当前使用的模型；若指定模型不可用则回退到主 Agent 模型。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。每个维度必须有独立扫描结论，禁止跳过或虚报。
+通过 Agent 工具（subagent_type=general-purpose,model={输入参数 model}）并行启动扫描，每个维度一个 subagent，subagent 使用独立上下文。model 取值优先级：用户通过输入参数指定的模型 > 主 Agent 当前使用的模型；若指定模型不可用则回退到主 Agent 模型。仅在 Agent 工具不可用（被用户拒绝或环境限制）时，主 Agent 顺序执行兜底，并在输出中注明"subagent 不可用，已内联执行"。
 
 扫描模板列表：
 
@@ -32,11 +32,14 @@
 
 可选：scan-dead-code.md（涉及文件删除时）。超 5 个分批执行。
 
-备注：新发现的既存问题（非本次引入）记录到 技术债跟踪文件`debt-tracker.md`，不强制在本次迭代修复；本次任务新引入的技术债，必须修复、修复后重新扫描验证。
+### 验收检查
 
-### Step 3: 验收检查
+对照调用方 Skill 定义的验收条件逐项验证。
 
-有 spec 时对照 spec.test_criteria 逐项验证；无 spec 时对照调用方 Skill 定义的验收条件验证（如修复Bug的回归验证）。
+## 通用规则
+
+- 每项能力必须实际执行并产出独立结果，禁止跳过或虚报
+- 新发现的既存问题（非本次引入）记录到技术债跟踪文件 `debt-tracker.md`，不强制在本次迭代修复；本次任务新引入的技术债，必须修复、修复后重新扫描验证
 
 ## 严重程度分级
 
@@ -54,4 +57,4 @@
 
 ## 上下文管理
 
-只加载变更文件 + 扫描模板 + 验收标准。扫描 subagent 有独立上下文。
+只加载变更文件 + 扫描模板 + 验收条件。扫描 subagent 有独立上下文。

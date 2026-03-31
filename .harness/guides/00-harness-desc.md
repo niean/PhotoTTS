@@ -7,6 +7,36 @@
 本文仅供自然人使用，未经人工确认、禁止AI修改；允许AI蒸馏，但输出必须沿用原文、不得修改内容。
 
 ---
+## 0. 分层架构
+
+```
+1. Subskill = 原子操作
+   操作层面最小复用单位，不可再拆，只做底层动作。
+
+2. Skill = 原子功能
+   功能层面最小复用单位，内部可编排多个 Subskill，对外呈现单一能力。
+
+3. Subagent = 角色化执行单元
+   绑定特定 Role（Coder / Tester / Scheduler 等），
+   负责编排、调度、组合 Skill，完成该角色职责。
+
+4. Agent / Workflow = 全局任务编排
+   顶层调度者，拆解复杂任务，
+   按流程编排不同 Role 的 Subagent，实现端到端目标。
+
+
+Agent / Workflow
+   ↓ 调度不同角色
+   Subagent（Role: Coder）
+        ↓ 组合功能
+        Skill：generate_and_format_code
+             ↓ 编排底层操作
+             Subskill：write_file
+             Subskill：run_eslint
+             Subskill：run_prettier
+```
+
+---
 
 ## 1. 核心理念
 
@@ -80,8 +110,8 @@ AGENTS.md                  -- 入口文件（项目根目录）
 
 | 层级 | 概念 | 定义 | 目录 | 结构特征 |
 |------|------|------|------|---------|
-| Layer 1 | Agent | 角色定义 -- "谁来做" | .harness/agents/ | 角色人格、行为规则、决策逻辑、上下文管理 |
-| Layer 2 | Skill | 流程编排 -- "怎么做" | .harness/skills/ | 多 Phase 工作流、Agent 分工、门禁决策、检查点交接 |
+| Layer 1 | Agent | 角色与能力 -- "谁来做、能做什么" | .harness/agents/ | 角色、能力(原子项)、约束、上下文管理 |
+| Layer 2 | Skill | 流程编排 -- "做什么、按什么顺序做" | .harness/skills/ | 多 Phase 工作流、Agent 分工、门禁决策、检查点交接 |
 | Layer 3 | Subskill | 原子任务 -- "做什么" | .harness/skills/subskills/ | 单 Phase 线性流程、输入-规则-输出、无决策 |
 
 Subskill 本质是 Task（原子任务），因 "Task" 在用户对话、IDE 会话等多处已有含义，为避免歧义使用 Subskill 隔离命名空间。
@@ -94,6 +124,7 @@ subagent 是通过 `use_subagents` 启动的独立上下文窗口，是运行方
 
 - Skill 编排 Agent：每个 Phase 指定执行 Agent
 - Skill/Agent 调用 Subskill：通过 subagent 机制并行启动
+- Agent 不反向引用 Skill（如具体 Phase 编号、Skill 文件名），不定义执行流程
 - Subskill 不反向引用 Skill 或 Agent
 
 ### 3.4 文档引用方向
