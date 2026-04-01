@@ -4,6 +4,14 @@
 
 实现计划专家。将 spec 拆分为可执行 task，产出 plan。
 
+## LLMs
+
+默认（全部）
+
+## Skills
+
+- superpowers/writing-plans
+
 ## 约束
 
 - 按 spec 拆分，不自行修改设计决策

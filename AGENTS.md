@@ -6,39 +6,50 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 
 # 一、任务调度（任务入口，项目无关，AI-READONLY）
 
-本节是`任务调度`的实际执行者，由 Orchestrator 角色承担。
+本节是`任务调度`的实际执行者，由 Agent:Orchestrator 承担。
 
-任务开始时首先进行 任务分类和Skill路由（新 Task 或同一 Task 内的第 2+ 次迭代均需分类），必须立即执行以下步骤，禁止跳过：
-
-1. 任务分类：判断任务类型。优先匹配：用户明确指定已注册 Skill 名称时，直接路由到对应 Skill，跳过步骤 2-3。否则按下表路由：
+任务开始时，首先且必须执行`任务调度`(禁止跳过)：判断任务类型，按顺序优先匹配，
+- Slash Command 模式：用户通过 slash command 触发
+按顺序优先匹配下表：
 
 | 任务类型 | 触发条件 | 编排流程 |
 |---------|---------|---------|
+| 显式指定 | 用户明确指定已注册 Workflow/Skill 名称（含治理类 Workflow） | 直接路由到对应 Workflow/Skill |
 | 功能迭代 | 人工下发功能需求或修改代码 | Workflow: 迭代功能 |
-| Bug修复 | Bug修复或异常行为修复 | Skill: 修复Bug |
-| 文档修改 | 修改文档需求 | Skill: 迭代Harness文档 |
-| 其他 | 用户指令触发 | 按需路由到已注册 Skill 或直接执行 |
-2. 读取 Skill/Workflow 定义：立即读取对应的定义文件（Skill 如 `.harness/skills/fix-bug.md`，Workflow 如 `.harness/agents/wf-iterate-feature.md`）
-3. 遵循 Skill 流程：按 Skill 文件定义的 Phase 顺序执行；特别强调，`[GATE]` 标记的 Phase 必须在消息框展示意图、等待人工确认，否则禁止执行后续 Phase
+| Bug修复 | Bug修复或异常行为修复 | Workflow: 修复Bug |
+| 文档修改 | 修改文档需求 | Workflow: 迭代文档 |
+| 其他 | 以上均未匹配 | 直接执行 |
 
-执行约束：
-- 必须先读取 Skill 定义，再开始代码实现
-- 必须按 Skill 文件定义的 Phase 顺序完整执行，不跳过、不简化、不改编、不拆分、不合并
-- 必须遵守 `[GATE]` 门禁（见下方 GATE 规则），在 GATE 点等待用户确认后再继续
-- 必须按 Phase 定义的消息输出格式输出，不简化、不改动
-- superpowers 插件（形如 `superpowers:skill-x`）仅在用户明确指令时调用，不主动调起
+任务调度约束：
+- 新 Task 或同一 Task 内的第 2+ 次迭代，均必须执行`任务调度`
+- superpowers 平台插件（形如 `superpowers:skill-x` 的 slash command）仅在用户明确指令时调用，不主动调起；与 `.harness/skills/superpowers/` 下被 Workflow 声明依赖的本地 Skill 无关
+- 直接调用的 Skill 如有前置上下文依赖（如变更文件列表、设计文档），由 Skill 自身检查并提示用户补充
+
+---
+
+# 二、执行约束（项目无关，AI-READONLY）
+
+## Workflow 执行
+
+1. 读取定义：立即读取对应的 Workflow 文件（如 `.harness/workflows/iterate-feature.md`）
+2. 按 Phase 顺序执行：不跳过、不简化、不改编、不拆分、不合并
+3. 遵守 `[GATE]` 门禁（见下方 GATE 规则），在 GATE 点等待用户确认后再继续
+4. 按 Phase 定义的消息输出格式输出，不简化、不改动
+
+## Skill 执行
+
+1. 读取定义：立即读取对应的 Skill 文件（如 `.harness/skills/harness/load-knowledge.md`）
+2. 按 Step 顺序连续执行；默认无中断，Skill 可通过 `[CONFIRM]` 标记声明人工确认点（结束当前回复，等待用户确认后继续）；必须先读取定义，再开始实现
 
 ## Phase 门禁（GATE）规则（AI-READONLY）
 
-- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，使用 `AskUserQuestion` 工具向用户请求确认；禁止在同一条回复中继续后续 Phase
+GATE 管控 Phase 间流转，不管控 Phase 内部操作。Phase 内部的确认（如 AI-READONLY 文件逐个确认）由各自规则约束，不受 GATE 规则限制。
+
+- `[GATE]` 标记的 Phase 结束后，必须立即结束当前回复，等待用户下一条消息明确确认；禁止在同一条回复中继续后续 Phase
 - `[GATE]` Phase 收到用户修正时：更新内容后必须重新输出完整摘要并重走 GATE 确认流程；用户修正 ≠ 用户确认，禁止将修正视为确认直接进入后续 Phase
 - `[GATE-ENTRY]` 标记的 Phase 开始前，必须执行前置条件检查：(1) 上一条用户消息包含明确确认（如"确认""Yes""ok""继续"等），(2) 前置 GATE Phase 不在当前回复中输出。任一条件不满足则停止并提示用户
-- 当前 GATE 点：迭代功能 Phase 2 -> Phase 3, 迭代Harness文档 Phase 2 -> Phase 3
-- 非 GATE Phase 禁止使用 `AskUserQuestion` 等待用户确认后再继续后续 Phase；AI 应按 Skill 定义自主推进流程
-
-## 受保护章节规则（AI-READONLY）
-
-- 标记为 `AI-READONLY` 的章节，AI 发现其内容存在问题时只能以消息方式提示用户；AI 不得自动修改，也不得索要用户确认后代为修改（防止误授权）
+- GATE 点以各 Workflow 文件中标注的 `[GATE]` / `[GATE-ENTRY]` 为准，AGENTS.md 不维护硬编码列表
+- 非 GATE Phase 禁止因 Phase 间流转而中断回复等待用户确认；AI 应按 Workflow 定义自主推进到下一 Phase
 
 ## 消息输出格式（AI-READONLY）
 
@@ -60,9 +71,14 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 - Phase 名称严格对齐 Skill 定义
 - 约束类术语（"硬性门禁""流程违规"等）不输出到用户消息框
 
+## 受保护章节规则（AI-READONLY）
+
+- AI 不得自动修改 AI-READONLY 内容；AI 发现问题时只能以消息方式提示用户，不得主动发起修改请求
+- 用户主动发起的 Workflow/Skill 中，AI-READONLY 文件的每次修改需逐个获得用户明确确认后方可执行
+
 ---
 
-# 二、通用规范（项目无关）
+# 三、通用规范（项目无关）
 
 ## Agents（角色 Agent）
 
@@ -76,13 +92,20 @@ Agent 定义"谁来做"，Workflow 编排"按什么顺序做"，Skill 提供"原
 | Coder | subagent + 主 Agent | .harness/agents/coder.md | 代码实现 |
 | Reviewer | subagent + 主 Agent | .harness/agents/reviewer.md | 代码扫描、构建验证、验收 |
 
+subagent 为性能优化手段，非流程成败条件。所有使用 subagent 的 Phase/Skill 必须支持主 Agent 顺序执行的降级路径，降级不改变产出质量要求。
+
 ## Workflows（端到端编排）
 
-编排多个 Agent 角色完成端到端目标，含 GATE 门禁和反馈环路。详细定义见 `.harness/agents/wf-*.md`。
+编排多个 Agent 角色完成端到端目标，含 GATE 门禁和反馈环路。详细定义见 `.harness/workflows/` 目录。
 
 | Workflow | 触发 | 文件 |
 |----------|------|------|
-| 迭代功能 | 人工下发功能需求或修改代码 | .harness/agents/wf-iterate-feature.md |
+| 迭代功能 | 人工下发功能需求或修改代码 | .harness/workflows/iterate-feature.md |
+| 修复Bug | 人工下发Bug修复或异常行为修复需求 | .harness/workflows/fix-bug.md |
+| 迭代文档 | 人工下发修改文档需求 | .harness/workflows/iterate-docs.md |
+| 治理代码-人工 | 人工指令 | .harness/workflows/harness-ops/governance-code-manual.md |
+| 治理技能-人工 | 人工指令 | .harness/workflows/harness-ops/governance-capability-manual.md |
+
 
 ## Skills（可复用操作）
 
@@ -90,38 +113,27 @@ Agent 定义"谁来做"，Workflow 编排"按什么顺序做"，Skill 提供"原
 
 | Skill | 触发 | 文件 |
 |-------|------|------|
-| 修复Bug | 人工下发Bug修复或异常行为修复需求 | .harness/skills/fix-bug.md |
-| 加载知识库 | Workflow Phase 1 自动调用，或人工指令 | .harness/skills/harness/load-knowledge.md |
-| 回填知识库 | 人工指令，或任务知识回填阶段自动调用 | .harness/skills/harness/backfill-knowledge.md |
-| 归档任务文件 | 任务完成后自动调用，或人工指令 | .harness/skills/harness/archive-task-files.md |
+| 加载知识库 | Workflow显式调用，或人工指令 | .harness/skills/harness/load-knowledge.md |
+| 回填知识库 | Workflow显式调用，或人工指令 | .harness/skills/harness/backfill-knowledge.md |
+| 归档任务文件 | Workflow显式调用，或人工指令 | .harness/skills/harness/archive-task-files.md |
 | 从教训回填知识库-人工 | 人工指令 | .harness/skills/harness-ops/backfill-knowledge-from-lessons-manual.md |
 | 回填产品文档-人工 | 人工指令 | .harness/skills/harness-ops/backfill-prd-manual.md |
-| 迭代Harness文档 | 人工下发修改文档需求 | .harness/skills/iterate-harness-docs.md |
-| 治理代码-人工 | 人工指令 | .harness/skills/harness-ops/governance-code-manual.md |
 | 结果验收 | 功能迭代或Bug修复完成后自动执行，或人工指令 | .harness/skills/harness/verify-acceptance.md |
-| 治理技能-人工 | 人工指令 | .harness/skills/harness-ops/governance-capability-manual.md |
 | 提取Harness模板-人工 | 人工指令 | .harness/skills/harness-ops/extract-harness-tpl-manual.md |
-| 治理全部-人工 | 人工指令 | .harness/skills/harness-ops/governance-all-manual.md |
-| 总结任务 | AI自动触发（任务完成后） | .harness/skills/harness/summarize-task.md |
+| 总结任务 | Workflow显式调用 | .harness/skills/harness/summarize-task.md |
 
-自动触发：标注"AI自动触发"的 Skill 必须在对应时机自动执行。当前仅 Skill: 总结任务（适用于按迭代功能或修复Bug完整流程执行的任务）。
 
-## Subskills（并行扫描任务）
+### 外部依赖能力
 
-通过 `use_subagents` 启动，各自独立上下文窗口，由 Reviewer 或 Skill 按需调用。详细定义见 `.harness/skills/subskills/` 目录。
+平台提供的能力，项目不维护其定义，Workflow 中按文件路径直接引用。
 
-| Subskill | 文件 | 调用方 |
-|----------|------|--------|
-| 扫描架构边界 | .harness/skills/subskills/scan-architecture.md | Reviewer 代码扫描, 治理代码-人工 Phase 2 |
-| 扫描编码约定 | .harness/skills/subskills/scan-conventions.md | Reviewer 代码扫描, 治理代码-人工 Phase 2 |
-| 扫描安全规范 | .harness/skills/subskills/scan-security.md | Reviewer 代码扫描, 治理代码-人工 Phase 2 |
-| 扫描图片处理 | .harness/skills/subskills/scan-image-handling.md | Reviewer 代码扫描, 治理代码-人工 Phase 2 |
-| 扫描日志规范 | .harness/skills/subskills/scan-logging.md | Reviewer 代码扫描, 治理代码-人工 Phase 2 |
-| 扫描废弃代码 | .harness/skills/subskills/scan-dead-code.md | 治理代码-人工 Phase 2, Reviewer 代码扫描（可选） |
+| 来源 | 目录 | 性质 | 调用约束 |
+|------|------|------|---------|
+| superpowers 插件 | .harness/skills/superpowers/ | 平台提供，随平台演进 | 仅在用户明确指令时调用，不主动调起；Workflow 可声明依赖 |
 
 ## 文件与文档
 
-- 禁止主动创建 README；不删除项目文件
+- 禁止主动创建 README；禁止自主删除项目文件，治理/升级等场景允许经用户确认后删除
 - 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
 - 命名语言约定：Agent 名称使用英文（Orchestrator、Reviewer）；Skill/Subskill 显示名使用中文（迭代功能、扫描架构边界）、文件名使用英文 kebab-case；消息输出中角色标注使用英文（`[Agent: Orchestrator]`）
 - AI 只读目录（修改前必须人工确认）：.harness/agents/、.harness/prd/、.harness/guides/
@@ -139,7 +151,7 @@ Agent 定义"谁来做"，Workflow 编排"按什么顺序做"，Skill 提供"原
 ## 上下文管理
 
 - 首次加载（Task 首条消息）分层加载知识库：
-  1. 必读：读取 `.harness/knowledge/`、`.harness/prd/`（除 03-prd-specs.md）和 `.harness/lessons/` 每个文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
+  1. 必读：读取 `.harness/knowledge/`、`.harness/prd/`（除 03-prd-specs.md）和 `.harness/lessons/` 每个 .md 文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
   2. 必读：完整读取 `01-overview.md`（项目概览）+ `22-file-map.md`（文件映射）
   3. 按需：根据任务类型完整读取相关文件（见下方"任务类型加载矩阵"）
 - 后续迭代（同一 Task 内），按需查阅 `.harness/knowledge/` 和 `.harness/prd/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
@@ -162,13 +174,13 @@ Agent 定义"谁来做"，Workflow 编排"按什么顺序做"，Skill 提供"原
 
 ### 检查点摘要模板
 
-Phase 间交接使用结构化检查点摘要（不超过 10 行），标准格式：
+Phase 间交接使用结构化检查点摘要，每条摘要为单行，整个交接区累计不超过 10 行。标准格式：
 
 ```
 [Phase N: 名称] 目标: {一句话}; 产出: {文件/决策}; 变更: {file1(修改), file2(新增)}; 状态: {完成/部分完成}; 后续依赖: {下一Phase需要的关键信息}
 ```
 
-各 Skill 可在此模板基础上定义更具体的字段（如 iterate-feature 的 scope/tasks 字段），但必须保持单行格式、不超过 10 行。
+各 Skill 可在此模板基础上定义更具体的字段（如 iterate-feature 的 scope/tasks 字段），但每条摘要必须保持单行格式。
 
 ## 执行计划管理
 
@@ -188,15 +200,16 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 
 | 阶段 | 操作 | 规则 |
 |------|------|------|
-| Phase 1 知识加载 | 检测 active/ | 有则复用；completed/ 中有则移回；均无则 Phase 3 创建 |
-| Phase 3 意图确认 | 写入 | spec -> `specs/active/`，plan -> `plans/active/` |
+| Phase 1 知识加载 | 检测 active/ | 有则复用；completed/ 中有则移回；均无则后续 Phase 创建 |
+| Phase 2 需求探索 | 写入 spec | spec -> `specs/active/`（仅迭代功能） |
+| Phase 3 计划制定 | 写入 plan | plan -> `plans/active/`（仅迭代功能） |
 | 任务执行中 | 更新 plan | 更新检查清单、记录变更和技术债 |
-| Phase 6/7 任务总结 | 归档 | 状态改 completed，移到 `completed/` |
+| 任务总结 | 归档 | 状态改 completed，移到 `completed/` |
 
 ### 技术债管理
 
 - 新引入的技术债必须在本次任务中解决，禁止拖延
-- 新发现的技术债必须立即写入 `plans/debt-tracker.md`（获得 ID），再在计划文件中引用该 ID
+- 新发现的技术债必须立即写入 `plans/debt-tracker.md`（获得 ID），有 plan 时在计划文件中引用该 ID；无 plan 场景（fix-bug/治理/文档）来源计划填 N/A
 - 格式：表格（ID/描述/优先级/来源计划/发现时间/状态）
 
 ## 维护
@@ -205,7 +218,7 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 
 ---
 
-# 三、项目规范（项目相关）
+# 四、项目规范（项目相关）
 
 ## 仓库结构
 
@@ -213,10 +226,13 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 AGENTS.md              -- AI 知识库入口（本文件）
 .harness/
   README.md            -- Harness 工程模板说明
-  agents/              -- Agent 角色模板（Orchestrator、Designer、Planner、Coder、Reviewer）+ Workflow 编排（wf-*.md）
-  skills/              -- Skill 定义（修复Bug、迭代Harness文档、结果验收、总结任务）
-    harness-ops/       -- Harness 运维类 Skill（治理代码-人工、治理技能-人工、治理全部-人工、提取模板-人工、回填知识库-人工、从教训回填知识库-人工、回填产品文档-人工）
-    subskills/         -- Subskill 扫描模板
+  agents/              -- Agent 角色模板（Orchestrator、Designer、Planner、Coder、Reviewer）
+  workflows/           -- Workflow 端到端编排（迭代功能、修复Bug、迭代文档）
+    harness-ops/       -- Harness 运维类 Workflow（治理代码-人工、治理技能-人工）
+  skills/              -- Skill 定义（结果验收、总结任务）
+    harness/           -- Harness 核心 Skill
+      subskills/       -- Subskill 扫描模板
+    harness-ops/       -- Harness 运维类 Skill（提取模板-人工、回填知识库-人工、从教训回填知识库-人工、回填产品文档-人工）
     superpowers/   -- superpowers 方法论技能（开发方法论，本地适配版）
   specs/               -- 设计文档（WHAT：需求、架构、设计决策）
     active/            -- 当前活跃 spec（可多文件并行）

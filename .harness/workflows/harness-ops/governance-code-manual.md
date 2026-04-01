@@ -3,11 +3,9 @@ name: governance-code-manual
 description: 人工指令触发代码治理
 ---
 
-# Skill: 治理代码-人工
+# Workflow: 治理代码-人工
 
-触发：人工指令。对项目代码进行完整质量治理。
-
-本 Skill 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（按 AGENTS.md 检查点摘要模板，不超过 5 行）交接上下文。
+本 Workflow 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（按 AGENTS.md 检查点摘要模板，不超过 5 行）交接上下文。
 
 ---
 
@@ -17,21 +15,22 @@ description: 人工指令触发代码治理
 
 ## Phase 2: 扫描
 - Agent: Reviewer（subagent 并行）；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
-- 通过 `use_subagents` 启动扫描，读取 `.harness/skills/subskills/` 对应模板作为 prompt。无 subagent 能力时主 Agent 顺序执行
+- 通过 Agent 工具并行启动扫描，读取 `.harness/skills/harness/subskills/` 对应模板作为 prompt。无 subagent 能力时主 Agent 顺序执行
 - 第一批 5 个维度：架构边界（scan-architecture.md）、编码约定（scan-conventions.md）、安全规范（scan-security.md）、图片处理（scan-image-handling.md）、日志规范（scan-logging.md）
 - 第二批：废弃代码（scan-dead-code.md）
 - 每个维度必须有独立扫描结论，禁止跳过或虚报
 
 检查点：`[Phase 2 扫描] N个维度完成, 共M项违规 (安全X, 架构Y, ...)`
 
-## Phase 3: 汇总与确认
+## Phase 3: 汇总与确认 `[GATE]`
 - Agent: Orchestrator
 - 合并结果，按严重程度排序（安全 > 架构 > 图片 > 日志 > 编码 > 废弃代码）
-- 通过 `AskUserQuestion` 向用户展示违规清单，等待确认
+- 向用户展示违规清单，结束当前回复，等待确认
 
-## Phase 4: 修复
-- Agent: Orchestrator（主 Agent 直接修复）
-- 按确认清单修复，遵守 AGENTS.md 代码生成规范
+## Phase 4: 修复 `[GATE-ENTRY]`
+- Agent: Coder
+- `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认违规清单
+- 按确认清单修复，遵守 coder.md 约束（TDD 适用范围由 coder.md 定义）和 AGENTS.md 代码生成规范
 - 同步更新 22-file-map.md（如有文件删除）
 
 检查点：`[Phase 4 修复] 修复N项, 删除M个废弃项, 更新file-map: 是/否`

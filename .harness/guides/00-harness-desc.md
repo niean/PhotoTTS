@@ -7,41 +7,18 @@
 本文仅供自然人使用，未经人工确认、禁止AI修改；允许AI蒸馏，但输出必须沿用原文、不得修改内容。
 
 ---
-## 0. 分层架构
 
-```
-1. Agent / Workflow = 全局任务编排
-   顶层调度者，拆解复杂任务，
-   按流程编排不同 Role 的 Subagent，实现端到端目标。
-2. Subagent = 角色化执行单元
-   绑定特定 Role（Coder / Tester / Scheduler 等），
-   负责编排、调度、组合 Skill，完成该角色职责。
-3. Skill = 原子功能
-   功能层面最小复用单位，内部可编排多个 Subskill，对外呈现单一能力。
-4. Subskill = 原子操作
-   操作层面最小复用单位，不可再拆，只做底层动作。
+## 1.核心理念
 
-Agent / Workflow
-   ↓ 调度不同角色
-   Subagent（Role: Coder）
-        ↓ 组合功能
-        Skill：generate_and_format_code
-             ↓ 编排底层操作
-             Subskill：write_file
-             Subskill：run_eslint
-             Subskill：run_prettier
-```
-
----
-
-## 1. 核心理念
+## 1.1 指导思想
 
 - AI Agent 是受约束的协作者，不是自由发挥的生成器
 - 所有 AI 行为由显式规则驱动，规则集中管理、按需加载
 - 人工定义的信息与 AI 维护的知识分离存储，权责清晰
 - 知识库是活文档，随项目演进持续更新，不允许腐化
 
-### 1.1 建设理念：分层调度
+
+### 1.2 分层建设
 
 Harness 只做顶层调度 -- 知识孪生、CI/CD等流程编排；实施层尽量复用优秀的开源工具（如 superpowers、BMAD），不自建。
 
@@ -70,6 +47,37 @@ Harness 只做顶层调度 -- 知识孪生、CI/CD等流程编排；实施层尽
 - 实施层（开源工具）：提供方法论和具体执行策略，决定"怎么做"
 - 底层（AI Agent 运行时）：提供工具调用、文件操作、代码生成等基础能力
 
+### 1.3 任务调度
+
+任务调度遵循如下的四层架构，引用关系自上而下、禁止反向、禁止跨层
+
+```
+Orchestrator：任务调度
+   ↓ 
+   Workflow：流程编排
+        ↓ 
+        Agent：角色设定
+        Skill：功能
+             ↓ 
+             Subskill：操作，被多个Skill复用
+
+1. Orchestrator = 任务调度
+   顶层调度者，任务分类
+2. Workflow = 流程编排
+   任务编排者，拆解复杂任务、到多个Phase
+   每个Phase由Agent+Skill构成
+3.1 Agent = 角色设定
+   角色层面的治理单位，控制Skill列表、LLM列表、权限列表等（不实现具体功能）
+3.2 Skill = 功能单位
+   功能层面的最小复用单位，内部可编排多个 Subskill，对外呈现单一功能
+4. Subskill = 原子操作
+   操作层面最小复用单位，不可再拆，只做底层动作
+
+备注：任务调度中，没有Subagent、Role、Command等实体概念。特别的，Subagent是一种技术手段，不是子Agent。
+
+```
+
+
 ---
 
 ## 2. 文件体系
@@ -86,14 +94,24 @@ Harness 只做顶层调度 -- 知识孪生、CI/CD等流程编排；实施层尽
 AGENTS.md                  -- 入口文件（项目根目录）
 .harness/
   agents/                  -- Agent 角色模板
+  workflows/               -- Workflow 端到端编排
+    harness-ops/           -- Harness 运维类 Workflow
   skills/                  -- Skill 流程定义
-    subskills/             -- Subskill 任务模板
+    harness/               -- Harness 核心 Skill
+      subskills/           -- Subskill 任务模板
+    harness-ops/           -- Harness 运维 Skill（提取模板、回填知识库、回填产品文档）
+    superpowers/           -- superpowers 方法论技能
   knowledge/               -- AI 知识库（AI 可读写）
   prd/                     -- 产品文档（AI 只读）
   guides/                  -- 方法论与参考文档（人工维护）
   lessons/                 -- 教训库（AI 自主维护）
   specs/                   -- 设计文档（AI 自主管理）
+    active/                -- 当前活跃 spec
+    completed/             -- 已完成 spec 归档
   plans/                   -- AI 执行计划（AI 自主管理）
+    active/                -- 当前活跃计划
+    completed/             -- 已完成计划归档
+    debt-tracker.md        -- 技术债追踪
 ```
 
 每类知识有且只有一个归属文档，不重复维护。
@@ -104,17 +122,20 @@ AGENTS.md                  -- 入口文件（项目根目录）
 
 ### 3.1 内容层级
 
-| 层级 | 概念 | 定义 | 目录 | 结构特征 |
-|------|------|------|------|---------|
-| Layer 1 | Agent | 角色与能力 -- "谁来做、能做什么" | .harness/agents/ | 角色、能力(原子项)、约束、上下文管理 |
-| Layer 2 | Skill | 流程编排 -- "做什么、按什么顺序做" | .harness/skills/ | 多 Phase 工作流、Agent 分工、门禁决策、检查点交接 |
-| Layer 3 | Subskill | 原子任务 -- "做什么" | .harness/skills/subskills/ | 单 Phase 线性流程、输入-规则-输出、无决策 |
+| 概念 | 定义 | 目录 | 结构特征 |
+|------|------|------|---------|
+| Agent | 角色与能力 -- "谁来做、能做什么" | .harness/agents/ | 角色、能力(原子项)、约束、上下文管理 |
+| Workflow | 流程编排 -- "按什么顺序做" | .harness/workflows/ | 多 Phase 工作流、Agent 分工、门禁决策、检查点交接 |
+| Skill | 功能单位 -- "怎么做" | .harness/skills/ | 输入-步骤(Step)-输出，可编排多个 Subskill，对外呈现单一功能 |
+| Subskill | 原子任务 -- "做什么" | .harness/skills/harness/subskills/ | 单步线性流程、输入-规则-输出、无决策 |
+
+Workflow 本质是端到端编排（如迭代功能、修复Bug、迭代文档），拆分自早期的"大 Skill"概念。与 Skill 的区别：Workflow 有 Phase、GATE 门禁和 Agent 分工；Skill 有 Step、无门禁、由上层指定执行 Agent。
 
 Subskill 本质是 Task（原子任务），因 "Task" 在用户对话、IDE 会话等多处已有含义，为避免歧义使用 Subskill 隔离命名空间。
 
 ### 3.2 执行机制：subagent
 
-subagent 是通过 `use_subagents` 启动的独立上下文窗口，是运行方式而非内容类型。Agent 和 Subskill 均可通过 subagent 机制运行。两者执行方式相同（独立上下文），但内容定义不同：Agent 有角色和决策能力，Subskill 只有检查规则和输出格式。
+subagent 是通过 Agent 工具启动的独立上下文窗口，是运行方式而非内容类型。Agent 和 Subskill 均可通过 subagent 机制运行。两者执行方式相同（独立上下文），但内容定义不同：Agent 有角色和决策能力，Subskill 只有检查规则和输出格式。
 
 ### 3.3 层级间关系
 
@@ -133,19 +154,31 @@ subagent 是通过 `use_subagents` 启动的独立上下文窗口，是运行方
 
 ---
 
+## 3.5 Workflows
+
+Workflow 是端到端编排，通过多个 Phase 协调多个 Agent 角色完成复杂任务。所有 Workflow 必须在 AGENTS.md 注册。
+
+| 要素 | 说明 |
+|------|------|
+| 触发方式 | 人工指令触发，由 Orchestrator 路由 |
+| Phase 编排 | 有序 Phase 序列，每个 Phase 指定执行 Agent |
+| 门禁（GATE） | 标记 `[GATE]` 的 Phase 结束后必须等待人工确认，才能进入下一 Phase |
+| 检查点交接 | Phase 间通过结构化摘要（不超过 10 行）传递上下文，不搬运原文 |
+| 上下文管理 | 每个 Phase 只加载必需文件，Workflow 可定义比全局更具体的加载策略 |
+
+---
+
 ## 4. Skills
 
-Skill 是可复用的多 Phase 工作流，编排 Agent 角色完成特定任务。所有 Skill 必须在 AGENTS.md 注册。
+Skill 是可复用的功能单位，通过有序 Step 完成特定任务。项目自维护 Skill 必须在 AGENTS.md 注册；外部依赖能力（如 superpowers 插件）由平台提供，在 AGENTS.md 单独声明来源，不逐一注册。
 
 ### 4.1 核心要素
 
 | 要素 | 说明 |
 |------|------|
-| 触发方式 | 人工指令、AI 自动触发、被其它 Skill 调用 |
-| Phase 编排 | 有序 Phase 序列，每个 Phase 指定执行 Agent |
-| 门禁（GATE） | 标记 `[GATE]` 的 Phase 结束后必须等待人工确认，才能进入下一 Phase |
-| 检查点交接 | Phase 间通过结构化摘要（不超过 10 行）传递上下文，不搬运原文 |
-| 上下文管理 | 每个 Phase 只加载必需文件，Skill 可定义比全局更具体的加载策略 |
+| 触发方式 | 人工指令、AI 自动触发、被 Workflow 或其它 Skill 调用 |
+| Step 编排 | 有序 Step 序列，由上层指定的 Agent 执行 |
+| 上下文管理 | 每个 Step 只加载必需文件，Skill 可定义比全局更具体的加载策略 |
 
 ### 4.2 设计原则
 
@@ -167,8 +200,6 @@ description: 一句话描述 Skill 用途和触发时机
 ---
 
 # Skill: {显示名}
-
-触发：{触发条件}。{一句话描述目标}。
 
 ## 输入
 
@@ -196,7 +227,7 @@ description: 一句话描述 Skill 用途和触发时机
 
 Subskill 是原子任务模板（无 Phase 编排、无决策），由 Skill 或 Agent 通过 subagent 机制调度。详见 3.1 内容层级。
 
-文件格式（`.harness/skills/subskills/` 下）：
+文件格式（`.harness/skills/harness/subskills/` 下）：
 
 ```markdown
 # Subskill: {显示名}

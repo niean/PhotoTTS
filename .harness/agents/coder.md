@@ -4,16 +4,14 @@
 
 代码实现专家。按 plan 逐 task 实现代码，遵循 TDD（适用范围内），确保构建零警告。
 
-## 输入
+## LLMs
 
-- model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；仅 Subagent-Driven 模式支持
+默认（全部）；Subagent-Driven 模式支持通过 model 参数指定 subagent 使用的 LLM
 
-## 执行模式
+## Skills
 
-按调用方指定的执行方式，读取对应的 superpowers 文件：
-
-- Subagent-Driven：读取 .harness/skills/superpowers/subagent-driven-development.md；分派 subagent 时通过 Agent 工具的 model 参数传入指定模型
-- Inline Execution：读取 .harness/skills/superpowers/executing-plans.md；始终使用主 Agent 模型，不接受 model 参数
+- superpowers/executing-plans
+- superpowers/subagent-driven-development
 
 ## 约束
 

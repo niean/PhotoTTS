@@ -73,7 +73,7 @@ This structure informs the task decomposition. Each task should produce self-con
 |------|---------|
 
 ## 发现的技术债
-- {描述} -> 已记录到 debt-tracker.md #{ID}
+- {描述} -> 已记录到 .harness/plans/debt-tracker.md #{ID}
 ```
 
 任务执行中更新 plan 检查清单状态，记录变更到变更记录表。新发现技术债时必须立即写入 `debt-tracker.md`（获得 ID），然后在计划文件中引用该 ID。

@@ -1,29 +1,46 @@
 ---
-name: iterate-harness-docs
-description: 人工下发修改文档需求时使用
+name: iterate-docs
+description: 文档迭代端到端工作流，单 Agent 完成从知识加载到一致性验证的全流程
 ---
 
-# Skill: 迭代Harness文档
+# Workflow: 迭代文档
 
-触发：人工下发修改文档需求（新 Task 或同一 Task 内的第 2+ 次迭代）。
+5 阶段单 Agent 编排：harness（知识库加载）-> 直接操作（变更方案 -> 执行变更 -> 一致性验证 -> 变更报告）。
 
 核心价值：修改目标文件后，自动检查整个文档体系，同步修改其它文件中的引用、依赖、相似描述，防止文档体系碎片化。
 
-输出规范：遵守 AGENTS.md "流程合规 > 消息输出格式"中定义的全部规则。
+与 Workflow: 迭代功能 的区别：迭代文档以文档体系一致性为核心，无代码实现和验收阶段；Phase 2~5 由 Orchestrator 直接操作，不调用外部 Skill；无 spec/plan 文件管理。
+
+输出规范：遵守 AGENTS.md "消息输出格式"中定义的全部规则。
 
 ---
 
-## Phase 1: 任务调度
+## 进度清单
 
+执行时复制此清单追踪进度：
+
+```
+Workflow Progress:
+- [ ] Phase 1: 知识加载（知识库加载、约束确认）
+- [ ] Phase 2: 变更方案（识别目标、扫描受影响文件）[GATE]
+- [ ] Phase 3: 执行变更（按方案修改目标和受影响文件）[GATE-ENTRY]
+- [ ] Phase 4: 一致性验证（全量扫描、交叉验证）
+- [ ] Phase 5: 变更报告
+```
+
+---
+
+## Phase 1: 知识加载
 - Agent: Orchestrator
-- 读取文档体系索引：AGENTS.md、.harness/ 目录结构、knowledge/ 各文件首行 SUMMARY
-- 识别用户要修改的目标文件和修改意图
-- 检查目标文件是否标记为 AI-READONLY；若是，提示用户确认后才能继续
+- 执行 `Skill: 加载知识库`（`.harness/skills/harness/load-knowledge.md`），参数 task_type=docs, is_first_load=true
+- 确认约束与文档体系结构
 
-检查点：`[Phase 1 任务调度] 目标: {文件列表}, 意图: {一句话}`
+检查点：`[Phase 1 知识加载] 索引: N个文件, 必读: 已加载M个, 按需: K个可查阅`
 
 ## Phase 2: 变更方案 `[GATE]`
-
+- Agent: Orchestrator
+- 识别用户要修改的目标文件和修改意图
+- 检查目标文件是否标记为 AI-READONLY；若是，提示用户确认后才能继续
 - 读取目标文件完整内容，理解当前描述
 - 根据修改意图，拟定具体变更内容
 - 扫描文档体系，识别所有受影响的文件：
@@ -42,12 +59,12 @@ description: 人工下发修改文档需求时使用
   - ...
 ```
 
-- `[GATE]` 必须使用 `AskUserQuestion` 向用户请求确认，立即结束当前回复
+- `[GATE]` 立即结束当前回复，等待用户下一条消息明确确认
 
 检查点：`[Phase 2 变更方案] 目标: N个文件, 受影响: M个文件, 状态: 已确认`
 
 ## Phase 3: 执行变更 `[GATE-ENTRY]`
-
+- Agent: Orchestrator
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认变更方案
 - 按确认方案执行修改，顺序：
   1. 修改目标文件
@@ -58,12 +75,12 @@ description: 人工下发修改文档需求时使用
 检查点：`[Phase 3 执行变更] 修改: N个文件, 同步: M个文件`
 
 ## Phase 4: 一致性验证
-
+- Agent: Orchestrator
 - 全量扫描文档体系，验证一致性：
   - 必须执行：grep 搜索所有已变更的实体名称和文件路径在 .harness/ 全部 .md 文件和项目根目录 AGENTS.md 中的引用，确认全部已同步；禁止仅凭 Phase 2 方案验证，必须以 grep 结果为准
   - 交叉引用完整性：所有引用指向有效文件和章节
   - 术语一致性：同一概念在各文件中使用相同术语
-  - 索引同步：AGENTS.md 中的 Skills 表、Subskills 表、知识库索引与实际文件一致
+  - 索引同步：AGENTS.md 中的 Workflows 表、Skills 表、知识库索引与实际文件一致
   - 命名规范：文件名 kebab-case、Skill 显示名中文、Agent 名称英文
   - 引用方向：下层不反向引用上层具体定义（允许的特例除外）
 - 发现不一致时自动修复，修复内容追加到变更报告中
@@ -71,8 +88,8 @@ description: 人工下发修改文档需求时使用
 
 检查点：`[Phase 4 一致性验证] 扫描: N个文件, 不一致: M项, 修复: K项`
 
-## Phase 5: 输出变更报告
-
+## Phase 5: 变更报告
+- Agent: Orchestrator
 报告内容：
 - 目标文件变更摘要
 - 同步修改的文件列表及具体变更
@@ -83,7 +100,7 @@ description: 人工下发修改文档需求时使用
 
 ## 上下文管理
 
-1. Phase 1 加载文档索引，不加载全部文件内容
+1. Phase 1 通过 Skill: 加载知识库 加载文档索引，不加载全部文件内容
 2. Phase 2 按需读取目标文件和可能受影响的文件
 3. Phase 3 逐文件修改，不批量加载
 4. Phase 4 逐文件扫描验证，上下文紧张时先压缩已有内容

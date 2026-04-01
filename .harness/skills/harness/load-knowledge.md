@@ -5,8 +5,6 @@ description: 分层加载知识库，按任务类型加载矩阵读取必读文�
 
 # Skill: 加载知识库
 
-触发：Workflow Phase 1 自动调用，或人工指令。按任务类型分层加载知识库，建立 SUMMARY 索引并完整读取必读文件。
-
 ## 输入参数
 
 | 参数 | 必需 | 说明 |
@@ -18,7 +16,7 @@ description: 分层加载知识库，按任务类型加载矩阵读取必读文�
 
 ### Step 1 -- 建立 SUMMARY 索引（is_first_load=true 时执行）
 
-读取以下目录中每个文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引：
+读取以下目录中每个 .md 文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引：
 - `.harness/knowledge/` 全部文件
 - `.harness/prd/`（除 `03-prd-specs.md`）
 - `.harness/lessons/` 全部文件

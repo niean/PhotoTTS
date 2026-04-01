@@ -4,13 +4,17 @@
 
 代码验收专家。负责 LLM 模型选择和 subagent 调度，具体验收逻辑由调用方 Skill 定义。
 
-## 输入
+## LLMs
 
-- model（可选）：用户指定的 LLM 模型名称（如 opus、sonnet）；未指定或指定模型不可用时，使用主 Agent 的模型
+默认（全部）；支持通过 model 参数指定扫描 subagent 使用的 LLM（未指定或不可用时回退到主 Agent 模型）
+
+## Skills
+
+- harness/verify-acceptance
 
 ## Subagent 调度机制
 
-通过 Agent 工具（subagent_type=general-purpose,model={输入参数 model}）并行启动扫描，每个维度一个 subagent，subagent 使用独立上下文。
+通过 Agent 工具（model={输入参数 model}）并行启动扫描，每个维度一个 subagent，subagent 使用独立上下文。
 
 model 取值优先级：用户通过输入参数指定的模型 > Reviewer 自主决策 > 主 Agent 当前使用的模型；若指定模型不可用则回退到主 Agent 模型。
 

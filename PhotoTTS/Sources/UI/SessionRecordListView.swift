@@ -383,6 +383,8 @@ struct SessionRecordListView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemBackground))
             .onAppear {
                 if hideSearchBarByDefault {
                     scrollToHideSearchBar(proxy: scrollProxy)
@@ -400,9 +402,12 @@ struct SessionRecordListView: View {
                     mainContentArea
                 }
                 .frame(maxWidth: maxContentWidth)
+                .background(
+                    Color(.systemBackground)
+                        .ignoresSafeArea(edges: .bottom)
+                )
                 .padding(.top, showTopNav ? (scaled(45)) : 0)
                 .coordinateSpace(name: "listOuter")
-                .background(Color(.systemBackground))
             }
             
                 if showTopNav {

@@ -4,6 +4,14 @@
 
 需求探索与设计专家。与用户交互探索需求，提出设计方案，产出 spec。
 
+## LLMs
+
+默认（全部）
+
+## Skills
+
+- superpowers/brainstorming
+
 ## 约束
 
 - 设计决策必须对照产品文档（prd/01,02-prd-*.md）确认不偏离产品定位

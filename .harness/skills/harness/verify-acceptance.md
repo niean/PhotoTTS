@@ -5,8 +5,6 @@ description: 结果验收，功能迭代或Bug修复完成后自动执行，或�
 
 # Skill: 结果验收
 
-触发：功能迭代或Bug修复完成后自动执行，或人工指令。
-
 ## 输入参数
 
 | 参数 | 必需 | 说明 |
@@ -37,7 +35,10 @@ Task Progress:
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' build
 ```
 
-单元测试仅用户明确要求时执行：
+单元测试执行策略：
+- 用户明确要求时：必须执行
+- 变更文件包含 Manager/Coordinator/Service/Handler 时：必须执行
+- 其他场景：跳过
 ```
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
 ```
@@ -52,11 +53,11 @@ scope=build_only 时，Step 1 完成后输出结果摘要并结束。
 
 | # | 模板 | 维度 |
 |---|------|------|
-| 1 | .harness/skills/subskills/scan-architecture.md | 架构边界 |
-| 2 | .harness/skills/subskills/scan-conventions.md | 编码约定 |
-| 3 | .harness/skills/subskills/scan-security.md | 安全规范 |
-| 4 | .harness/skills/subskills/scan-image-handling.md | 图片处理 |
-| 5 | .harness/skills/subskills/scan-logging.md | 日志规范 |
+| 1 | .harness/skills/harness/subskills/scan-architecture.md | 架构边界 |
+| 2 | .harness/skills/harness/subskills/scan-conventions.md | 编码约定 |
+| 3 | .harness/skills/harness/subskills/scan-security.md | 安全规范 |
+| 4 | .harness/skills/harness/subskills/scan-image-handling.md | 图片处理 |
+| 5 | .harness/skills/harness/subskills/scan-logging.md | 日志规范 |
 
 可选：scan-dead-code.md（涉及文件删除时）。超 5 个分批执行。
 
@@ -64,15 +65,17 @@ scope=build_only 时，Step 1 完成后输出结果摘要并结束。
 
 对照 spec_criteria 逐项验证，输出每项通过/不通过。
 
+如果调用方已通过 subagent spec review（如 subagent-driven-development 的 spec compliance reviewer），本步骤可简化为抽查（验证关键验收标准 + 跨 task 集成正确性），无需逐项重复全量 spec 合规检查。
+
 ## 严重程度分级
 
 | 级别 | 判断标准 | 处理方式 |
 |------|---------|---------|
 | Blocking | 安全漏洞、构建失败、架构边界违规、验收标准不通过 | 必须修复后重新验收 |
 | Warning | 编码约定偏离、图片处理可优化、日志格式不规范 | 本次任务中修复 |
-| Info | 废弃代码、可选优化、非本次引入的既存问题 | 记录到 debt-tracker.md |
+| Info | 废弃代码、可选优化、非本次引入的既存问题 | 记录到 .harness/plans/debt-tracker.md |
 
-- 新发现的既存问题（非本次引入）记录到技术债跟踪文件 `debt-tracker.md`，不强制在本次迭代修复
+- 新发现的既存问题（非本次引入）记录到技术债跟踪文件 `.harness/plans/debt-tracker.md`，不强制在本次迭代修复
 - 本次任务新引入的技术债，必须修复、修复后重新扫描验证
 
 ## 输出

@@ -4,6 +4,16 @@
 
 任务调度者。接收用户请求、识别任务类型、编排各 Agent 协作，管理 Phase 间上下文交接。AGENTS.md 是 Orchestrator 的具体实现，包含任务分类路由、Phase 门禁、消息输出格式、检查点摘要、上下文加载策略等完整执行逻辑；本文件仅定义角色特有的行为边界与上下文范围。
 
+## LLMs
+
+默认（全部）
+
+## Skills
+
+- harness/*
+- superpowers/*
+- harness-ops/*
+
 ### 行为边界
 
 | 场景 | Orchestrator 行为 |
@@ -12,6 +22,7 @@
 | 代码实现 | 委派 Coder（按 coder.md 执行） |
 | 代码扫描/验收 | 委派 Reviewer |
 | 知识回填/任务总结 | 直接执行 |
+| 文档迭代 | 直接执行，限 .harness/ 和 AGENTS.md 文档体系的读写 |
 
 ## 核心约束索引
 
@@ -28,4 +39,4 @@
 
 ## 上下文管理
 
-只加载 AGENTS.md、路由规则、各 Phase 检查点摘要。不加载源码、产品文档原文。
+默认只加载 AGENTS.md、路由规则、各 Phase 检查点摘要。不加载源码。Workflow/Skill 明确要求时可加载产品文档和 .harness/ 文档内容（如知识加载 Skill 要求读取 prd/、文档迭代要求读写 .harness/）。
