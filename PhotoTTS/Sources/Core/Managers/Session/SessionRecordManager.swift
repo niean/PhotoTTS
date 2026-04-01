@@ -1912,6 +1912,20 @@ class SessionRecordManager {
         return history
     }
 
+    /// 批量加载指定 session 的播放统计（同步方法，调用方负责后台线程调度）
+    /// playCount=0 的 session 不包含在结果中
+    func loadPlayStats(sessionIds: [String]) -> [String: PlayStatInfo] {
+        var result: [String: PlayStatInfo] = [:]
+        for sessionId in sessionIds {
+            let history = loadSessionHistory(sessionId: sessionId)
+            let playEvents = history.playEvents
+            guard !playEvents.isEmpty else { continue }
+            guard let lastPlayedAt = playEvents.map(\.timestamp).max() else { continue }
+            result[sessionId] = PlayStatInfo(lastPlayedAt: lastPlayedAt, playCount: playEvents.count)
+        }
+        return result
+    }
+
     /// 保存指定会话的历史记录
     func saveSessionHistory(sessionId: String, history: SessionHistory) {
         let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)

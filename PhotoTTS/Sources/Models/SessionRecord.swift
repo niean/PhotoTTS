@@ -39,6 +39,12 @@ struct SessionHistory: Codable {
     }
 }
 
+// MARK: - 播放统计
+struct PlayStatInfo {
+    let lastPlayedAt: Date
+    let playCount: Int
+}
+
 // MARK: - 会话记录数据模型
 /// 会话记录数据模型，用于存储一次完整的OCR+TTS处理会话
 /// 包含时间、图片、文字、语音、状态信息等

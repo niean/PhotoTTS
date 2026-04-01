@@ -18,6 +18,7 @@ struct HomePageView: View {
     @State private var currentPage: Int = 1
     @State private var isLoading = true
     @State private var searchText: String = ""
+    @State private var playStatsMap: [String: PlayStatInfo] = [:]
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -96,6 +97,7 @@ struct HomePageView: View {
                                             SessionRecordCard(
                                                 metadata: metadata,
                                                 makeProgress: makeProgress(for: metadata),
+                                                playStats: playStatsMap[metadata.id],
                                                 onTap: { loadAndPlay(metadata.id) }
                                             )
                                         }
@@ -213,9 +215,13 @@ struct HomePageView: View {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
                 page: page, pageSize: pageSize, searchKeyword: keyword, caller: "首页卡片"
             )
+            let statsMap = SessionRecordManager.shared.loadPlayStats(
+                sessionIds: result.items.map(\.id)
+            )
             DispatchQueue.main.async {
                 self.pagedMetadataList = result.items
                 self.totalCount = result.totalCount
+                self.playStatsMap = statsMap
                 self.isLoading = false
                 if result.items.isEmpty && result.totalCount > 0 && self.currentPage > 1 {
                     self.currentPage -= 1
@@ -240,6 +246,7 @@ struct HomePageView: View {
 private struct SessionRecordCard: View {
     let metadata: SessionRecordMetadata
     var makeProgress: Float? = nil
+    var playStats: PlayStatInfo? = nil
     var onTap: () -> Void
 
     @State private var avatarImage: UIImage? = nil
@@ -261,6 +268,18 @@ private struct SessionRecordCard: View {
             return String(name.dropFirst(prefixLen))
         }
         return name
+    }
+
+    /// 播放统计格式化：MM.dd(N)
+    private static let playStatsDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MM.dd"
+        return f
+    }()
+
+    private var playStatsText: String? {
+        guard let stats = playStats else { return nil }
+        return "\(Self.playStatsDateFormatter.string(from: stats.lastPlayedAt))/\(stats.playCount)"
     }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
@@ -300,6 +319,21 @@ private struct SessionRecordCard: View {
                         Text("制作中")
                             .font(Constants.Fonts.homeCardProgress)
                             .foregroundColor(.white)
+                    }
+                }
+
+                // 播放统计（图片左下角，跟标题左对齐）
+                if let statsText = playStatsText {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text(statsText)
+                                .font(Constants.Fonts.homeCardPlayStats)
+                                .foregroundColor(.white)
+                            Spacer()
+                        }
+                        .padding(.horizontal, scaled(Constants.HomeCard.titleHorizontalPadding))
+                        .padding(.bottom, scaled(4))
                     }
                 }
             }

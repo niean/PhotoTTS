@@ -362,35 +362,52 @@ struct SessionRecordListView: View {
             }
             Spacer()
         } else {
-            ScrollViewReader { scrollProxy in
-            List {
-                searchBar
-                    .frame(minHeight: Constants.SearchBar.rowMinHeight)
-                    .listRowInsets(EdgeInsets(
-                        top: Constants.SearchBar.topPadding,
-                        leading: Constants.SearchBar.outerHorizontalPadding,
-                        bottom: Constants.SearchBar.bottomPadding,
-                        trailing: Constants.SearchBar.outerHorizontalPadding
-                    ))
-                    .listRowBackground(Color(.systemBackground))
-                    .listRowSeparator(.hidden)
-                    .id(Constants.UI.searchBarRowId)
+            GeometryReader { geo in
+                ScrollViewReader { scrollProxy in
+                    let itemCount = isGroupedMode
+                        ? cachedGroups.reduce(0) { $0 + (expandedGroup == $1.key ? $1.items.count + 1 : 1) }
+                        : pagedMetadataList.count
+                    let estimatedRowHeight: CGFloat = scaled(56)
+                    let searchBarHeight: CGFloat = Constants.SearchBar.rowMinHeight
+                    let contentHeight = searchBarHeight + CGFloat(itemCount) * estimatedRowHeight
+                    let spacerHeight = max(0, geo.size.height - contentHeight)
 
-                if isGroupedMode {
-                    groupedListContent
-                } else {
-                    flatListContent
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color(.systemBackground))
-            .onAppear {
-                if hideSearchBarByDefault {
-                    scrollToHideSearchBar(proxy: scrollProxy)
-                }
-            }
-            } // ScrollViewReader
+                    List {
+                        searchBar
+                            .frame(minHeight: Constants.SearchBar.rowMinHeight)
+                            .listRowInsets(EdgeInsets(
+                                top: Constants.SearchBar.topPadding,
+                                leading: Constants.SearchBar.outerHorizontalPadding,
+                                bottom: Constants.SearchBar.bottomPadding,
+                                trailing: Constants.SearchBar.outerHorizontalPadding
+                            ))
+                            .listRowBackground(Color(.systemBackground))
+                            .listRowSeparator(.hidden)
+                            .id(Constants.UI.searchBarRowId)
+
+                        if isGroupedMode {
+                            groupedListContent
+                        } else {
+                            flatListContent
+                        }
+
+                        if spacerHeight > 0 {
+                            Color.clear
+                                .frame(height: spacerHeight + 100)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color(.systemBackground))
+                                .listRowSeparator(.hidden)
+                        }
+                    }
+                    .listStyle(.plain)
+                    // .scrollContentBackground(.hidden)
+                    .onAppear {
+                        if hideSearchBarByDefault {
+                            scrollToHideSearchBar(proxy: scrollProxy)
+                        }
+                    }
+                } // ScrollViewReader
+            } // GeometryReader
         }
     }
 
@@ -402,141 +419,137 @@ struct SessionRecordListView: View {
                     mainContentArea
                 }
                 .frame(maxWidth: maxContentWidth)
-                .background(
-                    Color(.systemBackground)
-                        .ignoresSafeArea(edges: .bottom)
-                )
                 .padding(.top, showTopNav ? (scaled(45)) : 0)
                 .coordinateSpace(name: "listOuter")
             }
             
-                if showTopNav {
-                    if isSelectionMode {
-                        // 多选模式下的操作栏
-                        TopAndLeftSideNavigationBar(
-                            title: "选中 (\(selectedIDs.count))",
-                            onSwipeBack: { },
-                            leading: {
-                                // 左侧按钮：全选/反选
-                                HStack(spacing: scaled(16)) {
-                                    Button(action: {
-                                        selectedIDs = Set(allRecordIDs.filter { $0 != Constants.DefaultSession.id })
-                                    }) {
-                                        Text("全选")
-                                            .font(Constants.Fonts.listAction)
-                                    }
-                                    Button(action: {
-                                        toggleSelection()
-                                    }) {
-                                        Text("反选")
-                                            .font(Constants.Fonts.listAction)
-                                    }
-                                }
-                            },
-                            trailing: {
-                                HStack(spacing: scaled(12)) {
-                                    // 设备传输按钮（有选中时可用）
-                                    Button(action: {
-                                        if !selectedIDs.isEmpty {
-                                            deviceTransferIDs = Array(selectedIDs)
-                                            showDeviceTransfer = true
-                                        }
-                                    }) {
-                                        Text("传输")
-                                            .font(Constants.Fonts.listAction)
-                                    }
-                                    .disabled(selectedIDs.isEmpty)
-
-                                    // 导出按钮（有选中时可用）
-                                    Button(action: {
-                                        if !selectedIDs.isEmpty {
-                                            exportSelectedSessions()
-                                        }
-                                    }) {
-                                        Text("导出")
-                                            .font(Constants.Fonts.listAction)
-                                    }
-                                    .disabled(selectedIDs.isEmpty)
-
-                                    // 取消按钮
-                                    Button(action: {
-                                        isSelectionMode = false
-                                        selectedIDs.removeAll()
-                                    }) {
-                                        Text("取消")
-                                            .font(Constants.Fonts.listAction)
-                                    }
-                                }
-                            }
-                        )
-                    } else {
-                        // 正常模式下的导航栏
-                        TopAndLeftSideNavigationBar(
-                            title: isRootTab ? "管理" : "会话记录",
-                            onSwipeBack: isRootTab ? nil : { dismiss() },
-                            leading: {
-                                if isRootTab {
-                                    Button(action: {
-                                        withAnimation(.easeInOut(duration: 0.25)) {
-                                            groupMode = groupMode.next
-                                            expandedGroup = nil
-                                        }
-                                        if groupMode == .flat {
-                                            cachedGroups = []
-                                            currentPage = 1
-                                            loadPage()
-                                        } else {
-                                            loadAllMetadata()
-                                        }
-                                    }) {
-                                        Image(systemName: groupMode.iconName)
-                                            .symbolRenderingMode(.monochrome)
-                                            .font(Constants.Fonts.navAction)
-                                            .frame(width: scaled(20), height: scaled(20))
-                                            .foregroundStyle(.primary)
-                                    }
-                                } else {
-                                    Button(action: { dismiss() }) {
-                                        Image(systemName: "chevron.left")
-                                            .font(Constants.Fonts.navAction)
-                                            .frame(width: scaled(20), height: scaled(20))
-                                            .foregroundStyle(.primary)
-                                    }
-                                }
-                            }, trailing: {
-                            Menu {
-                                Button(action: { showImportPicker = true }) {
-                                    Label("导入", systemImage: "square.and.arrow.down")
-                                }
-                                Divider()
-                                Button(action: { startExportSelectionMode() }) {
-                                    Label("导出", systemImage: "square.and.arrow.up")
-                                }
-                                .disabled(totalCount == 0)
-                                Divider()
+            if showTopNav {
+                if isSelectionMode {
+                    // 多选模式下的操作栏
+                    TopAndLeftSideNavigationBar(
+                        title: "选中 (\(selectedIDs.count))",
+                        onSwipeBack: { },
+                        leading: {
+                            // 左侧按钮：全选/反选
+                            HStack(spacing: scaled(16)) {
                                 Button(action: {
-                                    let allMeta = SessionRecordManager.shared.getAllSessionMetadata()
-                                    let allIDs = allMeta.filter { !$0.isDefault }.map { $0.id }
-                                    deviceTransferIDs = allIDs
-                                    showDeviceTransfer = true
+                                    selectedIDs = Set(allRecordIDs.filter { $0 != Constants.DefaultSession.id })
                                 }) {
-                                    Label("传输", systemImage: "antenna.radiowaves.left.and.right")
+                                    Text("全选")
+                                        .font(Constants.Fonts.listAction)
                                 }
-                                .disabled(totalCount == 0)
-                                Divider()
-                                Button(role: .destructive, action: { showClearConfirmation = true }) {
-                                    Label("清空", systemImage: "trash")
+                                Button(action: {
+                                    toggleSelection()
+                                }) {
+                                    Text("反选")
+                                        .font(Constants.Fonts.listAction)
                                 }
-                                .disabled(totalCount == 0)
-                            } label: {
-                                Image(systemName: "plus.circle")
-                                    .font(Constants.Fonts.listAddIcon)
-                                    .foregroundColor(.blue)
-                                    .background(Color.clear)
                             }
-                        })
-                    }
+                        },
+                        trailing: {
+                            HStack(spacing: scaled(12)) {
+                                // 设备传输按钮（有选中时可用）
+                                Button(action: {
+                                    if !selectedIDs.isEmpty {
+                                        deviceTransferIDs = Array(selectedIDs)
+                                        showDeviceTransfer = true
+                                    }
+                                }) {
+                                    Text("传输")
+                                        .font(Constants.Fonts.listAction)
+                                }
+                                .disabled(selectedIDs.isEmpty)
+
+                                // 导出按钮（有选中时可用）
+                                Button(action: {
+                                    if !selectedIDs.isEmpty {
+                                        exportSelectedSessions()
+                                    }
+                                }) {
+                                    Text("导出")
+                                        .font(Constants.Fonts.listAction)
+                                }
+                                .disabled(selectedIDs.isEmpty)
+
+                                // 取消按钮
+                                Button(action: {
+                                    isSelectionMode = false
+                                    selectedIDs.removeAll()
+                                }) {
+                                    Text("取消")
+                                        .font(Constants.Fonts.listAction)
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    // 正常模式下的导航栏
+                    TopAndLeftSideNavigationBar(
+                        title: isRootTab ? "管理" : "会话记录",
+                        onSwipeBack: isRootTab ? nil : { dismiss() },
+                        leading: {
+                            if isRootTab {
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.25)) {
+                                        groupMode = groupMode.next
+                                        expandedGroup = nil
+                                    }
+                                    if groupMode == .flat {
+                                        cachedGroups = []
+                                        currentPage = 1
+                                        loadPage()
+                                    } else {
+                                        loadAllMetadata()
+                                    }
+                                }) {
+                                    Image(systemName: groupMode.iconName)
+                                        .symbolRenderingMode(.monochrome)
+                                        .font(Constants.Fonts.navAction)
+                                        .frame(width: scaled(20), height: scaled(20))
+                                        .foregroundStyle(.primary)
+                                }
+                            } else {
+                                Button(action: { dismiss() }) {
+                                    Image(systemName: "chevron.left")
+                                        .font(Constants.Fonts.navAction)
+                                        .frame(width: scaled(20), height: scaled(20))
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        }, trailing: {
+                        Menu {
+                            Button(action: { showImportPicker = true }) {
+                                Label("导入", systemImage: "square.and.arrow.down")
+                            }
+                            Divider()
+                            Button(action: { startExportSelectionMode() }) {
+                                Label("导出", systemImage: "square.and.arrow.up")
+                            }
+                            .disabled(totalCount == 0)
+                            Divider()
+                            Button(action: {
+                                let allMeta = SessionRecordManager.shared.getAllSessionMetadata()
+                                let allIDs = allMeta.filter { !$0.isDefault }.map { $0.id }
+                                deviceTransferIDs = allIDs
+                                showDeviceTransfer = true
+                            }) {
+                                Label("传输", systemImage: "antenna.radiowaves.left.and.right")
+                            }
+                            .disabled(totalCount == 0)
+                            Divider()
+                            Button(role: .destructive, action: { showClearConfirmation = true }) {
+                                Label("清空", systemImage: "trash")
+                            }
+                            .disabled(totalCount == 0)
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(Constants.Fonts.listAddIcon)
+                                .foregroundColor(.blue)
+                                .background(Color.clear)
+                        }
+                    })
                 }
+            }
         }
         .navigationBarHidden(true) // 隐藏系统导航栏
         .onAppear {

@@ -40,7 +40,7 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 - 变更文件包含 Manager/Coordinator/Service/Handler 时：必须执行
 - 其他场景：跳过
 ```
-xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
+xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -only-testing:PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
 ```
 
 scope=build_only 时，Step 1 完成后输出结果摘要并结束。

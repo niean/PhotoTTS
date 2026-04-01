@@ -484,6 +484,8 @@ extension Constants {
         static var homeCardProgress: Font { .system(size: s(13), weight: .semibold) }
         /// 首页卡片封面占位图标: 30pt
         static var homeCardPlaceholderIcon: Font { .system(size: s(30)) }
+        /// 首页卡片播放统计: 10pt regular
+        static var homeCardPlayStats: Font { .system(size: s(10), weight: .regular) }
         /// 首页图标: 32pt
         static var homeIcon: Font { .system(size: s(32)) }
         /// 搜索空状态图标: 36pt
