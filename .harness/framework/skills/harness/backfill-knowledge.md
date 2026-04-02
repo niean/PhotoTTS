@@ -54,7 +54,7 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 ## 完整模式步骤
 
 ### Step 1 -- 读取现状
-读取 .harness/framework/FRAMEWORK.md + .harness/PROJECT.md + `.harness/knowledge/` 全部 + prd/ 目录结构 + `.harness/framework/skills/` 目录（含 subskills/）+ `.harness/framework/README.md` 文件，扫描 PhotoTTS/Sources/ 目录结构（ls -R 1 层），确认模块划分与 knowledge 描述一致。
+读取 .harness/framework/FRAMEWORK.md + .harness/PROJECT.md + `.harness/knowledge/` 全部 + prd/ 目录结构 + `.harness/framework/skills/` 目录（含 subskills/）+ `.harness/framework/README.md` 文件，扫描项目源码目录结构（ls -R 1 层），确认模块划分与 knowledge 描述一致。
 
 ### Step 2 -- 更新 knowledge/ 知识库
 对比实际代码与文档：(1) 删除已不存在的文件/类型/函数引用，(2) 更新已变更的模块名/路径/接口签名，(3) 不重写未变更内容。

@@ -75,6 +75,7 @@ Orchestrator：任务调度
 
 备注：任务调度中，没有Subagent、Role、Command等实体概念。特别的，Subagent是一种技术手段，不是子Agent。
 
+
 ```
 
 
@@ -100,7 +101,7 @@ AGENTS.md                  -- 入口文件（项目根目录）
     skills/                -- Skill 流程定义
       harness/             -- Harness 核心 Skill
         subskills/         -- Subskill 任务模板
-      harness-ops/         -- Harness 运维 Skill（提取模板、回填知识库、回填产品文档）
+      harness-ops/         -- Harness 运维 Skill（提取模板、回填知识库、回填产品文档、从教训回填知识库、扫描Harness文档）
       superpowers/         -- superpowers 方法论技能
     guides/                -- 方法论与参考文档（人工维护）
     lessons/
@@ -137,6 +138,8 @@ Workflow 本质是端到端编排（如迭代功能、修复Bug、迭代文档�
 
 Subskill 本质是 Task（原子任务），因 "Task" 在用户对话、IDE 会话等多处已有含义，为避免歧义使用 Subskill 隔离命名空间。
 
+阶段命名规范：Workflow 的阶段称为 Phase，Skill 的阶段称为 Step，其它场景使用 Todo。Harness 引用外部依赖时，阶段简化为英文首字母：Phase -> P、Step -> S、Task/Todo -> T。
+
 ### 3.2 执行机制：subagent
 
 subagent 是通过 Agent 工具启动的独立上下文窗口，是运行方式而非内容类型。Agent 和 Subskill 均可通过 subagent 机制运行。两者执行方式相同（独立上下文），但内容定义不同：Agent 有角色和决策能力，Subskill 只有检查规则和输出格式。
@@ -154,12 +157,12 @@ subagent 是通过 Agent 工具启动的独立上下文窗口，是运行方式�
 引用方向应自上而下：上层引用下层定义，同层可编排引用，下层仅允许"指回入口"式引用（不反向引用上层具体定义）。
 
 允许的特例：
-- AGENTS.md 与 knowledge/03-conventions.md：双向声明摘要-权威源关系
+- PROJECT.md 与 knowledge/03-conventions.md：双向声明摘要-权威源关系
 - knowledge/01-overview.md 指回 AGENTS.md：入口指引
 
 ---
 
-## 3.5 Workflows
+### 3.5 Workflows
 
 Workflow 是端到端编排，通过多个 Phase 协调多个 Agent 角色完成复杂任务。所有 Workflow 必须在 `.harness/framework/FRAMEWORK.md` 注册。
 

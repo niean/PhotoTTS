@@ -5,7 +5,7 @@ description: 人工指令触发技能治理
 
 # Workflow: 治理技能-人工
 
-本 Workflow 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（按 .harness/framework/FRAMEWORK.md "检查点摘要模板"，不超过 5 行）交接上下文。
+本 Workflow 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（按 .harness/framework/FRAMEWORK.md "检查点摘要模板"，不超过 10 行）交接上下文。
 
 输出规范：遵守 .harness/framework/FRAMEWORK.md "消息输出格式"中定义的全部规则。
 

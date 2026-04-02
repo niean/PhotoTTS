@@ -1,4 +1,4 @@
-<!-- SUMMARY: 12个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/后台制作/iPad适配/防息屏 -->
+<!-- SUMMARY: 11个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/后台制作/iPad适配/防息屏 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -103,7 +103,7 @@ private func scaled(_ value: CGFloat) -> CGFloat {
 - 字体：统一通过 `Constants.Fonts` 引用（详见 ./03-conventions.md 字体章节）。自适应字体内部调 `DeviceScale.adaptiveSize`，固定字体不随设备缩放
 - 全项目无 isPad 三元表达式控制尺寸，统一走 adaptiveSize
 
-覆盖范围：全部 11 个 UI 源文件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView）。
+覆盖范围：全部 15 个 UI 源文件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView/DeviceTransferView/PaginationControl/LandscapeTipOverlay/EndPictManagementView）。
 
 ## 模式十一：错误分层（Error Layering）
 

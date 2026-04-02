@@ -137,6 +137,7 @@ Skill 只定义"做什么"和"怎么做"，不声明自身的触发时机；调�
 - 禁止主动创建 README；禁止自主删除项目文件，治理/升级等场景允许经用户确认后删除
 - 文件名：小写英文 kebab-case，动词-名词 语序（如 governance-code）；标题和描述使用中文，同样动词-名词 语序
 - 命名语言约定：Agent 名称使用英文（Orchestrator、Reviewer）；Skill/Subskill 显示名使用中文（迭代功能、扫描架构边界）、文件名使用英文 kebab-case；消息输出中角色标注使用英文（`[Agent: Orchestrator]`）
+- 阶段命名规范：Workflow 阶段称 Phase，Skill 阶段称 Step，其它称 Todo；引用外部依赖时简写为 P/S/T
 - AI 只读目录（修改前必须人工确认）：.harness/framework/agents/、.harness/prd/、.harness/framework/guides/
 - prd/ 与 knowledge/ 知识库冲突时，提示用户确认
 - 文档禁用 emoji/加粗/斜体，使用普通文字

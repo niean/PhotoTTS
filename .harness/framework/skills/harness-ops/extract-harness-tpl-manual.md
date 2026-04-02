@@ -14,6 +14,7 @@ description: 从当前项目提取可复用的 Harness 工程模板
 ## 步骤
 
 ### Step 1 -- 更新Harness文档
+// TODO: 改用Skill scan-harness
 检查Harness知识库，包括 入口文件AGENTS.md/CLAUDE.md、知识库目录.harness/下的所有文档，修复错误、过时的描述。如遇AI只读的文档，让用户确认后再修改
 
 ### Step 2 -- 确认输出目录

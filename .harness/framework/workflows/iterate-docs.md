@@ -76,6 +76,7 @@ Workflow Progress:
 
 ## Phase 4: 一致性验证
 - Agent: Orchestrator
+// TODO: 改用Skill scan-harness(需要改造scan-harness、支持目录/文件范围)
 - 全量扫描文档体系，验证一致性：
   - 必须执行：grep 搜索所有已变更的实体名称和文件路径在 `.harness/` 全部 .md 文件和AGENTS.md、.harness/framework/FRAMEWORK.md、.harness/PROJECT.md 中的引用，确认全部已同步；禁止仅凭 Phase 2 方案验证，必须以 grep 结果为准
   - 交叉引用完整性：所有引用指向有效文件和章节
