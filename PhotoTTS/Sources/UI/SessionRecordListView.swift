@@ -564,6 +564,11 @@ struct SessionRecordListView: View {
                 handlePendingEditRequest()
             }
         }
+        .onChange(of: appState.tab2ReselectTrigger) {
+            guard !isGroupedMode, currentPage != 1 else { return }
+            currentPage = 1
+            loadPage()
+        }
         .onChange(of: searchText) {
             // 清空时自动刷新回原列表
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

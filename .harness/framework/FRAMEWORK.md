@@ -21,7 +21,7 @@
 
 任务调度约束：
 - 新 Task 或同一 Task 内的第 2+ 次迭代，均必须执行`任务调度`
-- superpowers 平台插件（形如 `superpowers:skill-x` 的 slash command）仅在用户明确指令时调用，不主动调起；与 `.harness/framework/skills/superpowers/` 下被 Workflow 声明依赖的本地 Skill 无关
+- superpowers 平台插件（形如 `superpowers:skill-x` 的 slash command）仅在用户明确指令时调用，严禁主动调起；与 `.harness/framework/skills/superpowers/` 下被 Workflow 声明依赖的本地 Skill 无关
 - 直接调用的 Skill 如有前置上下文依赖（如变更文件列表、设计文档），由 Skill 自身检查并提示用户补充
 
 ---
@@ -180,7 +180,7 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 
 - Spec 命名：`spec-{YYMMDD}-{desc}.md`，模板见 `.harness/framework/skills/superpowers/brainstorming.md`
 - Plan 命名：`plan-{YYMMDD}-{desc}.md`，模板见 `.harness/framework/skills/superpowers/writing-plans.md`
-- Spec 触发：用户显式要求，或影响 3+ 模块/涉及新模块创建时必须产出 spec；影响 1-2 个已有模块且无新模块时可省略 spec 直接创建 plan
+- Spec 触发：默认必须产出 spec；用户显式要求跳过、或用户显式说明是简单任务时，可省略 spec 直接创建 plan
 - Spec 是一次性产物，实现完成后持久性知识通过 Phase 5 回填 knowledge/
 - 同一窗口内第 2+ 次迭代复用同一计划文件
 
