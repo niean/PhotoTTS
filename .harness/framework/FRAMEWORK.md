@@ -116,11 +116,11 @@ Skill 只定义"做什么"和"怎么做"，不声明自身的触发时机；调�
 | 加载知识库 | Workflow显式调用，或人工指令 | .harness/framework/skills/harness/load-knowledge.md |
 | 回填知识库 | Workflow显式调用，或人工指令 | .harness/framework/skills/harness/backfill-knowledge.md |
 | 归档任务文件 | Workflow显式调用，或人工指令 | .harness/framework/skills/harness/archive-task-files.md |
-| 从教训回填知识库-人工 | 人工指令 | .harness/framework/skills/harness-ops/backfill-knowledge-from-lessons-manual.md |
-| 回填产品文档-人工 | 人工指令 | .harness/framework/skills/harness-ops/backfill-prd-manual.md |
+| 从教训回填知识库 | 人工指令 | .harness/framework/skills/harness-ops/backfill-knowledge-fl.md |
+| 回填产品文档 | 人工指令 | .harness/framework/skills/harness-ops/backfill-prd.md |
 | 结果验收 | 功能迭代或Bug修复完成后自动执行，或人工指令 | .harness/framework/skills/harness/verify-acceptance.md |
-| 提取Harness模板-人工 | 人工指令 | .harness/framework/skills/harness-ops/extract-harness-tpl-manual.md |
-| 扫描Harness文档-人工 | 人工指令 | .harness/framework/skills/harness-ops/scan-harness.md |
+| 提取Harness模板 | 人工指令 | .harness/framework/skills/harness-ops/extract-harness-tpl/SKILL.md |
+| 扫描Harness文档 | 人工指令 | .harness/framework/skills/harness-ops/scan-harness.md |
 | 总结任务 | Workflow显式调用 | .harness/framework/skills/harness/summarize-task.md |
 
 
@@ -219,7 +219,7 @@ AI 自主维护教训库，人工可通过提示或建议触发新增/修正。
 - 去重：写入前检查是否已有同类教训，有则更新而非新增
 - 加载策略：任务启动只读 SUMMARY 索引，不完整加载；仅用户明确指令或当前根因与 SUMMARY 高度相关时按需读取详情
 - 回填：人工触发 `Skill: 回填知识库` 时，将已沉淀的教训抽象为通用规则写入 knowledge/，回填后删除原教训条目
-- 提取：`Skill: 提取Harness模板-人工` 时 general.md 随模板带走，project.md 留在项目内
+- 提取：`Skill: 提取Harness模板` 时 general.md 随模板带走，project.md 留在项目内
 
 ## 维护
 

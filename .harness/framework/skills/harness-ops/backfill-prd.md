@@ -1,9 +1,9 @@
 ---
-name: backfill-prd-manual
+name: backfill-prd
 description: 将产品变更回填到 prd/ 产品文档
 ---
 
-# Skill: 回填产品文档-人工
+# Skill: 回填产品文档
 
 ## 步骤
 

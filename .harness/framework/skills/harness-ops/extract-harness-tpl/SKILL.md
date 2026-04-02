@@ -1,9 +1,9 @@
 ---
-name: extract-harness-tpl-manual
+name: extract-harness-tpl
 description: 从当前项目提取可复用的 Harness 工程模板
 ---
 
-# Skill: 提取Harness模板-人工
+# Skill: 提取Harness模板
 
 自动执行约束：在用户指定目标目录下，新建/修改文件无需逐一确认。
 
@@ -14,8 +14,7 @@ description: 从当前项目提取可复用的 Harness 工程模板
 ## 步骤
 
 ### Step 1 -- 更新Harness文档
-// TODO: 改用Skill scan-harness
-检查Harness知识库，包括 入口文件AGENTS.md/CLAUDE.md、知识库目录.harness/下的所有文档，修复错误、过时的描述。如遇AI只读的文档，让用户确认后再修改
+执行 `Skill: 扫描Harness文档`（scan-harness，scope=all），按其报告修复问题后继续。
 
 ### Step 2 -- 确认输出目录
 默认目录：./locals/harness_tpl/
@@ -37,8 +36,22 @@ description: 从当前项目提取可复用的 Harness 工程模板
 ### Step 4 -- 清理多余文件
 比对目标目录，排除 .git/LICENSE 等，多余文件经确认后删除。
 
-### Step 5 -- 验证
-搜索项目专属关键词确认零泄露。
+### Step 5 -- 验证 `[CONFIRM]`
+
+读取同目录下 `references/scan-harness-tpl.md` 获取扫描维度定义，对目标目录执行全维度扫描。
+
+执行方式：
+1. 从当前项目 PROJECT.md 提取项目名称和关键业务术语作为维度1搜索关键词
+2. 按维度1-5顺序扫描目标目录所有 .md 文件
+3. 维度6（版本漂移）：以当前项目 `.harness/framework/` 为基准，比对目标目录同名文件
+4. 按 references/scan-harness-tpl.md 报告格式输出扫描结果
+
+问题数为0时直接进入 Step 6；否则结束当前回复，等待用户确认修复范围，修复后重新扫描直到问题清零。
+
+修复约束：
+- AI-READONLY 文件（agents/、prd/、guides/）：输出修改建议，逐个经用户确认后执行
+- 其他文件：直接修复
+- 修复后回归维度5（引用有效性）检查
 
 ### Step 6 -- 输出报告
 文件清单、验证结果、占位符汇总。

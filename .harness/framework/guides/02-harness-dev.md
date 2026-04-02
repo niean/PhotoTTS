@@ -52,7 +52,7 @@
 5. 验收需求。查看任务报告，按需擦屁股(如补充功能测试)
 6. [可选]回填知识。经过多轮迭代后，可以考虑 更新产品知识库、Harness知识库，指令和更新对象如下
     - 执行 `回填知识库`，更新对象 `.harness/knowledge/ 文档库` + `.harness/framework/FRAMEWORK.md` / `.harness/PROJECT.md`
-    - 执行 `回填产品文档-人工`，更新对象 `.harness/prd/02-prd-baseline.md` + `01-prd-sense.md`
+    - 执行 `回填产品文档`，更新对象 `.harness/prd/02-prd-baseline.md` + `01-prd-sense.md`
 
 - 建议：授予AI Chat自主执行命令的权限，消除低级别的人工确认
 - 建议：不同任务，使用不同Chat窗口；差异甚大的任务，避免复用窗口。因为，上下文污染影响Coding效果

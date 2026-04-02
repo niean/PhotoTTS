@@ -1,9 +1,9 @@
 ---
-name: backfill-knowledge-from-lessons-manual
+name: backfill-knowledge-fl
 description: 将教训库中已沉淀的教训抽象为通用规则回填到知识库
 ---
 
-# Skill: 从教训回填知识库-人工
+# Skill: 从教训回填知识库
 
 ---
 

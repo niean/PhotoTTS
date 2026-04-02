@@ -3,7 +3,7 @@ name: scan-harness
 description: 扫描 .harness/ 目录下的文档体系，发现不利于AI理解和执行的结构性及语义性问题
 ---
 
-# Skill: 扫描Harness文档-人工
+# Skill: 扫描Harness文档
 
 扫描 `.harness/` 文档体系，发现影响 AI 理解、调度、执行的问题并输出修复建议。
 
