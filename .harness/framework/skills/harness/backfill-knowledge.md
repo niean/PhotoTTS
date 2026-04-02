@@ -43,7 +43,7 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 - 根据变更内容，完整读取可能需要更新的 knowledge 文件
 
 ### Step 3 -- 增量回填 knowledge/
-按 .harness/PROJECT.md "知识回填文件映射"，对照变更文件和任务摘要，逐条判断并更新。有变化才写，无变化不修改。
+按 .harness/PROJECT.md "知识回填文件映射"，对照变更文件和任务摘要，对照 changed_files 中的每个变更文件，查 .harness/PROJECT.md '知识回填文件映射'确定是否匹配回填条件；匹配则读取目标 knowledge 文件并更新；不匹配则跳过
 
 ### Step 4 -- 输出回填摘要
 有变化：列出具体变更（文件、变更内容）。无变化：告知"本次无需回填"。
@@ -54,7 +54,7 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 ## 完整模式步骤
 
 ### Step 1 -- 读取现状
-读取 .harness/framework/FRAMEWORK.md + .harness/PROJECT.md + `.harness/knowledge/` 全部 + prd/ 目录结构 + `.harness/framework/skills/` 目录（含 subskills/）+ `.harness/framework/README.md` 文件，扫描项目源码目录结构（ls -R 1 层），确认模块划分与 knowledge 描述一致。
+读取 .harness/framework/FRAMEWORK.md + .harness/PROJECT.md + `.harness/knowledge/` 全部 + prd/ 目录结构 + `.harness/framework/skills/` 目录（含 subskills/）+ `.harness/framework/README.md` 文件，列出项目源码一级子目录（ls，不递归），对照 knowledge/02-architecture.md 确认模块划分一致。
 
 ### Step 2 -- 更新 knowledge/ 知识库
 对比实际代码与文档：(1) 删除已不存在的文件/类型/函数引用，(2) 更新已变更的模块名/路径/接口签名，(3) 不重写未变更内容。

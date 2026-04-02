@@ -1,4 +1,4 @@
-<!-- SUMMARY: 11个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/后台制作/iPad适配/防息屏 -->
+<!-- SUMMARY: 11个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/后台制作/默认会话保护/iPad适配/错误分层/防息屏 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -11,27 +11,30 @@ SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openC
 
 ## 模式二：PlayView 竖屏播放器 + 横屏控制层
 
-设备始终竖屏，不做横屏旋转。图片保持拍摄原始方向（aspectRatio .fit，竖拍照片居中显示、两侧留白）。控制层（PlayerControlLayer 独立组件）按横屏布局，通过 .rotationEffect(.degrees(90)) 旋转后覆盖在竖屏图片之上（适配手机左侧为底的横屏观看）。
+设备始终竖屏，不做横屏旋转。控制层（PlayerControlLayer）按横屏布局，通过 .rotationEffect(.degrees(90)) 旋转覆盖在竖屏图片之上。旋转映射（+90° CW）：HStack 左→右在用户横屏视角下保持不变。
 
-旋转映射（+90° CW）：横屏 bottom-left -> 竖屏 top-left -> 用户横屏 bottom-left，横屏 top-right -> 竖屏 bottom-right -> 用户横屏 top-right。HStack 内左→右顺序在用户横屏视角下保持不变。
-
+### 入参
 两种互斥入参，均通过 .fullScreenCover 打开：
-- recordId：已保存记录，后台加载，按需 loadImage（PlayerImageView），禁止 getImages() 全量加载
-- preloadedRecord：未保存制作中记录，图片已在内存，使用 getImages()
+- recordId：已保存记录，按需 loadImage，禁止 getImages() 全量加载
+- preloadedRecord：未保存制作中记录，图片已在内存
 
-图片切换：三种方式。(1) 播放中由音频进度自动驱动（updateCurrentImageIndex 基于 textSegmentRanges 映射）；(2) 播放中或暂停后均可拖动进度条手动跳转（seekToRatio -> snap 到最近分割点，拖拽后维持原播放状态）；(3) 暂停后滑动手势切换（DragGesture on 底层 Color，方向受 animationStyle 管控，切换后 seekToRatio 同步音频位置）。
+### 图片切换
+三种方式：(1) 播放中音频进度自动驱动（updateCurrentImageIndex 基于 textSegmentRanges）；(2) 拖动进度条跳转（seekToRatio snap 到最近分割点，维持原播放状态）；(3) 暂停后滑动手势（DragGesture on 底层 Color，方向受 animationStyle 管控）。
 
-控制层（PlayerControlLayer）：所有操作控件悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left（横屏 bottom-left）：播放/暂停按钮 + 进度条（PlayerProgressBar，含时间显示、分割点标记、可拖动滑块）。用户横屏 top-right（横屏 top-right）：退出按钮 + "播完本集"定时关闭开关（autoStopEnabled，默认开启 = 播完自动退出）。
+### 控制层
+PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left：播放/暂停 + 进度条（PlayerProgressBar）。用户横屏 top-right：退出 + "播完本集"开关（autoStopEnabled，默认开启）。
 
-连播队列：PlayView 接受 queueRecordIds 参数（默认空数组），由 HomePageView 通过 SessionRecordManager.buildSameDateQueue 构建（从当前记录开始，收集同日期已完成记录）。日期判断使用 SessionRecordMetadata.namePrefixDate（从名称前缀 `YY.MM.DD ` 解析，解析失败回退 createdAt）。播放结束后（autoStopEnabled 且队列有下一条时）调 advanceToNextRecord：显示过渡页面（下一条名称 + ProgressView，至少 Constants.Playback.transitionMinDisplayDuration 秒），后台预加载下一条记录，完成后切换并自动播放。跨天记录不纳入队列，最后一条播完 stopAndDismiss。PlayerControlLayer 新增 showNextButton/onNextRecord 参数，显示"下一个"按钮。Siri 和 MakeView 不传队列（默认单条播放）。
+### 连播队列
+queueRecordIds 参数（默认空），由 HomePageView 通过 buildSameDateQueue 构建（同日期已完成记录，日期从名称前缀解析）。播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。跨天不纳入队列。Siri/MakeView 不传队列。
 
-关闭：onDismiss 回调（onDisappear 中也调用）；正常播放结束时 PlayHistoryManager 记录，autoStopEnabled 时检查队列决定连播或退出。
+### 播放互斥
+AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点打开前检查，为 true 时拒绝。
 
-播放互斥：AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点（HomePageView、MakeView.togglePlayback、loadPendingSiriSession）打开前检查，为 true 时拒绝并记录日志；触发时设 true，onDismiss 设 false。
+### 手势分层隔离
+底层 Color `.simultaneousGesture(DragGesture)` 响应滑动，`.onTapGesture` 响应单击/双击。图片层 allowsHitTesting(false)。控制层可见时两层隔离：(1) 底层 guard `!isOverlayVisible`；(2) 控制层 `.contentShape(Rectangle())` 阻止穿透。滑动方向受 animationStyle 管控。浮层 3s 无操作自动隐藏。
 
-手势分层隔离：底层 Color 使用 `.simultaneousGesture(DragGesture)` 响应滑动（翻页/音量/亮度），`.onTapGesture` 响应单击（overlay 显隐切换）和双击（播放/暂停切换）。图片层 allowsHitTesting(false) 透传手势。控制层可见时通过两层隔离防止底层手势干扰进度条：(1) 底层拖拽 guard `!isOverlayVisible` 禁止控制层可见时底层拖拽；(2) 控制层 wrapper 添加 `.contentShape(Rectangle())` + `.onTapGesture` 使整个区域可点击，阻止触摸穿透到底层。滑动方向受 animationStyle 管控：rightToLeft 模式检测竖屏 height 轴（用户横屏左右滑），topToBottom 模式检测竖屏 width 轴（用户横屏上下滑）。DragGesture minimumDistance 使用 Constants.Gesture.swipeMinDistance。浮层 3s 无操作自动隐藏。
-
-翻页动画：通过 AnimationStyle 枚举（private，PlayView.swift 内）控制方向，支持两种模式（@State 会话级状态，默认 rightToLeft）。@State isForwardTransition 记录翻页方向（正向=index增大/反向=index减小），在所有 currentImageIndex 赋值点先设方向再更新 index。.transition 根据 (animationStyle, isForwardTransition) 二维组合动态选择插入/移除边缘：rightToLeft+正向 insertion .bottom、removal .top，反向则反转；topToBottom+正向 insertion .trailing、removal .leading，反向则反转。播放设置面板提供「动画样式」按钮切换。外层 .animation(.easeInOut(duration: 0.3), value: currentImageIndex) 驱动过渡。
+### 翻页动画
+AnimationStyle 枚举控制方向（rightToLeft/topToBottom），@State isForwardTransition 记录方向。.transition 根据 (animationStyle, isForwardTransition) 二维组合选择插入/移除边缘。.animation(.easeInOut(duration: 0.3)) 驱动。
 
 ## 模式三：图片按需加载与缓存
 

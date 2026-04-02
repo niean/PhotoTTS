@@ -5,8 +5,6 @@ description: 人工指令触发代码治理
 
 # Workflow: 治理代码-人工
 
-本 Workflow 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（按 .harness/framework/FRAMEWORK.md "检查点摘要模板"，不超过 10 行）交接上下文。
-
 ---
 
 ## Phase 1: 调度
@@ -15,8 +13,8 @@ description: 人工指令触发代码治理
 
 ## Phase 2: 扫描
 - Agent: Reviewer（subagent 并行）；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
-- 读取 .harness/PROJECT.md "扫描维度" 表，使用 `.harness/framework/skills/harness/subskills/scan-dimension.md` 通用模板，通过 Agent 工具并行启动扫描（传入 dimension 和 rule_sources）。无 subagent 能力时主 Agent 顺序执行
-- 维度数量超 5 个时分批执行
+- 读取 .harness/PROJECT.md "扫描维度" 表，使用 `.harness/framework/skills/harness/subskills/scan-dimension.md` 通用模板，通过 Agent 工具并行启动扫描（传入 dimension 和 rule_sources）。（降级见 FRAMEWORK.md）
+- 维度数量超 5 个时分 2 批执行（每批不超过 5 个），批间无需等待用户确认
 - 每个维度必须有独立扫描结论，禁止跳过或虚报
 
 检查点：`[Phase 2 扫描] N个维度完成, 共M项违规 (安全X, 架构Y, ...)`
@@ -38,10 +36,10 @@ description: 人工指令触发代码治理
 - Agent: Reviewer；沿用 Phase 2 传入的 model 参数
 
 ### Step 5a: 构建验证（主 Agent）
-执行 `Skill: 结果验收`（`.harness/framework/skills/harness/verify-acceptance.md`），scope=build_only，确认零警告零错误。失败回 Phase 4。
+执行 `Skill: 结果验收`（`.harness/framework/skills/harness/verify-acceptance.md`），scope=build_only，确认零警告零错误。失败回 Phase 4（Phase 4 -> Phase 5 循环最多执行 3 轮，含首次，超限时中断流程输出错误报告）。
 
-### Step 5b: 回归扫描（可选，修复涉及面广时）
-对修复涉及的文件重新执行 Phase 2 中相关维度的扫描，确认无新增违规或残留问题。无 subagent 时主 Agent 顺序执行。
+### Step 5b: 回归扫描（可选，修复涉及 3+ 个文件或跨越 2+ 个扫描维度时）
+对修复涉及的文件重新执行 Phase 2 中相关维度的扫描，确认无新增违规或残留问题。（降级见 FRAMEWORK.md）。发现新增违规或残留问题时回到 Phase 4 修复后重新执行 Step 5a+5b，Phase 4 -> Phase 5 循环最多执行 3 轮（含首次），超限时中断流程输出错误报告。
 
 检查点：`[Phase 5 验证] 构建: 通过/失败, 回归扫描: 通过/跳过/N项残留`
 

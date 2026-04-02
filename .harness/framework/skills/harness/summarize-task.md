@@ -21,7 +21,7 @@ description: 输出任务总结，含变更范围、关键决策和后续建议
 2. 目标2
 
 ### 关键步骤
-多 Agent 架构时标注执行 Agent；单 Agent 无需标注。
+Workflow 定义中涉及 2+ 个不同 Agent 角色时标注执行 Agent；仅 Orchestrator 单角色执行时无需标注。
 1. 步骤1
 2. 步骤2
 

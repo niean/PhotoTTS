@@ -117,7 +117,7 @@
 # 四、文件管理约定
 
 - 禁止主动创建 README（包括为新建目录添加 README.md 说明文件）
-- 不删除项目文件
+- 禁止自主删除项目文件；治理/升级等场景允许经用户确认后删除
 - 文件名：小写英文 kebab-case，动词-名词语序
 - 知识库编号分段：同一目录下按文件性质分段编号（如 knowledge/ 01~05 认知约束类、21~22 工具索引类），新增文件归入对应段的下一个序号
 - 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（模板见 `.harness/framework/skills/superpowers/writing-plans.md`），任务完成后移动到 `completed/`

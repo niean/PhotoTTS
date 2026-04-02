@@ -8,12 +8,11 @@
 
 本节是`任务调度`的实际执行者，由 Agent:Orchestrator 承担。
 
-任务开始时，首先且必须执行`任务调度`(禁止跳过)：判断任务类型，按顺序优先匹配，
-- Slash Command 模式：用户通过 slash command 触发
-按顺序优先匹配下表：
+任务开始时，首先且必须执行`任务调度`(禁止跳过)：判断任务类型，按顺序优先匹配下表：
 
 | 任务类型 | 触发条件 | 编排流程 |
 |---------|---------|---------|
+| Slash Command | 用户通过 slash command 触发 | 直接执行 |
 | 显式指定 | 用户明确指定已注册 Workflow/Skill 名称（含治理类 Workflow） | 直接路由到对应 Workflow/Skill |
 | 功能迭代 | 人工下发功能需求或修改代码 | Workflow: 迭代功能 |
 | Bug修复 | Bug修复或异常行为修复 | Workflow: 修复Bug |
@@ -68,7 +67,7 @@ GATE 管控 Phase 间流转，不管控 Phase 内部操作。Phase 内部的确�
 ```
 
 - 同一 Task 内第 2+ 次迭代，声明追加：`同一 Task 内第 N 次迭代`
-- Phase 名称严格对齐 Skill 定义
+- Phase 标题使用 Workflow 文件中定义的 Phase 名称；Phase 内调用 Skill 时，使用 Skill 注册表中的显示名
 - 约束类术语（"硬性门禁""流程违规"等）不输出到用户消息框
 
 ## 受保护章节规则
@@ -139,28 +138,28 @@ Skill 只定义"做什么"和"怎么做"，不声明自身的触发时机；调�
 - 命名语言约定：Agent 名称使用英文（Orchestrator、Reviewer）；Skill/Subskill 显示名使用中文（迭代功能、扫描架构边界）、文件名使用英文 kebab-case；消息输出中角色标注使用英文（`[Agent: Orchestrator]`）
 - 阶段命名规范：Workflow 阶段称 Phase，Skill 阶段称 Step，其它称 Todo；引用外部依赖时简写为 P/S/T
 - AI 只读目录（修改前必须人工确认）：.harness/framework/agents/、.harness/prd/、.harness/framework/guides/
-- prd/ 与 knowledge/ 知识库冲突时，提示用户确认
+- prd/ 与 knowledge/ 知识库冲突时，以 prd/ 为准（产品文档优先），同时提示用户确认是否需要更新 knowledge/ 对应内容
 - 文档禁用 emoji/加粗/斜体，使用普通文字
 - 执行计划文件管理详见"执行计划管理"章节
-- 引用方向自上而下，下层不反向引用上层具体定义（详见 .harness/framework/guides/00-harness-desc.md 3.4 节）
+- 引用方向自上而下，下层不反向引用上层具体定义（详见 .harness/framework/guides/00-harness-desc.md 3.3 节）
 - .harness/ 下引用项目文件路径时，使用项目根目录相对路径，不使用绝对路径
 
 ## 命令执行
 
-- 多步命令组合（3+ 条独立命令串联）时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程
+- 多步命令组合（3+ 条独立命令串联，或总行数超过 10 行）时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程
 - `locals/harness_tmp/` 由 AI 自主维护（创建、清理均无需用户确认），已在 `.gitignore` 覆盖范围内
 
 ## 上下文管理
 
 - 首次加载（Task 首条消息）分层加载知识库：
-  1. 必读：读取 `.harness/knowledge/`、`.harness/prd/`（除 03-prd-specs.md）和 `.harness/lessons/` 每个 .md 文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
+  1. 必读：读取 PROJECT.md "知识库目录"声明的所有目录，每个 .md 文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引
   2. 必读：完整读取项目概览文档 + 文件映射文档
-  3. 按需：根据任务类型完整读取相关文件（见 .harness/PROJECT.md "任务类型加载矩阵"）
-- 后续迭代（同一 Task 内），按需查阅 `.harness/knowledge/` 和 `.harness/prd/`，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
+  3. 按需：根据任务类型完整读取相关文件（见 PROJECT.md "任务类型加载矩阵"）
+- 后续迭代（同一 Task 内），按需查阅知识库目录下文件，不重复加载已知内容，因为每类知识有且只有一个归属文档、不重复维护
 - 多步任务：每步完成压缩为检查点摘要（见下方"检查点摘要模板"），后续只携带摘要；每步只加载必需文件
 - 所有步骤均为必选项，禁止因上下文压力跳过；上下文不足时先压缩检查点摘要（每条单行）再继续
 - 委派产出（subagent、跨 Phase 交接）：产出结构化结论（表格、要点），不搬运原文；需要完整内容时直接读取源文件
-- 产出超限时：将未完成步骤标记状态后告知用户，在下一条回复继续；不重试相同范围
+- 产出超限时：在检查点摘要中标记当前 Phase 状态为"部分完成"，列出未完成步骤编号和名称，在下一条回复中从未完成步骤继续；不重试相同范围
 - 各 Skill 如有更具体的上下文管理要求，以 Skill 文件为准
 
 ### 检查点摘要模板
@@ -191,7 +190,7 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 
 | 阶段 | 操作 | 规则 |
 |------|------|------|
-| Phase 1 知识加载 | 检测 active/ | 有则复用；completed/ 中有则移回；均无则后续 Phase 创建 |
+| Phase 1 知识加载 | 检测 active/ | 按文件名日期和描述匹配当前任务，匹配则复用；不匹配视为其他 Task 文件，后续 Phase 新建。completed/ 中有匹配则移回 active/ 复用；均无则后续 Phase 创建 |
 | Phase 2 需求探索 | 写入 spec | spec -> `specs/active/`（仅迭代功能） |
 | Phase 3 计划制定 | 写入 plan | plan -> `plans/active/`（仅迭代功能） |
 | 任务执行中 | 更新 plan | 更新检查清单、记录变更和技术债 |
@@ -212,18 +211,18 @@ AI 通过 `.harness/specs/` 和 `.harness/plans/` 自主管理设计文档和实
 AI 自主维护教训库，人工可通过提示或建议触发新增/修正。
 教训是原始素材，knowledge/ 是提炼后的权威知识；教训通过人工触发的回填流程沉淀为知识。
 
-- 写入时机：Bug修复完成后，根因需跨文件或跨层追踪才能定位时，自动提取教训写入；功能迭代中踩坑时同理
-- 分级：仅与 Harness 框架相关、不绑定具体语言/框架/项目的通用经验 -> general.md；绑定本项目的具体经验 -> project.md
+- 写入时机：Bug修复完成后，根因需追踪 2+ 个源文件或跨越 PROJECT.md 架构知识文件中定义的架构分层才能定位时，自动提取教训写入；功能迭代中，实现方式与最初假设不同、导致代码回退或方案变更时，同样提取教训写入
+- 分级：仅与 Harness 框架相关、不绑定具体语言/框架/项目的通用经验 -> 通用教训文件；绑定本项目的具体经验 -> 项目教训文件（具体路径见 PROJECT.md "教训库加载路径"）
 - 条目格式：`### L/P{序号}: 标题`，含现象/根因/教训/来源四字段
 - 编号：general 用 L001 递增，project 用 P001 递增
-- 去重：写入前检查是否已有同类教训，有则更新而非新增
-- 加载策略：任务启动只读 SUMMARY 索引，不完整加载；仅用户明确指令或当前根因与 SUMMARY 高度相关时按需读取详情
+- 去重：写入前检查是否已有根因相同的教训条目，有则合并更新（追加新现象或补充教训），而非新增条目
+- 加载策略：任务启动只读 SUMMARY 索引，不完整加载；仅用户明确指令或当前根因的关键词（错误类型、模块名、API名）在 SUMMARY 中出现时，读取对应教训详情
 - 回填：人工触发 `Skill: 回填知识库` 时，将已沉淀的教训抽象为通用规则写入 knowledge/，回填后删除原教训条目
 - 提取：`Skill: 提取Harness模板` 时 general.md 随模板带走，project.md 留在项目内
 
 ## 维护
 
-修改约束/规范/规则时，检查 .harness/framework/FRAMEWORK.md 和 .harness/PROJECT.md 全局描述确保无矛盾。Agent 因缺少说明出错时：补充到 `.harness/knowledge/`，普遍性约束摘录到本文件，更新下方知识库索引。
+修改约束/规范/规则时，检查 .harness/framework/FRAMEWORK.md 和 .harness/PROJECT.md 全局描述确保无矛盾。Agent 因缺少说明出错时：补充到 `.harness/knowledge/`，适用于所有项目（不绑定特定语言/框架/业务逻辑）的约束摘录到本文件，更新下方知识库索引。
 
 ## Framework 目录结构
 
@@ -252,3 +251,5 @@ AI 自主维护教训库，人工可通过提示或建议触发新增/修正。
 | .harness/framework/guides/01-harness-ops.md | 了解 Harness 运维操作时 |
 | .harness/framework/guides/02-harness-dev.md | 了解 Harness 开发流程时 |
 | .harness/framework/lessons/general.md | 用户指令或当前根因与 SUMMARY 高度相关时按需读取 |
+
+注意：00-harness-desc.md 与 FRAMEWORK.md 有内容重叠（能力模型、阶段命名等），AI 已从 FRAMEWORK.md 获取执行规则时无需再读 00-harness-desc.md，除非用户明确要求。

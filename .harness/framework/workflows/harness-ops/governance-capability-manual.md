@@ -5,22 +5,18 @@ description: 人工指令触发技能治理
 
 # Workflow: 治理技能-人工
 
-本 Workflow 采用多 Agent 编排，每个 Phase 指定执行角色。Phase 间通过"检查点摘要"（按 .harness/framework/FRAMEWORK.md "检查点摘要模板"，不超过 10 行）交接上下文。
-
-输出规范：遵守 .harness/framework/FRAMEWORK.md "消息输出格式"中定义的全部规则。
-
 ## 上下文管理
 
 本 Workflow 涉及大量文件读取和跨步骤分析，通过以下策略控制上下文：
 
 - 文件加载：每个 Phase 只加载当前必需的文件，不预加载后续 Phase 所需内容
-- 检查点交接：每个 Phase 结束时输出检查点摘要（不超过 5 行，按 .harness/framework/FRAMEWORK.md "检查点摘要模板"）
+- 检查点交接：每个 Phase 结束时输出检查点摘要（本 Workflow 不超过 5 行，覆盖 FRAMEWORK.md 通用上限 10 行）
 - 上下文紧张时先压缩已有内容再继续，禁止跳过 Phase
 - 跳过空阶段：如某个 Phase 经扫描无发现，输出"Phase N: 无需变更"即可，继续下一 Phase
 
 ## 结构同步规则
 
-.harness/ 文件形成相互引用体系。Phase 2 必须检查结构同步性：目录枚举、.harness/framework/FRAMEWORK.md 注册表（Agents/Workflows/Skills 表）、能力类别引用是否与实际 .harness/ 目录一致。
+结构同步检查项见 Skill: 扫描Harness文档 维度2。
 
 ---
 
@@ -30,7 +26,7 @@ description: 人工指令触发技能治理
 
 ## Phase 2: 扫描
 - Agent: Reviewer
-- 检查：注册表与实际文件不一致、格式不规范、闲置 Agent/Subskill、引用不存在的实体、目录枚举不同步、引用方向违反 .harness/framework/FRAMEWORK.md 规则（反向引用上层、使用绝对路径）
+- 检查：注册表与实际文件不一致、格式不规范（文件名非 kebab-case、缺少 YAML frontmatter、SUMMARY 注释缺失，检查项见 Skill: 扫描Harness文档 维度3）、未被任何 Workflow/Skill 文件引用的 Agent/Subskill 文件（即闲置文件）、引用不存在的实体、目录枚举不同步、引用方向违反 .harness/framework/FRAMEWORK.md 规则（反向引用上层、使用绝对路径）
 - 扫描范围含 .harness/framework/README.md 和 guides/，发现 AI-READONLY 文件问题时记录但不自动修复
 
 检查点：`[Phase 2 扫描] N个文件扫描, 共M项问题 (注册表X, 引用Y, 格式Z, AI-READONLY文件W)`

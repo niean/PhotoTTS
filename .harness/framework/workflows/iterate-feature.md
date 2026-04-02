@@ -7,9 +7,6 @@ description: 功能迭代端到端工作流，编排 Designer/Planner/Coder/Revi
 
 7 阶段混合编排：harness（知识库加载）-> superpowers（需求探索与设计 -> 计划 -> 实现）-> harness（验收 -> 知识回填 -> 总结）。
 
-输出规范：遵守 .harness/framework/FRAMEWORK.md "消息输出格式"中定义的全部规则。
-
-
 ---
 
 ## 进度清单
@@ -41,8 +38,7 @@ Workflow Progress:
 - 执行 `Skill: brainstorming`（`.harness/framework/skills/superpowers/brainstorming.md`），按其完整流程执行
 - spec 落盘后，向用户输出需求摘要（目标 + 范围 + 方案 + 验收标准），等待确认
 - 用户修正时：更新 spec，输出完整摘要再次确认
-- 用户修正 ≠ 用户确认：收到修正后必须重新输出完整摘要并重走 GATE 确认流程，禁止将修正视为确认直接进入 Phase 3
-- `[GATE]` spec 落盘后（含修正后重新落盘），立即结束当前回复，等待用户下一条消息明确确认；禁止在同一条回复中继续 Phase 3
+- `[GATE]` 规则见 FRAMEWORK.md
 
 检查点：`[Phase 2 需求探索与设计] goal: ..., scope: N 文件, 方案: 已确认`
 
@@ -50,7 +46,7 @@ Workflow Progress:
 - Agent: Planner
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认 spec；若 Phase 2 在当前回复中刚输出，说明 GATE 被违反，必须停止
 - 执行 `Skill: writing-plans`（`.harness/framework/skills/superpowers/writing-plans.md`），按其流程执行到 "Plan Review Loop" 后终止；"Execution Handoff" 由本 Phase 自行执行
-- plan 落盘后，确定执行方式（Subagent-Driven / Inline Execution）后直接进入 Phase 4：若用户在输入指令中明确指定了执行方式则遵从；否则 AI 按任务规模自主决策，plan 中 task <= 3 个且无跨模块依赖时使用 Inline Execution，其余使用 Subagent-Driven，无需人工确认。禁止中断回复等待确认 -- 本 Phase 无 [GATE] 标记，plan 落盘后必须自主推进
+- plan 落盘后，确定执行方式（Subagent-Driven / Inline Execution）后直接进入 Phase 4：若用户在输入指令中明确指定了执行方式则遵从；否则 AI 按任务规模自主决策，plan 中 task <= 3 个时使用 Inline Execution，其余使用 Subagent-Driven，无需人工确认。禁止中断回复等待确认 -- 本 Phase 无 [GATE] 标记，plan 落盘后必须自主推进
 
 检查点：`[Phase 3 计划制定] tasks: N 个, steps: M 步, 执行方式: subagent/inline`
 
@@ -63,7 +59,7 @@ Workflow Progress:
 ## Phase 5: 结果验收
 - Agent: Reviewer，主 Agent 内联执行；可传入 model 参数指定扫描 subagent 使用的 LLM 模型
 - 执行 `Skill: 结果验收`（`.harness/framework/skills/harness/verify-acceptance.md`），scope=full，传入变更文件列表和 spec 验收标准
-- 不通过时回到 Phase 4 修复（反馈环路），最多重试 3 次；超限时中断流程，向用户输出错误报告（未通过项 + 已尝试的修复方案），等待人工介入决策
+- 不通过时回到 Phase 4 修复（反馈环路），Phase 4 -> Phase 5 的完整循环最多执行 3 轮（含首次），第 3 轮仍不通过时中断流程，向用户输出错误报告（未通过项 + 已尝试的修复方案），等待人工介入决策。用户介入后可选择：(a) 提供修复指导后从 Phase 4 继续（不重置轮次计数），(b) 接受当前状态结束任务，(c) 终止任务
 
 检查点：`[Phase 5 结果验收] 构建: 通过/失败, 扫描: N维度/M违规, 验收标准: K项通过`
 
@@ -85,7 +81,6 @@ Workflow Progress:
 ## 上下文管理
 
 1. Phase 2 Designer 在主 Agent 上下文中执行（按 brainstorming Skill 流程交互）
-2. Phase 3 后仅保留 spec + plan，不保留产品文档原文
+2. Phase 3 后主动释放产品文档原文，按需时可重新读取 prd/ 文件；仅保留 spec + plan
 3. Phase 4 按 plan 逐 task 加载必要源文件
 4. Phase 5 扫描 subagent 有独立上下文
-5. 上下文管理遵守 FRAMEWORK.md "上下文管理"通用规则

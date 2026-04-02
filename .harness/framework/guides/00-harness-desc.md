@@ -26,7 +26,7 @@ Harness 只做顶层调度 -- 知识孪生、CI/CD等流程编排；实施层尽
 +---------------------------------------------------------------+
 |                    Harness（顶层调度）                          |
 |  知识孪生 (.harness/knowledge/)                                |
-|  流程编排 (AGENTS.md, framework/skills/, framework/agents/)     |
+|  流程编排 (AGENTS.md, framework/skills/, framework/agents/)    |
 |  CI/CD (尚未实现)                                              |
 +---------------------------------------------------------------+
         |                       |                       |
@@ -52,30 +52,16 @@ Harness 只做顶层调度 -- 知识孪生、CI/CD等流程编排；实施层尽
 任务调度遵循如下的四层架构，引用关系自上而下、禁止反向、禁止跨层
 
 ```
-Orchestrator：任务调度
+Orchestrator：任务调度，顶层调度、任务分类
    ↓ 
-   Workflow：流程编排
+   Workflow：流程编排，每个Phase由Agent+Skill构成
         ↓ 
-        Agent：角色设定
-        Skill：功能
+        Agent：角色设定，治理单位，控制Skill列表、LLM列表、权限列表等（不实现具体功能）
+        Skill：功能单位，内部可编排多个 Subskill，对外呈现单一功能
              ↓ 
-             Subskill：操作，被多个Skill复用
-
-1. Orchestrator = 任务调度
-   顶层调度者，任务分类
-2. Workflow = 流程编排
-   任务编排者，拆解复杂任务、到多个Phase
-   每个Phase由Agent+Skill构成
-3.1 Agent = 角色设定
-   角色层面的治理单位，控制Skill列表、LLM列表、权限列表等（不实现具体功能）
-3.2 Skill = 功能单位
-   功能层面的最小复用单位，内部可编排多个 Subskill，对外呈现单一功能
-   同层调用：特例情况是，Skill也可调用另一个 Skill、但调用深度最多1层
-4. Subskill = 原子操作
-   操作层面最小复用单位，不可再拆，只做底层动作
+             Subskill：原子操作，不可再拆、只做底层动作
 
 备注：任务调度中，没有Subagent、Role、Command等实体概念。特别的，Subagent是一种技术手段，不是子Agent。
-
 
 ```
 
@@ -90,37 +76,7 @@ Orchestrator：任务调度
 
 ### 2.2 统一目录：.harness/
 
-所有 AI 协作基础设施统一放在 `.harness/` 目录下（dot 前缀，类似 .github/ 风格），与应用代码分离。
-
-```
-AGENTS.md                  -- 入口文件（项目根目录）
-.harness/
-  framework/
-    agents/                -- Agent 角色模板
-    workflows/             -- Workflow 端到端编排
-      harness-ops/         -- Harness 运维类 Workflow
-    skills/                -- Skill 流程定义
-      harness/             -- Harness 核心 Skill
-        subskills/         -- Subskill 任务模板
-      harness-ops/         -- Harness 运维 Skill（提取模板、回填知识库、回填产品文档、从教训回填知识库、扫描Harness文档）
-      superpowers/         -- superpowers 方法论技能
-    guides/                -- 方法论与参考文档（人工维护）
-    lessons/
-      general.md           -- 通用教训（仅 Harness 框架相关），AI自主维护
-  knowledge/               -- AI 知识库（AI 可读写）
-  prd/                     -- 产品文档（AI 只读）
-  lessons/
-    project.md             -- 项目教训（绑定本项目），AI自主维护
-  specs/                   -- 设计文档（AI 自主管理）
-    active/                -- 当前活跃 spec
-    completed/             -- 已完成 spec 归档
-  plans/                   -- AI 执行计划（AI 自主管理）
-    active/                -- 当前活跃计划
-    completed/             -- 已完成计划归档
-    debt-tracker.md        -- 技术债追踪
-```
-
-每类知识有且只有一个归属文档，不重复维护。
+所有 AI 协作基础设施统一放在 `.harness/` 目录下（dot 前缀，类似 .github/ 风格），与应用代码分离。完整目录结构见 PROJECT.md "仓库结构"。每类知识有且只有一个归属文档，不重复维护。
 
 ---
 
@@ -145,35 +101,21 @@ Subskill 本质是 Task（原子任务），因 "Task" 在用户对话、IDE 会
 
 subagent 是通过 Agent 工具启动的独立上下文窗口，是运行方式而非内容类型。Agent 和 Subskill 均可通过 subagent 机制运行。两者执行方式相同（独立上下文），但内容定义不同：Agent 有角色和决策能力，Subskill 只有检查规则和输出格式。
 
-### 3.3 层级间关系
+### 3.3 层级间关系与引用方向
 
 - Skill 不声明自身由哪个 Agent 执行，执行角色由上层指定
 - Skill 不声明自身的触发时机，调用时机由上层（Workflow/Orchestrator）决定；Skill 的 description 只描述功能用途
 - Skill/Agent 调用 Subskill：通过 subagent 机制并行启动
 - Agent 不反向引用 Skill（如具体 Phase 编号、Skill 文件名），不定义执行流程
 - Subskill 不反向引用 Skill 或 Agent
-
-### 3.4 文档引用方向
-
-引用方向应自上而下：上层引用下层定义，同层可编排引用，下层仅允许"指回入口"式引用（不反向引用上层具体定义）。
-
-允许的特例：
-- PROJECT.md 与 knowledge/03-conventions.md：双向声明摘要-权威源关系
-- knowledge/01-overview.md 指回 AGENTS.md：入口指引
+- 引用方向自上而下：上层引用下层，同层可编排引用，下层仅允许"指回入口"式引用
+- 允许的特例：PROJECT.md 与 03-conventions.md 双向声明摘要-权威源关系；01-overview.md 指回 FRAMEWORK.md 或 PROJECT.md
 
 ---
 
 ### 3.5 Workflows
 
-Workflow 是端到端编排，通过多个 Phase 协调多个 Agent 角色完成复杂任务。所有 Workflow 必须在 `.harness/framework/FRAMEWORK.md` 注册。
-
-| 要素 | 说明 |
-|------|------|
-| 触发方式 | 人工指令触发，由 Orchestrator 路由 |
-| Phase 编排 | 有序 Phase 序列，每个 Phase 指定执行 Agent |
-| 门禁（GATE） | 标记 `[GATE]` 的 Phase 结束后必须等待人工确认，才能进入下一 Phase |
-| 检查点交接 | Phase 间通过结构化摘要（不超过 10 行）传递上下文，不搬运原文 |
-| 上下文管理 | 每个 Phase 只加载必需文件，Workflow 可定义比全局更具体的加载策略 |
+Workflow 是端到端编排，通过多个 Phase 协调多个 Agent 角色完成复杂任务。注册表和执行规则（GATE 门禁、检查点交接、上下文管理）见 FRAMEWORK.md。
 
 ---
 
@@ -183,11 +125,7 @@ Skill 是可复用的功能单位，通过有序 Step 完成特定任务。项�
 
 ### 4.1 核心要素
 
-| 要素 | 说明 |
-|------|------|
-| 调用来源 | Workflow Phase 调用、其它 Skill 调用、人工指令直接调用 |
-| Step 编排 | 有序 Step 序列，由上层指定的 Agent 执行 |
-| 上下文管理 | 每个 Step 只加载必需文件，Skill 可定义比全局更具体的加载策略 |
+Skill 由 Workflow Phase、其它 Skill 或人工指令调用，按有序 Step 执行。执行约束见 FRAMEWORK.md。
 
 ### 4.2 设计原则
 
@@ -256,42 +194,9 @@ Subskill 是原子任务模板（无 Phase 编排、无决策），由 Skill 或
 
 ---
 
-## 5. 知识库管理
+## 5. 其他规范
 
-- 按需加载：只读取任务相关文档，不全量加载
-- 单一归属：每条知识只在一个文档维护，重复则合并
-- 知识回填：代码变更后同步回填到 knowledge/ 对应文档
-- 自愈维护：AI 因缺少说明出错时，补充到知识库并同步 `.harness/framework/FRAMEWORK.md` 或 `.harness/PROJECT.md`
-
----
-
-## 6. 规范分层
-
-规范分两层，分别存放在不同文件：
-
-- 通用规范（`.harness/framework/FRAMEWORK.md`，项目无关）：能力模型、文件管理、知识库管理、自愈维护，可跨项目复用
-- 项目规范（`.harness/PROJECT.md`，项目相关）：仓库结构、构建命令、编码约定、架构边界、质量守护、安全规范，按项目定制
-
----
-
-## 7. 人机协作边界
-
-| 角色 | 职责 | 权限 |
-|------|------|------|
-| 人工 | 定义需求、确认方案、审批删除 | 读写 prd/ 和 guides/，审批 AI 变更 |
-| AI | 按规则执行、维护知识库、管理执行计划、输出摘要 | 读写 knowledge/ 和 plans/，只读 prd/ |
-
-- AI 遇模糊需求必须询问，不自行决定产品方向
-- 删除操作必须人工确认
-- prd/ 与 knowledge/ 冲突时以 prd/ 为准
-
----
-
-## 8. 新项目接入
-
-1. 创建 AGENTS.md（平台路由入口，`@` 引用 FRAMEWORK.md + PROJECT.md）
-2. 创建 `.harness/framework/FRAMEWORK.md`（通用规范、能力注册表）
-3. 创建 `.harness/PROJECT.md`（项目配置、规范摘要、知识索引）
-4. 创建 `.harness/knowledge/`（架构、约定、术语等知识库）
-5. 创建 `.harness/prd/`（产品需求等人工文档）
-6. 创建 `.harness/framework/skills/`（可复用操作定义）
+- 知识库管理：按需加载、单一归属、知识回填、自愈维护，详见 FRAMEWORK.md
+- 规范分层：通用规范在 FRAMEWORK.md，项目规范在 PROJECT.md
+- 人机协作：AI 遇模糊需求必须询问；删除必须人工确认；prd/ 优先于 knowledge/，详见 FRAMEWORK.md
+- 新项目接入：见 02-harness-dev.md "项目初始化"

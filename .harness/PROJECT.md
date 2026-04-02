@@ -8,6 +8,13 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 
 本节为 Harness 框架提供项目级配置，框架文件通过 `.harness/PROJECT.md` 直接引用。
 
+## 知识库目录
+
+首次加载时需建立 SUMMARY 索引的目录：
+- `.harness/knowledge/`
+- `.harness/prd/`（除 03-prd-specs.md）
+- `.harness/lessons/`
+
 ## 任务类型加载矩阵
 
 首次加载时，根据任务类型选择性读取知识库文件（所有文件首行 SUMMARY 始终必读）：
@@ -17,7 +24,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 | 功能需求 | .harness/knowledge/01-overview.md, .harness/knowledge/02-architecture.md, .harness/knowledge/22-file-map.md, .harness/prd/01-prd-sense.md, .harness/prd/02-prd-baseline.md | .harness/knowledge/03-conventions.md, .harness/knowledge/04-data-boundaries.md, .harness/knowledge/05-key-patterns.md, .harness/knowledge/21-glossary.md |
 | Bug修复 | .harness/knowledge/01-overview.md, .harness/knowledge/03-conventions.md, .harness/knowledge/22-file-map.md | .harness/knowledge/02-architecture.md, .harness/knowledge/04-data-boundaries.md, .harness/knowledge/05-key-patterns.md, .harness/knowledge/21-glossary.md |
 | 治理/扫描 | .harness/knowledge/01-overview.md, .harness/knowledge/03-conventions.md, .harness/knowledge/22-file-map.md | .harness/knowledge/02-architecture.md, .harness/knowledge/05-key-patterns.md |
-| 文档维护 | .harness/knowledge/01-overview.md, .harness/knowledge/22-file-map.md | 按涉及文档内容按需读取 |
+| 文档维护 | .harness/knowledge/01-overview.md, .harness/knowledge/22-file-map.md | 读取目标文件引用链上的 knowledge/ 和 prd/ 文件 |
 
 ## 知识回填文件映射
 
@@ -45,7 +52,7 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 ### 单元测试
 单元测试执行策略：
 - 用户明确要求时：必须执行
-- 变更文件包含逻辑层（需测试模块/目录见"质量守护"章节）时：必须执行
+- 变更文件包含逻辑层（Manager/Coordinator/Service，目录 PhotoTTS/Sources/Core/）时：必须执行
 - 其他场景：跳过
 
 ```bash
@@ -75,7 +82,7 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -only-testing:Photo
 | 文件 | 何时查阅 |
 |------|---------|
 | .harness/prd/01-prd-sense.md | 功能迭代前，确认产品定位和判断准则 |
-| .harness/knowledge/01-overview.md | 任务开始时，了解项目边界 |
+| .harness/knowledge/01-overview.md | 任务开始时，了解项目概览（技术栈/入口/核心流程） |
 | .harness/knowledge/02-architecture.md | 涉及模块新增、跨层调用、全屏控制、数据流向时 |
 | .harness/knowledge/03-conventions.md | 涉及编码/UI/质量/安全/文件管理约定细节时 |
 | .harness/knowledge/04-data-boundaries.md | 涉及数据结构、存储格式时 |
@@ -94,39 +101,31 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -only-testing:Photo
 以下各节（代码生成、架构边界、质量守护、安全规范）为快速参考摘要，权威定义见 .harness/knowledge/03-conventions.md。
 
 - 日志：禁止 `print()`，统一 `os.Logger`；内容禁用 emoji/加粗/斜体；禁止输出敏感字段（仅末四位 `key=***abcd`）
-- 手势：顶导有返回按钮时必须实现左边缘滑动返回（注释 `// 手势识别`，参数 `Constants.Gesture`）
-- 字体：全项目字体统一通过 `Constants.Fonts` 引用，禁止硬编码 `.font(.system(size:))`
-- 常量：优先写入 `PhotoTTS/Sources/Constants.swift`
-- 图片：入队降采样 2048px（`downsampleImageToMaxPixel`）；播放按需加载 1024pt（`loadImage`）；不得存原图
+- 手势：顶导有返回按钮时实现左边缘滑动返回（注释 `// 手势识别`，参数 `Constants.Gesture`）
+- 字体：全项目字体统一通过 `Constants.Fonts` 引用，禁止硬编码 `.font(.system(size:))` 或 `.font(.headline)` 等；视图私有动态计算字体（如 `iconSize * 0.6`）允许保留在视图内
+- 常量：写入 `PhotoTTS/Sources/Constants.swift`；仅当常量仅在单个文件内使用且不被其他文件引用时，可作为该文件的 private 常量
+- 图片：入队降采样 2048px（`SessionRecordManager.downsampleImageToMaxPixel`）；播放按需加载 1024pt（`loadImage(sessionId:index:maxDimension:)`）；头像保存时生成 avatar.jpg 最大 96pt；不得存原图
 - OCR：`"空字符串"` 是系统保留字，拼接后剔除；失败返回 `""`，保持索引对应
 - 禁止 Mock 造假：生产代码禁止硬编码假数据冒充真实实现；系统 API 不可用时必须标注原因并返回 nil/N/A，禁止静默返回零值
 
 ## 架构边界
 
-- UI 不直接调 OCR/TTS API，通过 `ImageToSpeechCoordinator` 或 Manager
-- 全屏页面通过 `AppState.fullScreenKind` 控制（PlayView 例外）
-- 制作页（tab1）不参与 Tab 重置
+详见 .harness/knowledge/02-architecture.md "模块边界"。核心约束：UI 不直接调 OCR/LLM/TTS API（通过 Coordinator 层）；全屏通过 `AppState.fullScreenKind` 控制（PlayView 例外）；制作页不参与 Tab 重置。
 
 ## 质量守护
 
 - 零警告：`xcodebuild build` 零警告（含 IDE 配置警告、工具级警告），构建命令必须指定 `arch=arm64`
 - 测试：新增/修改 Manager/Coordinator/Service 时同步补充单元测试
-- 错误分层：用户提示用中文无技术细节；开发日志用 `os.Logger` 含错误码
+- 错误分层：用户提示用中文无技术细节；开发日志用 `os.Logger` 含错误码；服务级错误枚举实现 LocalizedError 双属性（`errorDescription` + `technicalDescription`）；NSError 创建统一使用 `Constants.ErrorInfo.domain`/`defaultCode`
 - 网络：必须设超时（默认 `Constants.Network.requestTimeout` 30s，大文件 `resourceTimeout` 60s）
-- 线程：异步操作非主线程，回调切回主线程更新 UI
-- 图片内存：禁止全量加载，按需加载 + NSCache 预加载相邻帧；解码必须用 Image I/O 降采样，禁止先全尺寸再缩放
-- 列表性能：只读 metadata.json，不加载 record.json 或图片；头像从预生成 avatar.jpg 加载
-- 存储分离：record.json 不存二进制，图片/音频独立存储
-- 内存上限：集合超过 100 条时必须设上限（如 NSCache countLimit、数组 prefix），具体值定义在 Constants
+- 图片/列表/存储：按需加载+降采样+metadata 分离，禁止全量加载；详见 03-conventions.md 内存与性能章节
+- 内存上限：NSCache、内存缓存数组等可增长集合必须设 countLimit/容量上限，具体值定义在 Constants；来源数量不可控的数据加载必须使用 prefix 限制
 
 ## 安全规范
 
 - 密钥只存 Keychain（通过 `SettingsManager`，键名 `Constants.KeychainKeys`），不硬编码、不写 UserDefaults、不写日志
 - `config_local.json` 已加入 `.gitignore`，含密钥的配置文件禁止入库
-- 强制 HTTPS，不降级，不开 ATS 例外
-- 发送到外部 API 的图片必须降采样（2048px）
-- API 响应必须校验状态码和 Content-Type，JSON 解码失败按错误处理
-- 用户数据仅存设备本地（Documents/Sessions/），不主动上传
+- 网络/API/隐私：强制 HTTPS 不降级；图片外发须降采样（2048px）；响应校验状态码+Content-Type；数据仅存设备本地
 
 ---
 
