@@ -3,7 +3,7 @@
 
 ## 会话记录
 
-SessionRecord（Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 21-glossary.md。record.json 不存实际音频和图片二进制。
+SessionRecord（PhotoTTS/Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 ./21-glossary.md。record.json 不存实际音频和图片二进制。
 
 MakeStatus（同文件）：enum { making, completed }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking 计算属性供 UI 判断。
 
@@ -11,7 +11,7 @@ AnimationStyle（同文件）：enum { rightToLeft, topToBottom }，SessionRecor
 
 ## 语音与配置
 
-- VoiceSettings（Sources/Models/VoiceSettings.swift）：speed/pitch/volume/voiceType/encoding，关联 TTS 请求和 SessionRecord
+- VoiceSettings（PhotoTTS/Sources/Models/VoiceSettings.swift）：speed/pitch/volume/voiceType/encoding，关联 TTS 请求和 SessionRecord
 - config_local.json 结构见下方；SettingsManager 读取，设置页可覆盖
 
 ## 协调器输入输出

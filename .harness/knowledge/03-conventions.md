@@ -1,7 +1,7 @@
 <!-- SUMMARY: 编码约定权威源：UI交互/图片尺寸/字体/常量/质量/安全规范，零警告/零Mock/Keychain -->
 # 约定与约束（实现细节）
 
-本文件是项目规范约定的权威来源，AGENTS.md "二、项目规范"各节为摘要引用，以本文件为准。
+本文件是项目规范约定的权威来源，`.harness/PROJECT.md` "项目规范"各节为摘要引用，以本文件为准。
 
 ---
 
@@ -40,7 +40,7 @@
 
 ## 常量
 
-- 统一收归 `Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/PeerTransfer/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/HomeCard/Monitor/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts/DefaultSession/CameraTip/GroupDisplay/LLM/EndPicts/Links
+- 统一收归 `PhotoTTS/Sources/Constants.swift`，已有分类：DeviceScale/Layout/SessionDetail/ImageDisplay/Gesture/Network/PeerTransfer/Cache/Language/API/APIEndpoints/ServiceDefaults/ErrorInfo/UI/SearchBar/Pagination/HomeCard/Monitor/DebugLog/Playback/KeychainKeys/Identity/UserDefaultsKeys/NotificationNames/Fonts/DefaultSession/CameraTip/GroupDisplay/LLM/EndPicts/Links
 - 新增优先归入已有分类；不属于任何分类可新建 struct（PascalCase）
 - 禁止业务文件硬编码魔法值
 - 运行时可变配置通过 config_local.json + SettingsManager
@@ -120,7 +120,7 @@
 - 不删除项目文件
 - 文件名：小写英文 kebab-case，动词-名词语序
 - 知识库编号分段：同一目录下按文件性质分段编号（如 knowledge/ 01~05 认知约束类、21~22 工具索引类），新增文件归入对应段的下一个序号
-- 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（按 AGENTS.md 执行计划管理 > 计划文件模板），任务完成后移动到 `completed/`
+- 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（模板见 `.harness/framework/skills/superpowers/writing-plans.md`），任务完成后移动到 `completed/`
 - 命令行超过 10 行时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程；AI 自主维护该目录（创建、清理均无需用户确认）
 
 ---

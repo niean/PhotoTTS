@@ -3,73 +3,73 @@
 
 ## 应用入口与全局
 
-- PhotoTTSApp/AppState/AppDelegate/MainTabView/FullScreenPageKind/FullScreenPageContainer/FullScreenImageOverlay/FullScreenCameraOverlay：Sources/UI/PhotoTTSApp.swift
-- AppLoadingView/AppIntroView：Sources/UI/AppPagesView.swift
-- CustomZStack：Sources/UI/CustomZStack.swift
+- PhotoTTSApp/AppState/AppDelegate/MainTabView/FullScreenPageKind/FullScreenPageContainer/FullScreenImageOverlay/FullScreenCameraOverlay：PhotoTTS/Sources/UI/PhotoTTSApp.swift
+- AppLoadingView/AppIntroView：PhotoTTS/Sources/UI/AppPagesView.swift
+- CustomZStack：PhotoTTS/Sources/UI/CustomZStack.swift
 
 ## 底导各 Tab
 
-- 首页：HomePageView（HomePageView.swift，双列卡片网格，含 SessionRecordCard）
-- 制作：MakeView（MakeView.swift）
-- 管理：SessionRecordListView（SessionRecordListView.swift，isRootTab=true，mode=.manage）
-- 我的：MeTabView（MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/要点图片/设置/关于入口
-- 消息（预留）：MessageTabView（MessageTabView.swift），未集成到 MainTabView
-- 要点图片管理：EndPictManagementView（EndPictManagementView.swift），从我的 Tab 进入
-- 分页控件：PaginationControl（PaginationControl.swift），供 HomePageView/SessionRecordListView 复用
+- 首页：HomePageView（PhotoTTS/Sources/UI/HomePageView.swift，双列卡片网格，含 SessionRecordCard）
+- 制作：MakeView（PhotoTTS/Sources/UI/MakeView.swift）
+- 管理：SessionRecordListView（PhotoTTS/Sources/UI/SessionRecordListView.swift，isRootTab=true，mode=.manage）
+- 我的：MeTabView（PhotoTTS/Sources/UI/MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/要点图片/设置/关于入口
+- 消息（预留）：MessageTabView（PhotoTTS/Sources/UI/MessageTabView.swift），未集成到 MainTabView
+- 要点图片管理：EndPictManagementView（PhotoTTS/Sources/UI/EndPictManagementView.swift），从我的 Tab 进入
+- 分页控件：PaginationControl（PhotoTTS/Sources/UI/PaginationControl.swift），供 HomePageView/SessionRecordListView 复用
 
 ## 全屏与相机
 
-- 全屏 overlay：PhotoTTSApp.swift 内 FullScreenImageOverlay/FullScreenCameraOverlay
-- 自定义相机+多选图：CustomCameraView.swift（含 MultiImagePicker 封装 PHPickerViewController）
-- 相机横拍提示覆盖层：LandscapeTipOverlay.swift（FullScreenCameraOverlay 叠加，3秒自动消失，含「不再提示」按钮，偏好持久化到 UserDefaults[landscape_tip_dismissed]）
+- 全屏 overlay：PhotoTTS/Sources/UI/PhotoTTSApp.swift 内 FullScreenImageOverlay/FullScreenCameraOverlay
+- 自定义相机+多选图：PhotoTTS/Sources/UI/CustomCameraView.swift（含 MultiImagePicker 封装 PHPickerViewController）
+- 相机横拍提示覆盖层：PhotoTTS/Sources/UI/LandscapeTipOverlay.swift（FullScreenCameraOverlay 叠加，3秒自动消失，含「不再提示」按钮，偏好持久化到 UserDefaults[landscape_tip_dismissed]）
 
 ## 播放与记录
 
-- PlayView（播放器，含 PlayerImageView、PlayerControlLayer、PlayerProgressBar）：PlayView.swift
-- SessionRecordListView：SessionRecordListView.swift
-- SessionRecordUnifiedView（保存/编辑/查看）：SessionRecordDetailView.swift
-- SessionRecordManager：Core/Managers/Session/SessionRecordManager.swift
+- PlayView（播放器，含 PlayerImageView、PlayerControlLayer、PlayerProgressBar）：PhotoTTS/Sources/UI/PlayView.swift
+- SessionRecordListView：PhotoTTS/Sources/UI/SessionRecordListView.swift
+- SessionRecordUnifiedView（保存/编辑/查看）：PhotoTTS/Sources/UI/SessionRecordDetailView.swift
+- SessionRecordManager：PhotoTTS/Sources/Core/Managers/Session/SessionRecordManager.swift
 
 ## 后台制作
 
-- BackgroundMakeManager（MakeTask）：Core/Managers/BackgroundMake/BackgroundMakeManager.swift
+- BackgroundMakeManager（MakeTask）：PhotoTTS/Sources/Core/Managers/BackgroundMake/BackgroundMakeManager.swift
 
 ## 设备传输
 
-- PeerTransferManager（MultipeerConnectivity 设备间直传）：Core/Managers/PeerTransfer/PeerTransferManager.swift
-- DeviceTransferView（发送方 UI）：Sources/UI/DeviceTransferView.swift
-- TransferReceiverModifier（接收方公共 UI，ViewModifier）：Sources/UI/TransferReceiverModifier.swift
+- PeerTransferManager（MultipeerConnectivity 设备间直传）：PhotoTTS/Sources/Core/Managers/PeerTransfer/PeerTransferManager.swift
+- DeviceTransferView（发送方 UI）：PhotoTTS/Sources/UI/DeviceTransferView.swift
+- TransferReceiverModifier（接收方公共 UI，ViewModifier）：PhotoTTS/Sources/UI/TransferReceiverModifier.swift
 
 ## OCR 与 TTS
 
-- ImageToSpeechCoordinator：Core/Coordinators/ImageToSpeechCoordinator.swift
-- OCRService/OCRServiceFactory（多 Provider：doubao/openai）：Core/Handlers/Image/OCRService.swift
-- TTSServiceProtocol/TTSService（火山）/AliqwenTTSService（阿里千问）/TTSServiceFactory（多 Provider：huoshan/aliqwen）：Core/Handlers/Audio/TTSService.swift
-- LLMServiceProtocol/LLMServiceFactory/DoubaoLLMService/OpenAILLMService（多 Provider：doubao/openai）：Core/Handlers/LLM/LLMService.swift
-- NetworkService：Core/Managers/Network/NetworkService.swift
+- ImageToSpeechCoordinator：PhotoTTS/Sources/Core/Coordinators/ImageToSpeechCoordinator.swift
+- OCRService/OCRServiceFactory（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/Image/OCRService.swift
+- TTSServiceProtocol/TTSService（火山）/AliqwenTTSService（阿里千问）/TTSServiceFactory（多 Provider：huoshan/aliqwen）：PhotoTTS/Sources/Core/Handlers/Audio/TTSService.swift
+- LLMServiceProtocol/LLMServiceFactory/DoubaoLLMService/OpenAILLMService（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/LLM/LLMService.swift
+- NetworkService：PhotoTTS/Sources/Core/Managers/Network/NetworkService.swift
 
 ## Siri
 
-- SessionRecordEntity/Query：Core/Intents/SessionRecordEntity.swift
-- PlaySessionIntent/PhotoTTSShortcuts：Core/Intents/PlaySessionIntent.swift
+- SessionRecordEntity/Query：PhotoTTS/Sources/Core/Intents/SessionRecordEntity.swift
+- PlaySessionIntent/PhotoTTSShortcuts：PhotoTTS/Sources/Core/Intents/PlaySessionIntent.swift
 
 ## 设置与历史
 
-- SettingsView/SettingsManager：SettingsView.swift / Core/Managers/Settings/SettingsManager.swift
+- SettingsView/SettingsManager：PhotoTTS/Sources/UI/SettingsView.swift / PhotoTTS/Sources/Core/Managers/Settings/SettingsManager.swift
 - PlayHistoryManager+View / MakeHistoryManager+View / DebugLogManager+View
-- PerformanceMonitorManager+View（实时监控）：Core/Managers/Monitor/PerformanceMonitorManager.swift / UI/RealTimeMonitorView.swift / UI/RealTimeMonitorChartView.swift（时序图表组件）
-- ChangeLogsView（更新记录）：UI/ChangeLogsView.swift（解析 Resources/changelogs.md 渲染）
+- PerformanceMonitorManager+View（实时监控）：PhotoTTS/Sources/Core/Managers/Monitor/PerformanceMonitorManager.swift / PhotoTTS/Sources/UI/RealTimeMonitorView.swift / PhotoTTS/Sources/UI/RealTimeMonitorChartView.swift（时序图表组件）
+- ChangeLogsView（更新记录）：PhotoTTS/Sources/UI/ChangeLogsView.swift（解析 PhotoTTS/Resources/changelogs.md 渲染）
 
 ## 模型与常量
 
-- Models/：SessionRecord、AudioResponse（APIResponse.swift）、VoiceSettings
-- Constants.swift / CustomNavigationBar.swift
-- Monitor 模型：Core/Managers/Monitor/MetricModels.swift
+- Models/：SessionRecord、AudioResponse（PhotoTTS/Sources/Models/APIResponse.swift）、VoiceSettings
+- PhotoTTS/Sources/Constants.swift / PhotoTTS/Sources/UI/CustomNavigationBar.swift
+- Monitor 模型：PhotoTTS/Sources/Core/Managers/Monitor/MetricModels.swift
 
 ## 配置与资源
 
 - config_example.json（Bundle 内默认配置模板）/ changelogs.md（更新记录数据）
-- Resources/DefaultSession/：内置默认绘本（使用介绍），含 metadata.json/record.json/history.json/audio.mp3/avatar.jpg/images/；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
+- PhotoTTS/Resources/DefaultSession/：内置默认绘本（使用介绍），含 metadata.json/record.json/history.json/audio.mp3/avatar.jpg/images/；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
 - locals/（项目根目录，不在 Xcode PBXFileSystemSynchronizedRootGroup 内，不打包到 App Bundle）：存放 config_local.json 等本地敏感配置；App 首次启动时 SettingsManager.ensureUserConfigExists() 从 Bundle 的 config_example.json 复制到 Documents/config_local.json
 
 ## 测试

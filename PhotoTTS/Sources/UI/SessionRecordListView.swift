@@ -393,7 +393,7 @@ struct SessionRecordListView: View {
 
                         if spacerHeight > 0 {
                             Color.clear
-                                .frame(height: spacerHeight + 100)
+                                .frame(height: spacerHeight + 100) // TODO：spacerHeight后依然有Gap，静态补100能解决、但不优雅
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color(.systemBackground))
                                 .listRowSeparator(.hidden)

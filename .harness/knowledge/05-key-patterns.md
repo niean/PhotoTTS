@@ -41,7 +41,7 @@ SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openC
 
 ## 模式四：OCR 并发分批处理
 
-ImageToSpeechCoordinator.performConcurrentOCR：按 ocr_concurrent_count（config sys 节）分批 chunked，每批 withTaskGroup 并发执行 OCRService.recognizeText。失败返回 ""（保持索引）。每批完成更新进度（OCR 0~70%，TTS 70~100%）。拼接时剔除 ocrEmptyResultIndicator，检查总长度不超 tts_text_max_length。
+ImageToSpeechCoordinator.performConcurrentOCR：按 ocr_concurrent_count（config sys 节）分批 chunked，每批 withTaskGroup 并发执行 OCRService.recognizeText。失败返回 ""（保持索引）。每批完成更新进度（OCR 0~50%，LLM 50~70%，TTS 70~100%）。拼接时剔除 ocrEmptyResultIndicator，检查总长度不超 tts_text_max_length。
 
 扩展 OCR 应在此函数修改，不在 UI 层自行并发。
 
@@ -100,7 +100,7 @@ private func scaled(_ value: CGFloat) -> CGFloat {
 
 使用场景：
 - 数值型尺寸：padding/frame/spacing/cornerRadius 等，scaled(iPhone基准值)
-- 字体：统一通过 `Constants.Fonts` 引用（详见 03-conventions.md 字体章节）。自适应字体内部调 `DeviceScale.adaptiveSize`，固定字体不随设备缩放
+- 字体：统一通过 `Constants.Fonts` 引用（详见 ./03-conventions.md 字体章节）。自适应字体内部调 `DeviceScale.adaptiveSize`，固定字体不随设备缩放
 - 全项目无 isPad 三元表达式控制尺寸，统一走 adaptiveSize
 
 覆盖范围：全部 11 个 UI 源文件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView）。

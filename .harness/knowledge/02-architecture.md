@@ -3,11 +3,11 @@
 
 ## 分层
 
-- 表现层（Sources/UI）：SwiftUI+UIKit 封装。主要视图：PhotoTTSApp（根）、MainTabView（底导）、HomePageView、MakeView（含 PhotoProcessingView）、MeTabView、PlayView（全屏播放）、SessionRecordListView、SessionRecordUnifiedView（保存/编辑/查看，位于 SessionRecordDetailView.swift）、AppLoadingView/AppIntroView（位于 AppPagesView.swift）、PaginationControl（分页控件）、ChangeLogsView（更新记录）、RealTimeMonitorChartView（监控图表）
-- 协调层（Sources/Core/Coordinators）：ImageToSpeechCoordinator 串联 OCR+TTS，上报进度与结果
-- 能力层（Sources/Core/Handlers+Managers）：OCRService、TTSService、NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager、BackgroundMakeManager、PerformanceMonitorManager、PeerTransferManager。PlayHistoryManager/MakeHistoryManager 将数据存储委托 SessionRecordManager（会话级 history.json）。BackgroundMakeManager 管理单个后台 MakeTask（持有独立 Coordinator）。PerformanceMonitorManager 负责实时监控 CPU、内存、磁盘、网络指标。PeerTransferManager 封装 MultipeerConnectivity 实现设备间直传（WiFi/蓝牙自动切换）
-- 系统集成（Sources/Core/Intents）：PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts，通过 AppState+SessionRecordManager 桥接
-- 数据层（Sources/Models）：SessionRecord、APIResponse、VoiceSettings；Constants.swift、config_local.json
+- 表现层（PhotoTTS/Sources/UI）：SwiftUI+UIKit 封装。主要视图：PhotoTTSApp（根）、MainTabView（底导）、HomePageView、MakeView（含 PhotoProcessingView）、MeTabView、PlayView（全屏播放）、SessionRecordListView、SessionRecordUnifiedView（保存/编辑/查看，位于 SessionRecordDetailView.swift）、AppLoadingView/AppIntroView（位于 AppPagesView.swift）、PaginationControl（分页控件）、ChangeLogsView（更新记录）、RealTimeMonitorChartView（监控图表）
+- 协调层（PhotoTTS/Sources/Core/Coordinators）：ImageToSpeechCoordinator 串联 OCR+LLM+TTS 三阶段流程，上报进度与结果
+- 能力层（PhotoTTS/Sources/Core/Handlers+Managers）：OCRService、TTSService、NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager、BackgroundMakeManager、PerformanceMonitorManager、PeerTransferManager。PlayHistoryManager/MakeHistoryManager 将数据存储委托 SessionRecordManager（会话级 history.json）。BackgroundMakeManager 管理单个后台 MakeTask（持有独立 Coordinator）。PerformanceMonitorManager 负责实时监控 CPU、内存、磁盘、网络指标。PeerTransferManager 封装 MultipeerConnectivity 实现设备间直传（WiFi/蓝牙自动切换）
+- 系统集成（PhotoTTS/Sources/Core/Intents）：PlaySessionIntent、SessionRecordEntity、PhotoTTSShortcuts，通过 AppState+SessionRecordManager 桥接
+- 数据层（PhotoTTS/Sources/Models）：SessionRecord、APIResponse、VoiceSettings；PhotoTTS/Sources/Constants.swift、config_local.json
 
 ## 模块边界
 

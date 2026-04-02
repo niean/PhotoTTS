@@ -25,4 +25,4 @@ Swift 5.0+，iOS 18.1+，MVVM+Coordinator，SwiftUI 为主（相机用 UIKit/AVF
 
 ## 文档与规则
 
-操作约束、知识库加载策略见根目录 AGENTS.md。
+操作约束见 `.harness/framework/FRAMEWORK.md`，知识库加载策略见 `.harness/PROJECT.md`。
