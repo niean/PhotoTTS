@@ -136,6 +136,11 @@ struct HomePageView: View {
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
             loadPage()
         }
+        .onChange(of: appState.tab0ReselectTrigger) {
+            guard currentPage != 1 else { return }
+            currentPage = 1
+            loadPage()
+        }
         .onChange(of: searchText) {
             // 清空时自动刷新回原列表
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

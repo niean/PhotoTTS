@@ -58,6 +58,8 @@ class AppState: ObservableObject {
     @Published var isPlayViewActive: Bool = false
     /// 制作完成后跳转到管理Tab编辑页的记录ID，SessionRecordListView 消费后置 nil
     @Published var recordIdToEditInManageTab: String? = nil
+    /// 首页 Tab 重选触发器：same-tab tap 时自增，HomePageView 监听后重置到第1页
+    @Published var tab0ReselectTrigger: Int = 0
     init() {}
 }
 
@@ -278,7 +280,16 @@ struct MainTabView: View {
     @ObservedObject var appState: AppState
 
     var body: some View {
-        TabView(selection: $appState.selectedTab) {
+        TabView(selection: Binding(
+            get: { appState.selectedTab },
+            set: { newTab in
+                if newTab == 0 && appState.selectedTab == 0 {
+                    appState.tab0ReselectTrigger = (appState.tab0ReselectTrigger + 1) % 1024
+                    return // 不重复写 selectedTab，避免触发 @Published 重渲染干扰 UIKit scroll-to-top
+                }
+                appState.selectedTab = newTab
+            }
+        )) {
             NavigationStack {
                 HomePageView(appState: appState)
             }
