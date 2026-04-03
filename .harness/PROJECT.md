@@ -34,7 +34,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 - 数据结构/存储变化 -> .harness/knowledge/04-data-boundaries.md
 - 新源文件 -> .harness/knowledge/22-file-map.md
 - 新跨文件模式 -> .harness/knowledge/05-key-patterns.md
-- 产品方向调整 -> 提示用户，人工更新 .harness/prd/01-prd-sense.md 或触发 Skill: 回填产品文档
+- 产品方向调整 -> 提示用户，人工更新 .harness/prd/01-prd-sense.md
 
 ## 教训库加载路径
 

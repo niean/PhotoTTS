@@ -43,7 +43,12 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 - 根据变更内容，完整读取可能需要更新的 knowledge 文件
 
 ### Step 3 -- 增量回填 knowledge/
-按 .harness/PROJECT.md "知识回填文件映射"，对照变更文件和任务摘要，对照 changed_files 中的每个变更文件，查 .harness/PROJECT.md '知识回填文件映射'确定是否匹配回填条件；匹配则读取目标 knowledge 文件并更新；不匹配则跳过
+对 changed_files 中每个文件执行：
+1. 按 .harness/PROJECT.md "知识回填文件映射" 判断该文件是否触发回填条件
+2. 触发则读取映射规则指定的目标 knowledge 文件并更新
+3. 不触发则跳过
+
+遍历结束后进入 Step 4
 
 ### Step 4 -- 输出回填摘要
 有变化：列出具体变更（文件、变更内容）。无变化：告知"本次无需回填"。
