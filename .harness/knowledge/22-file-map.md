@@ -59,6 +59,8 @@
 - PlayHistoryManager+View / MakeHistoryManager+View / DebugLogManager+View
 - PerformanceMonitorManager+View（实时监控）：PhotoTTS/Sources/Core/Managers/Monitor/PerformanceMonitorManager.swift / PhotoTTS/Sources/UI/RealTimeMonitorView.swift / PhotoTTS/Sources/UI/RealTimeMonitorChartView.swift（时序图表组件）
 - ChangeLogsView（更新记录）：PhotoTTS/Sources/UI/ChangeLogsView.swift（解析 PhotoTTS/Resources/changelogs.md 渲染）
+- ReadingReportManager（阅读报告数据聚合）：PhotoTTS/Sources/Core/Managers/ReadingReport/ReadingReportManager.swift
+- ReadingReportView（阅读报告页面）：PhotoTTS/Sources/UI/ReadingReportView.swift
 
 ## 模型与常量
 
@@ -74,6 +76,6 @@
 
 ## 测试
 
-- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests
+- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests/ReadingReportManagerTests
 - 功能测试（FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）、TestAliqwenTTS（阿里千问 TTS 真实 API 测试）
 - UI 测试（PhotoTTSUITests/）：启动验证/性能/截图

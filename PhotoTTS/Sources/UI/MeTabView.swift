@@ -54,6 +54,11 @@ struct MeTabView: View {
                 // 历史记录
                 Section {
                     NavigationLink {
+                        ReadingReportViewWithBar()
+                    } label: {
+                        Label("阅读报告", systemImage: "chart.bar.fill")
+                    }
+                    NavigationLink {
                         PlayHistoryViewWithBar()
                     } label: {
                         Label("播放历史", systemImage: "clock.arrow.circlepath")
