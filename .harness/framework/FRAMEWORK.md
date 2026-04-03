@@ -20,8 +20,8 @@
 | 其他 | 以上均未匹配 | 直接执行 |
 
 任务调度约束：
-- 新 Task 或同一 Task 内的第 2+ 次迭代，均必须执行`任务调度`
-- superpowers 平台插件（形如 `superpowers:skill-x` 的 slash command）仅在用户明确指令时调用，严禁主动调起；与 `.harness/framework/skills/superpowers/` 下被 Workflow 声明依赖的本地 Skill 无关
+- Workflow 优先级高于独立Skill，独立Skill 禁止主动拦截 Workflow 入口；
+- superpowers:xxx(平台插件) 严禁主动调起，仅在用户明确指令时调用；与 `.harness/framework/skills/superpowers/` 下被 Workflow 声明依赖的本地 Skill 无关
 - 直接调用的 Skill 如有前置上下文依赖（如变更文件列表、设计文档），由 Skill 自身检查并提示用户补充
 
 ---

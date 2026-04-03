@@ -78,7 +78,7 @@ tts.provider 选择活跃供应商（"huoshan"/"aliqwen"），对应子配置独
 
 llm.provider 选择活跃供应商（"doubao"/"openai"），对应子配置独立维护。SettingsManager.getActiveLLMProvider() 读取活跃供应商，loadActiveLLMProviderConfig() 返回 LLMProviderConfig。API Key 按供应商存储不同 Keychain key（doubao_llm_api_key/openai_llm_api_key），通过 getLLMAPIKeyForProvider(_:) 获取。
 
-SettingsManager 优先读 Documents/config_local.json，不存在时回退 Bundle。
+SettingsManager 优先读应用沙箱 Documents 目录中的 config_local.json，不存在时回退 Bundle 中的 `PhotoTTS/Resources/config_example.json`。
 
 ## 导出/导入
 

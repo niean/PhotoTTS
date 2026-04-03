@@ -101,7 +101,7 @@
 - 位于 PhotoTTSTests/，按被测模块命名
 - 新增/修改 Manager/Coordinator/Service 时同步补充
 - 外部依赖协议注入 Mock
-- FunctionalTests/ 端到端测试调真实 API，CI 中 XCTSkip
+- PhotoTTSTests/FunctionalTests/ 端到端测试调真实 API，CI 中 XCTSkip
 
 ## 代码扫描
 

@@ -25,7 +25,7 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 
 ### 完整模式（mode=full）
 
-人工指令触发。全量扫描知识库与代码的一致性，含 .harness/framework/FRAMEWORK.md/.harness/PROJECT.md 同步和人工确认。
+人工指令触发。全量扫描知识库与代码的一致性，含 .harness/framework/FRAMEWORK.md/、.harness/PROJECT.md 同步和人工确认。
 
 按下方"完整模式步骤"执行。
 
@@ -59,7 +59,7 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 ## 完整模式步骤
 
 ### Step 1 -- 读取现状
-读取 .harness/framework/FRAMEWORK.md + .harness/PROJECT.md + `.harness/knowledge/` 全部 + prd/ 目录结构 + `.harness/framework/skills/` 目录（含 subskills/）+ `.harness/framework/README.md` 文件，列出项目源码一级子目录（ls，不递归），对照 knowledge/02-architecture.md 确认模块划分一致。
+读取 .harness/framework/FRAMEWORK.md + .harness/PROJECT.md + `.harness/knowledge/` 全部 + prd/ 目录结构 + `.harness/framework/skills/` 目录（含 subskills/）+ `.harness/framework/README.md` 文件，列出项目源码一级子目录（ls，不递归），对照 .harness/knowledge/02-architecture.md 确认模块划分一致。
 
 ### Step 2 -- 更新 knowledge/ 知识库
 对比实际代码与文档：(1) 删除已不存在的文件/类型/函数引用，(2) 更新已变更的模块名/路径/接口签名，(3) 不重写未变更内容。

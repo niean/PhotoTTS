@@ -124,7 +124,7 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -only-testing:Photo
 ## 安全规范
 
 - 密钥只存 Keychain（通过 `SettingsManager`，键名 `Constants.KeychainKeys`），不硬编码、不写 UserDefaults、不写日志
-- `config_local.json` 已加入 `.gitignore`，含密钥的配置文件禁止入库
+- 本地敏感配置建议放在 `locals/`（如 `locals/config/config_local.json`，已被 `.gitignore` 覆盖）；应用运行时使用沙箱 Documents 目录中的 config_local.json，含密钥的配置文件禁止入库
 - 网络/API/隐私：强制 HTTPS 不降级；图片外发须降采样（2048px）；响应校验状态码+Content-Type；数据仅存设备本地
 
 ---

@@ -76,7 +76,7 @@
 - 身份名称：支持简单的身份名称（默认设备名称，可自定义），用于制作/播放历史的发起者标识。
 
 ### 3.7 其它
-- 配置：配置见 `config_local.json`，设置页可编辑配置。
+- 配置：运行时配置为应用沙箱 Documents 目录中的 config_local.json，首次由 `PhotoTTS/Resources/config_example.json` 初始化；设置页可编辑配置。
 - Siri 语音控制：支持语音指令播放绘本，如「在PhotoTTS中 播放绘本」，通过 App Intents 实现，模糊匹配记录名称。播放中支持通过 Siri 暂停/继续，支持系统音量控制。
 - E2E设备间传输：支持通过MultipeerConnectivity在设备间直接传输记录；发送方选择记录后发现附近设备直连传输；接收方自动弹出确认框，传输前按记录ID去重避免无效传输；传输/接收相关页面为公共组件，支持多入口调起。
 
@@ -90,7 +90,7 @@
 - 播放互斥：任意时刻只允许一个记录播放。
 - 分页：首页/管理每页记录数为每行卡片数x10（iPhone 20条，iPad 30条）。
 - 适配：iPhone / iPad 使用统一比例常量进行页面尺寸适配。
-- 版本：MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 自动同步 Resources/changelogs.md 的最高版本号。
+- 版本：MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 自动同步 `PhotoTTS/Resources/changelogs.md` 的最高版本号。
 
 ---
 

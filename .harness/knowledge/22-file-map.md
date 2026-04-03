@@ -70,12 +70,12 @@
 
 ## 配置与资源
 
-- config_example.json（Bundle 内默认配置模板）/ changelogs.md（更新记录数据）
-- PhotoTTS/Resources/DefaultSession/：内置默认绘本（使用介绍），含 metadata.json/record.json/history.json/audio.mp3/avatar.jpg/images/；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
-- locals/（项目根目录，不在 Xcode PBXFileSystemSynchronizedRootGroup 内，不打包到 App Bundle）：存放 config_local.json 等本地敏感配置；App 首次启动时 SettingsManager.ensureUserConfigExists() 从 Bundle 的 config_example.json 复制到 Documents/config_local.json
+- `PhotoTTS/Resources/config_example.json`（Bundle 内默认配置模板）/ `PhotoTTS/Resources/changelogs.md`（更新记录数据）
+- PhotoTTS/Resources/DefaultSession/：内置默认绘本（使用介绍），含 default_session_metadata.json/default_session_record.json/default_session_history.json/default_session_audio.mp3/default_session_avatar.jpg/default_session_readme.txt/images/default_session_image_*.jpg；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
+- locals/（项目根目录，不在 Xcode PBXFileSystemSynchronizedRootGroup 内，不打包到 App Bundle）：存放本地敏感配置（如 `locals/config/config_local.json`）；App 首次启动时 SettingsManager.ensureUserConfigExists() 从 Bundle 的 `PhotoTTS/Resources/config_example.json` 复制配置到应用沙箱 Documents 目录
 
 ## 测试
 
 - 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests/ReadingReportManagerTests
-- 功能测试（FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）、TestAliqwenTTS（阿里千问 TTS 真实 API 测试）
+- 功能测试（PhotoTTSTests/FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）、TestAliqwenTTS（阿里千问 TTS 真实 API 测试）
 - UI 测试（PhotoTTSUITests/）：启动验证/性能/截图

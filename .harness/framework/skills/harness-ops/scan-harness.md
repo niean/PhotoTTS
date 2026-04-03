@@ -183,6 +183,7 @@ Layer 3   subskills/      (原子操作)
 - 解析 scope 参数，确定本次扫描的维度列表
 - 解析 level 参数，确定最低报告等级（默认 all）
 - 列出 `.harness/` 下所有 .md 文件（`Glob .harness/**/*.md`），加上根目录的 AGENTS.md、CLAUDE.md
+- 排查目录须包含：`.harness/plans/`、`.harness/specs/`
 - 输出待扫描文件数、维度列表和报告等级
 
 ### Step 2 -- 结构性扫描（维度1-4）

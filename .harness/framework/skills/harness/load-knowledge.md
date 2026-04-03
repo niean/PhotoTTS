@@ -18,7 +18,7 @@ description: 分层加载知识库，按任务类型加载矩阵读取必读文�
 
 读取以下目录中每个 .md 文件的首行 `<!-- SUMMARY: ... -->` 注释，建立全局索引：
 - `.harness/knowledge/` 全部文件
-- `.harness/prd/`（除 `03-prd-specs.md`）
+- `.harness/prd/`（除 `.harness/prd/03-prd-specs.md`）
 - `.harness/framework/lessons/general.md`（Harness 通用教训）
 - `.harness/lessons/project.md`（项目教训）
 
