@@ -384,6 +384,8 @@ extension Constants {
         static let uncategorizedLabel = "未分类"
         /// 月份分组键格式
         static let monthKeyFormat = "yyyy年M月"
+        /// 组头高度
+        static var groupHeaderHeight: CGFloat { DeviceScale.adaptiveSize(iPhone: 44) }
     }
 
     // MARK: - LLM配置

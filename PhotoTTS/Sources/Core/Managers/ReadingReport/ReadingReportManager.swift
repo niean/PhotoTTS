@@ -36,6 +36,20 @@ struct TopBookItem: Identifiable, Hashable {
     let playCount: Int
 }
 
+// MARK: - 最近收听项
+struct RecentListeningItem: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let timestamp: Date
+    let sessionId: String
+
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM.dd HH:mm"
+        return formatter.string(from: timestamp)
+    }
+}
+
 // MARK: - 阅读报告统计数据
 struct ReadingReportStats {
     let period: ReportPeriod
@@ -44,6 +58,7 @@ struct ReadingReportStats {
     let topBooks: [TopBookItem]
     let continuousDays: Int
     let near30DaysDuration: TimeInterval
+    let recentListening: [RecentListeningItem]
 
     var formattedDuration: String {
         let hours = Int(totalDuration) / 3600
@@ -127,13 +142,17 @@ class ReadingReportManager {
         // 计算近30天累计时长
         let near30DaysDuration = calculateNear30DaysDuration(allHistories: allHistories, durationBySessionId: durationBySessionId)
 
+        // 计算最近收听列表
+        let recentListening = calculateRecentListening(allHistories: allHistories, period: period)
+
         return ReadingReportStats(
             period: period,
             totalDuration: totalDuration,
             bookCount: bookCount,
             topBooks: Array(topBooks),
             continuousDays: continuousDays,
-            near30DaysDuration: near30DaysDuration
+            near30DaysDuration: near30DaysDuration,
+            recentListening: recentListening
         )
     }
 
@@ -183,5 +202,30 @@ class ReadingReportManager {
             }
         }
         return totalDuration
+    }
+
+    private func calculateRecentListening(
+        allHistories: [(id: String, name: String, history: SessionHistory)],
+        period: ReportPeriod
+    ) -> [RecentListeningItem] {
+        let now = Date()
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+
+        var items: [RecentListeningItem] = []
+        for item in allHistories {
+            for event in item.history.playEvents {
+                if event.timestamp >= startDate && event.timestamp <= now {
+                    items.append(RecentListeningItem(
+                        name: item.name,
+                        timestamp: event.timestamp,
+                        sessionId: item.id
+                    ))
+                }
+            }
+        }
+
+        // 按时间倒序排序
+        return items.sorted { $0.timestamp > $1.timestamp }
     }
 }

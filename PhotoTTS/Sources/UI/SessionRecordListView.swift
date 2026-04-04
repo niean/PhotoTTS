@@ -188,7 +188,7 @@ struct SessionRecordListView: View {
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, scaled(16))
-            .padding(.vertical, scaled(12))
+            .frame(height: Constants.GroupDisplay.groupHeaderHeight)
             .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.25)) {
@@ -364,12 +364,19 @@ struct SessionRecordListView: View {
         } else {
             GeometryReader { geo in
                 ScrollViewReader { scrollProxy in
-                    let itemCount = isGroupedMode
-                        ? cachedGroups.reduce(0) { $0 + (expandedGroup == $1.key ? $1.items.count + 1 : 1) }
-                        : pagedMetadataList.count
-                    let estimatedRowHeight: CGFloat = scaled(56)
+                    // 计算内容高度
                     let searchBarHeight: CGFloat = Constants.SearchBar.rowMinHeight
-                    let contentHeight = searchBarHeight + CGFloat(itemCount) * estimatedRowHeight
+                    let groupHeaderHeight: CGFloat = Constants.GroupDisplay.groupHeaderHeight
+                    let rowHeight: CGFloat = scaled(56)
+
+                    let groupCount = cachedGroups.count
+                    let expandedItemCount = cachedGroups
+                        .first(where: { $0.key == expandedGroup })?.items.count ?? 0
+                    let flatItemCount = pagedMetadataList.count
+
+                    let contentHeight = isGroupedMode
+                        ? searchBarHeight + CGFloat(groupCount) * groupHeaderHeight + CGFloat(expandedItemCount) * rowHeight
+                        : searchBarHeight + CGFloat(flatItemCount) * rowHeight
                     let spacerHeight = max(0, geo.size.height - contentHeight)
 
                     List {
@@ -393,7 +400,7 @@ struct SessionRecordListView: View {
 
                         if spacerHeight > 0 {
                             Color.clear
-                                .frame(height: spacerHeight + 100) // TODO：spacerHeight后依然有Gap，静态补100能解决、但不优雅
+                                .frame(height: spacerHeight)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color(.systemBackground))
                                 .listRowSeparator(.hidden)

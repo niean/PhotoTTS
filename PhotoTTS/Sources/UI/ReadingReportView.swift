@@ -4,23 +4,48 @@ import SwiftUI
 struct ReadingReportView: View {
     let stats: ReadingReportStats
     @Binding var period: ReportPeriod
+    @State private var recentListeningPage: Int = 1
+
+    private var pageSize: Int { Constants.Pagination.pageSize }
+
+    private var recentListeningTotalPages: Int {
+        let count = stats.recentListening.count
+        return count > 0 ? (count + pageSize - 1) / pageSize : 1
+    }
+
+    private var pagedRecentListening: [RecentListeningItem] {
+        let start = (recentListeningPage - 1) * pageSize
+        let end = min(start + pageSize, stats.recentListening.count)
+        guard start < stats.recentListening.count else { return [] }
+        return Array(stats.recentListening[start..<end])
+    }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
-                heroSection
-                periodPicker
-                metricsCards
-                topBooksSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    heroSection
+                        .id("reportTop")
+                    periodPicker
+                    metricsCards
+                    topBooksSection
+                    recentListeningSection
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 20)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 20)
+            .onChange(of: recentListeningPage) { _, _ in
+                withAnimation {
+                    proxy.scrollTo("reportTop", anchor: .top)
+                }
+            }
         }
         .background(Color(.systemGroupedBackground))
+        .onChange(of: period) { _, _ in recentListeningPage = 1 }
     }
 
     // MARK: - 英雄区
@@ -146,6 +171,57 @@ struct ReadingReportView: View {
         case 3: return Color(red: 0.8, green: 0.5, blue: 0.2)
         default: return .accentColor
         }
+    }
+
+    // MARK: - 最近收听列表
+    private var recentListeningSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("最近收听")
+                .font(Constants.Fonts.headline)
+                .foregroundStyle(.primary)
+
+            if stats.recentListening.isEmpty {
+                Text("暂无数据")
+                    .font(Constants.Fonts.subheadline)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            } else {
+                ForEach(pagedRecentListening) { item in
+                    recentListeningRow(item: item)
+                }
+
+                if recentListeningTotalPages > 1 {
+                    PaginationControl(
+                        currentPage: recentListeningPage,
+                        totalPages: recentListeningTotalPages,
+                        onPrevious: { if recentListeningPage > 1 { recentListeningPage -= 1 } },
+                        onNext: { if recentListeningPage < recentListeningTotalPages { recentListeningPage += 1 } }
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    private func recentListeningRow(item: RecentListeningItem) -> some View {
+        HStack {
+            Text(item.name)
+                .font(Constants.Fonts.body)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text(item.formattedDate)
+                .font(Constants.Fonts.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 8)
     }
 }
 
