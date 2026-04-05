@@ -80,14 +80,32 @@ struct MakeView: View {
             }
             .onChange(of: appState.fullScreenKind) { oldKind, newKind in
                 if newKind == nil, oldKind == .camera {
-                    let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
-                    selectedImages = appState.cameraOverlayImages.map { SessionRecordManager.downsampleImageToMaxPixel($0, maxPixelLength: maxP) ?? $0 }
-                    currentImageIndex = 0
-                    onImagesChanged()
-                    if openedCameraFromHome {
-                        openedCameraFromHome = false
-                        if selectedImages.isEmpty {
+                    let rawImages = appState.cameraOverlayImages
+                    os.Logger.makeView.info("相机返回: 图片数=\(rawImages.count)")
+                    if rawImages.isEmpty {
+                        os.Logger.makeView.info("相机返回: 无图片，回退")
+                        // 未拍照直接返回，按原逻辑处理
+                        if openedCameraFromHome {
+                            openedCameraFromHome = false
                             appState.selectedTab = 2
+                        }
+                    } else {
+                        // 清空图片并展示 Loading，确保 SwiftUI 先渲染 Loading 再执行重 I/O
+                        selectedImages.removeAll()
+                        isLoadingRecord = true
+                        os.Logger.makeView.info("相机返回: 已设置 Loading，等待渲染")
+                        let fromHome = openedCameraFromHome
+                        openedCameraFromHome = false
+                        // 延迟到下一帧，保证 Loading 渲染后再执行 startMaking 等重 I/O
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            os.Logger.makeView.info("相机返回: asyncAfter 触发，开始降采样 \(rawImages.count) 张图片")
+                            let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
+                            self.selectedImages = rawImages.map { SessionRecordManager.downsampleImageToMaxPixel($0, maxPixelLength: maxP) ?? $0 }
+                            os.Logger.makeView.info("相机返回: 降采样完成，调用 onImagesChanged")
+                            self.currentImageIndex = 0
+                            self.isLoadingRecord = false
+                            self.onImagesChanged()
+                            _ = fromHome
                         }
                     }
                 }
@@ -103,6 +121,10 @@ struct MakeView: View {
                         appState.makeTaskIdToReconnect = nil
                         reconnectToBackgroundTask(sessionId: id)
                     }
+                    // 切回制作Tab时，补偿可能遗漏的后台任务完成通知
+                    if observingTaskId != nil {
+                        syncBackgroundTaskState()
+                    }
                 }
             }
             .onAppear {
@@ -115,6 +137,10 @@ struct MakeView: View {
                     if let id = appState.makeTaskIdToReconnect {
                         appState.makeTaskIdToReconnect = nil
                         reconnectToBackgroundTask(sessionId: id)
+                    }
+                    // onAppear 时同样补偿
+                    if observingTaskId != nil {
+                        syncBackgroundTaskState()
                     }
                 }
             }
@@ -562,6 +588,7 @@ struct MakeView: View {
         clearDataAndState()
         // 自动触发后台制作：有图片且无活跃后台任务时启动
         if !selectedImages.isEmpty && !bgMakeManager.hasActiveTask {
+            os.Logger.makeView.info("onImagesChanged: 触发 processImages，图片数=\(selectedImages.count)")
             processingOverlayDismissed = false
             processImages()
         }
@@ -638,6 +665,7 @@ struct MakeView: View {
     private func processImages() {
         guard !selectedImages.isEmpty else { return }
 
+        os.Logger.makeView.info("processImages: 开始，图片数=\(selectedImages.count)")
         isProcessing = true
         processingProgress = 0.0
         currentOperation = "开始处理图片..."
@@ -652,12 +680,14 @@ struct MakeView: View {
         // 防息屏：制作过程耗时较长，防止系统重置 idleTimer（教训 L001/P001）
         UIApplication.shared.isIdleTimerDisabled = true
 
+        os.Logger.makeView.info("processImages: 调用 startMaking")
         if let sessionId = bgMakeManager.startMaking(images: selectedImages) {
             observingTaskId = sessionId
-            os.Logger.makeView.info("已启动后台制作任务: sessionId=\(sessionId)")
+            os.Logger.makeView.info("processImages: startMaking 返回成功，sessionId=\(sessionId)")
         } else {
             isProcessing = false
             error = NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "启动制作失败，请重试"])
+            os.Logger.makeView.error("processImages: startMaking 返回失败")
         }
     }
 

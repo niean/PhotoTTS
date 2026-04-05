@@ -508,6 +508,7 @@ class CustomCameraViewController: UIViewController {
     
     
     @objc private func cancelButtonTapped() {
+        os.Logger.camera.info("相机取消按钮点击，已拍摄 \(self.currentPhotoCount) 张")
         delegate?.didCancel()
     }
 
@@ -563,8 +564,10 @@ class CustomCameraViewController: UIViewController {
     
     private func stopSession() {
         guard let captureSession = captureSession, !isConfiguring else { return }
-        
-        captureSession.stopRunning()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            captureSession.stopRunning()
+        }
     }
     
     private func ensureButtonsVisible() {
