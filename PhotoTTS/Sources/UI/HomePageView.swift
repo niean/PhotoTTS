@@ -282,9 +282,14 @@ private struct SessionRecordCard: View {
         return f
     }()
 
-    private var playStatsText: String? {
-        guard let stats = playStats else { return nil }
-        return "\(Self.playStatsDateFormatter.string(from: stats.lastPlayedAt))/\(stats.playCount)"
+    private var playStatsText: String {
+        if let stats = playStats {
+            // 有播放记录：展示 "MM.dd/N"
+            return "\(Self.playStatsDateFormatter.string(from: metadata.namePrefixDate))/\(stats.playCount)"
+        } else {
+            // 无播放记录：只展示 "MM.dd"
+            return Self.playStatsDateFormatter.string(from: metadata.namePrefixDate)
+        }
     }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
@@ -328,18 +333,16 @@ private struct SessionRecordCard: View {
                 }
 
                 // 播放统计（图片左下角，跟标题左对齐）
-                if let statsText = playStatsText {
-                    VStack {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Text(playStatsText)
+                            .font(Constants.Fonts.homeCardPlayStats)
+                            .foregroundColor(.white)
                         Spacer()
-                        HStack {
-                            Text(statsText)
-                                .font(Constants.Fonts.homeCardPlayStats)
-                                .foregroundColor(.white)
-                            Spacer()
-                        }
-                        .padding(.horizontal, scaled(Constants.HomeCard.titleHorizontalPadding))
-                        .padding(.bottom, scaled(4))
                     }
+                    .padding(.horizontal, scaled(Constants.HomeCard.titleHorizontalPadding))
+                    .padding(.bottom, scaled(4))
                 }
             }
             .frame(height: scaled(Constants.HomeCard.coverHeight))
