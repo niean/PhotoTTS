@@ -8,7 +8,7 @@ description: 将产品变更回填到 prd/ 产品文档
 ## 步骤
 
 ### Step 1 -- 读取现状
-读取 01-prd-sense.md、02-prd-baseline.md、03-prd-specs.md（重点最近 3 个版本的 spec（按文件内版本标记倒序））。
+读取 01-prd-sense.md、02-prd-baseline.md、03-prd-specs.md（按文件内版本标记倒序）。
 
 ### Step 2 -- 提取候选变更
 对比 specs 近期内容与现有文档，识别两类变更：
