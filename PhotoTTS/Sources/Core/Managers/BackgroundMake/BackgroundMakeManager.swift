@@ -223,6 +223,7 @@ class BackgroundMakeManager: ObservableObject {
     // MARK: - 启动制作
 
     /// 启动后台制作任务（只允许1个，已有活跃任务时拒绝）
+    /// 主线程仅做快速操作（创建 task），重 I/O（草稿保存 + jpegData）在后台线程执行
     /// - Parameters:
     ///   - images: 已降采样的图片数组
     /// - Returns: sessionId（草稿会话的 ID），nil 表示启动失败
@@ -240,36 +241,48 @@ class BackgroundMakeManager: ObservableObject {
         formatter.dateFormat = "yy.MM.dd "
         let draftName = formatter.string(from: Date()) + Constants.draftSessionNameSuffix
 
-        // 保存草稿（图片落盘）
-        let saved = SessionRecordManager.shared.saveDraftSession(id: sessionId, name: draftName, images: images)
-        guard saved else {
-            logger.error("草稿会话保存失败，无法启动后台制作")
-            return nil
-        }
-
-        // 创建任务
+        // 创建任务并立即返回，不阻塞主线程
         let task = MakeTask(sessionId: sessionId, imageCount: images.count)
         currentTask = task
-
-        // 准备图片数据
-        var imageDataList: [Data] = []
-        for image in images {
-            if let data = image.jpegData(compressionQuality: 0.8) {
-                imageDataList.append(data)
-            }
-        }
-
-        guard !imageDataList.isEmpty else {
-            logger.error("图片数据转换失败，无法启动后台制作")
-            currentTask = nil
-            return nil
-        }
-
         task.markStarted()
         logger.info("后台制作任务启动: sessionId=\(sessionId), 图片数=\(images.count)")
 
-        // 启动 Coordinator 处理
-        task.coordinator.convertBatchImagesToSpeech(
+        // 重 I/O 移到后台线程：草稿保存 + jpegData 转换 + 启动 Coordinator
+        DispatchQueue.global(qos: .userInitiated).async { [weak self, weak task] in
+            guard let self = self, let task = task else { return }
+
+            // 保存草稿（图片落盘）
+            let saved = SessionRecordManager.shared.saveDraftSession(id: sessionId, name: draftName, images: images)
+            guard saved else {
+                self.logger.error("草稿会话保存失败，无法启动后台制作")
+                DispatchQueue.main.async {
+                    task.markFailed(error: NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "草稿保存失败"]))
+                    self.objectWillChange.send()
+                }
+                return
+            }
+
+            // 准备图片数据
+            var imageDataList: [Data] = []
+            for image in images {
+                if let data = image.jpegData(compressionQuality: 0.8) {
+                    imageDataList.append(data)
+                }
+            }
+
+            guard !imageDataList.isEmpty else {
+                self.logger.error("图片数据转换失败，无法启动后台制作")
+                DispatchQueue.main.async {
+                    task.markFailed(error: NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "图片数据转换失败"]))
+                    self.objectWillChange.send()
+                }
+                return
+            }
+
+            self.logger.info("后台制作: 草稿保存+图片转换完成，启动 Coordinator: sessionId=\(sessionId)")
+
+            // 启动 Coordinator 处理
+            task.coordinator.convertBatchImagesToSpeech(
             imageDataList,
             progressHandler: { [weak self, weak task] progress in
                 guard let self = self, let task = task else { return }
@@ -320,6 +333,7 @@ class BackgroundMakeManager: ObservableObject {
                 }
             }
         )
+        }
 
         return sessionId
     }

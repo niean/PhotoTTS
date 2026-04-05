@@ -90,18 +90,17 @@ struct MakeView: View {
                             appState.selectedTab = 2
                         }
                     } else {
-                        // 清空图片并展示 Loading，确保 SwiftUI 先渲染 Loading 再执行重 I/O
+                        // 清空图片+展示 Loading，与 fullScreenKind=nil 同批渲染：相机消失+Loading 出现
                         selectedImages.removeAll()
                         isLoadingRecord = true
-                        os.Logger.makeView.info("相机返回: 已设置 Loading，等待渲染")
                         let fromHome = openedCameraFromHome
                         openedCameraFromHome = false
-                        // 延迟到下一帧，保证 Loading 渲染后再执行 startMaking 等重 I/O
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            os.Logger.makeView.info("相机返回: asyncAfter 触发，开始降采样 \(rawImages.count) 张图片")
-                            let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
-                            self.selectedImages = rawImages.map { SessionRecordManager.downsampleImageToMaxPixel($0, maxPixelLength: maxP) ?? $0 }
-                            os.Logger.makeView.info("相机返回: 降采样完成，调用 onImagesChanged")
+                        os.Logger.makeView.info("相机返回: 已清空图片并设置 Loading，等待渲染")
+                        // 延迟到下一帧，确保 Loading 渲染后再设置图片和启动制作
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            os.Logger.makeView.info("相机返回: asyncAfter 触发，设置图片并启动制作")
+                            // 相机拍摄时已降采样（didCaptureImage），无需重复处理
+                            self.selectedImages = rawImages
                             self.currentImageIndex = 0
                             self.isLoadingRecord = false
                             self.onImagesChanged()
@@ -667,6 +666,7 @@ struct MakeView: View {
 
         os.Logger.makeView.info("processImages: 开始，图片数=\(selectedImages.count)")
         isProcessing = true
+        os.Logger.makeView.info("processImages: isProcessing=true，制作页开始 Loading")
         processingProgress = 0.0
         currentOperation = "开始处理图片..."
         error = nil
