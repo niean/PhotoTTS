@@ -229,7 +229,6 @@ AI 自主维护教训库，人工可通过提示或建议触发新增/修正。
 ```
 .harness/framework/
   FRAMEWORK.md         -- 通用规范入口（本文件）
-  README.md            -- Harness 工程模板说明
   agents/              -- Agent 角色模板（Orchestrator、Designer、Planner、Coder、Reviewer）
   workflows/           -- Workflow 端到端编排（迭代功能、修复Bug、迭代文档）
     harness-ops/       -- Harness 运维类 Workflow（治理代码-人工、治理技能-人工）
@@ -248,7 +247,6 @@ AI 自主维护教训库，人工可通过提示或建议触发新增/修正。
 | 文件 | 何时查阅 |
 |------|---------|
 | .harness/framework/guides/00-harness-desc.md | 了解 Harness 体系描述时 |
-| .harness/framework/guides/01-harness-ops.md | 了解 Harness 运维操作时 |
 | .harness/framework/guides/02-harness-dev.md | 了解 Harness 开发流程时 |
 | .harness/framework/lessons/general.md | 用户指令或当前根因与 SUMMARY 高度相关时按需读取 |
 

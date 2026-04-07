@@ -22,12 +22,12 @@ description: 人工指令触发技能治理
 
 ## Phase 1: 读取现状
 - Agent: Orchestrator
-- 读取 .harness/framework/FRAMEWORK.md 注册表（Agents/Workflows/Skills 表）+ `.harness/framework/agents/`、`skills/`（含 `subskills/`）、`workflows/` 全部文件 + `.harness/framework/README.md` + `.harness/framework/guides/` 全部文件
+- 读取 .harness/framework/FRAMEWORK.md 注册表（Agents/Workflows/Skills 表）+ `.harness/framework/agents/`、`skills/`（含 `subskills/`）、`workflows/` 全部文件 + `.harness/framework/guides/` 全部文件
 
 ## Phase 2: 扫描
 - Agent: Reviewer
 - 检查：注册表与实际文件不一致、格式不规范（文件名非 kebab-case、缺少 YAML frontmatter、SUMMARY 注释缺失，检查项见 Skill: 扫描Harness文档 维度3）、未被任何 Workflow/Skill 文件引用的 Agent/Subskill 文件（即闲置文件）、引用不存在的实体、目录枚举不同步、引用方向违反 .harness/framework/FRAMEWORK.md 规则（反向引用上层、使用绝对路径）
-- 扫描范围含 .harness/framework/README.md 和 guides/，发现 AI-READONLY 文件问题时记录但不自动修复
+- 扫描范围含 .harness/framework/guides/，发现 AI-READONLY 文件问题时记录但不自动修复
 
 检查点：`[Phase 2 扫描] N个文件扫描, 共M项问题 (注册表X, 引用Y, 格式Z, AI-READONLY文件W)`
 

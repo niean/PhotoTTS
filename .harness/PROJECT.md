@@ -12,7 +12,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 
 首次加载时需建立 SUMMARY 索引的目录：
 - `.harness/knowledge/`
-- `.harness/prd/`（除 03-prd-specs.md）
+- `.harness/prd/`（除 .harness/prd/03-prd-specs.md）
 - `.harness/lessons/`
 
 ## 任务类型加载矩阵
