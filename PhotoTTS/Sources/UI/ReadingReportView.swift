@@ -51,13 +51,14 @@ struct ReadingReportView: View {
     // MARK: - 英雄区
     private var heroSection: some View {
         VStack(spacing: 8) {
-            Text("\(stats.continuousDays)天")
+            Text("\(stats.listeningDays)天")
+                // 视图私有的动态计算字体（英雄区大数字使用自适应缩放）
                 .font(.system(size: scaled(48), weight: .bold))
                 .foregroundStyle(.primary)
-            Text("连续听读")
+            Text("听读天数")
                 .font(Constants.Fonts.subheadline)
                 .foregroundStyle(.secondary)
-            Text(stats.formattedNear30DaysDuration)
+            Text(stats.formattedNearPeriodDuration)
                 .font(Constants.Fonts.caption)
                 .foregroundStyle(.tertiary)
         }

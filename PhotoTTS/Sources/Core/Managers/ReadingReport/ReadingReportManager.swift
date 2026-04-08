@@ -5,11 +5,13 @@ import os.log
 enum ReportPeriod: String, CaseIterable {
     case weekly
     case monthly
+    case halfYear
 
     var days: Int {
         switch self {
         case .weekly: return 7
         case .monthly: return 30
+        case .halfYear: return 180
         }
     }
 
@@ -17,6 +19,7 @@ enum ReportPeriod: String, CaseIterable {
         switch self {
         case .weekly: return "每周"
         case .monthly: return "每月"
+        case .halfYear: return "半年"
         }
     }
 
@@ -24,6 +27,7 @@ enum ReportPeriod: String, CaseIterable {
         switch self {
         case .weekly: return "最近7天"
         case .monthly: return "最近30天"
+        case .halfYear: return "最近180天"
         }
     }
 }
@@ -56,7 +60,7 @@ struct ReadingReportStats {
     let totalDuration: TimeInterval
     let bookCount: Int
     let topBooks: [TopBookItem]
-    let continuousDays: Int
+    let listeningDays: Int
     let near30DaysDuration: TimeInterval
     let recentListening: [RecentListeningItem]
 
@@ -70,13 +74,14 @@ struct ReadingReportStats {
         }
     }
 
-    var formattedNear30DaysDuration: String {
+    var formattedNearPeriodDuration: String {
+        let days = period.days
         let hours = Int(near30DaysDuration) / 3600
         let minutes = (Int(near30DaysDuration) % 3600) / 60
         if hours > 0 {
-            return "近30天累计 \(hours)小时\(minutes)分"
+            return "近\(days)天累计 \(hours)小时\(minutes)分"
         } else {
-            return "近30天累计 \(minutes)分钟"
+            return "近\(days)天累计 \(minutes)分钟"
         }
     }
 }
@@ -136,11 +141,11 @@ class ReadingReportManager {
             TopBookItem(rank: index + 1, name: pair.key, playCount: pair.value)
         }
 
-        // 计算连续听读天数
-        let continuousDays = calculateContinuousDays(allHistories: allHistories, durationBySessionId: durationBySessionId)
+        // 计算听读天数（按周期过滤）
+        let listeningDays = calculateTotalListeningDays(allHistories: allHistories, durationBySessionId: durationBySessionId, period: period)
 
-        // 计算近30天累计时长
-        let near30DaysDuration = calculateNear30DaysDuration(allHistories: allHistories, durationBySessionId: durationBySessionId)
+        // 计算近N天累计时长（Follow周期选项）
+        let near30DaysDuration = calculateNearPeriodDuration(allHistories: allHistories, durationBySessionId: durationBySessionId, period: period)
 
         // 计算最近收听列表
         let recentListening = calculateRecentListening(allHistories: allHistories, period: period)
@@ -150,47 +155,42 @@ class ReadingReportManager {
             totalDuration: totalDuration,
             bookCount: bookCount,
             topBooks: Array(topBooks),
-            continuousDays: continuousDays,
+            listeningDays: listeningDays,
             near30DaysDuration: near30DaysDuration,
             recentListening: recentListening
         )
     }
 
-    private func calculateContinuousDays(
+    private func calculateTotalListeningDays(
         allHistories: [(id: String, name: String, history: SessionHistory)],
-        durationBySessionId: [String: TimeInterval]
+        durationBySessionId: [String: TimeInterval],
+        period: ReportPeriod
     ) -> Int {
+        let now = Date()
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
 
         var playDates: Set<Date> = []
         for item in allHistories {
             for event in item.history.playEvents {
-                if durationBySessionId[item.id] != nil {
+                if durationBySessionId[item.id] != nil && event.timestamp >= startDate && event.timestamp <= now {
                     let eventDay = calendar.startOfDay(for: event.timestamp)
                     playDates.insert(eventDay)
                 }
             }
         }
 
-        var continuousDays = 0
-        var checkDate = today
-        while playDates.contains(checkDate) {
-            continuousDays += 1
-            guard let prevDate = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
-            checkDate = prevDate
-        }
-
-        return continuousDays
+        return playDates.count
     }
 
-    private func calculateNear30DaysDuration(
+    private func calculateNearPeriodDuration(
         allHistories: [(id: String, name: String, history: SessionHistory)],
-        durationBySessionId: [String: TimeInterval]
+        durationBySessionId: [String: TimeInterval],
+        period: ReportPeriod
     ) -> TimeInterval {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -30, to: now) ?? now
+        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
 
         var totalDuration: TimeInterval = 0
         for item in allHistories {
