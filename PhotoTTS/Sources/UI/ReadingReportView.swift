@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 // MARK: - 阅读报告页面
 struct ReadingReportView: View {
@@ -28,10 +29,11 @@ struct ReadingReportView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    heroSection
-                        .id("reportTop")
                     periodPicker
+                        .id("reportTop")
                     metricsCards
+                    dailyChartSection
+                    hourlyChartSection
                     topBooksSection
                     recentListeningSection
                 }
@@ -46,28 +48,6 @@ struct ReadingReportView: View {
         }
         .background(Color(.systemGroupedBackground))
         .onChange(of: period) { _, _ in recentListeningPage = 1 }
-    }
-
-    // MARK: - 英雄区
-    private var heroSection: some View {
-        VStack(spacing: 8) {
-            Text("\(stats.listeningDays)天")
-                // 视图私有的动态计算字体（英雄区大数字使用自适应缩放）
-                .font(.system(size: scaled(48), weight: .bold))
-                .foregroundStyle(.primary)
-            Text("听读天数")
-                .font(Constants.Fonts.subheadline)
-                .foregroundStyle(.secondary)
-            Text(stats.formattedNearPeriodDuration)
-                .font(Constants.Fonts.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
     }
 
     // MARK: - 周期切换
@@ -96,6 +76,12 @@ struct ReadingReportView: View {
                 .frame(width: 1, height: 40)
 
             metricItem(title: "听书本数", value: "\(stats.bookCount)本")
+
+            Rectangle()
+                .fill(Color(.systemGray4))
+                .frame(width: 1, height: 40)
+
+            metricItem(title: "听读天数", value: "\(stats.listeningDays)天")
         }
         .padding(.vertical, 16)
         .background(
@@ -114,6 +100,88 @@ struct ReadingReportView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 天级听书本数直方图
+    private var dailyChartSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("天级本数")
+                .font(Constants.Fonts.headline)
+                .foregroundStyle(.primary)
+
+            Chart(stats.dailyBookCounts) { item in
+                BarMark(
+                    x: .value("日期", item.date, unit: .day),
+                    y: .value("绘本数量", item.bookCount)
+                )
+                .foregroundStyle(item.bookCount > 0 ? Color.accentColor : Color(.systemGray4))
+                .cornerRadius(3)
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisValueLabel()
+                    AxisGridLine()
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisValueLabel()
+                    AxisGridLine()
+                }
+            }
+            .frame(height: 140)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    // MARK: - 小时时段听书本数直方图
+    private var hourlyChartSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("小时本数")
+                .font(Constants.Fonts.headline)
+                .foregroundStyle(.primary)
+
+            Chart(stats.hourlyBookCounts) { item in
+                BarMark(
+                    x: .value("小时", item.hour),
+                    y: .value("绘本数量", item.bookCount)
+                )
+                .foregroundStyle(item.bookCount > 0 ? Color.accentColor : Color(.systemGray4))
+                .cornerRadius(3)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: 2)) { value in
+                    if let hour = value.as(Int.self) {
+                        AxisValueLabel {
+                            Text("\(hour)")
+                                .font(Constants.Fonts.caption)
+                        }
+                    }
+                    AxisGridLine()
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel {
+                        if let count = value.as(Int.self) {
+                            Text("\(count)")
+                                .font(Constants.Fonts.caption)
+                        }
+                    }
+                    AxisGridLine()
+                }
+            }
+            .frame(height: 140)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
     }
 
     // MARK: - Top3 列表

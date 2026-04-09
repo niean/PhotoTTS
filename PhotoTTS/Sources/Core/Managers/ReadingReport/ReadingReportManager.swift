@@ -54,6 +54,20 @@ struct RecentListeningItem: Identifiable, Hashable {
     }
 }
 
+// MARK: - 天级听书本数统计
+struct DailyBookCount: Identifiable, Hashable {
+    let id = UUID()
+    let date: Date
+    let bookCount: Int
+}
+
+// MARK: - 小时时段听书本数统计
+struct HourlyBookCount: Identifiable, Hashable {
+    let id = UUID()
+    let hour: Int
+    let bookCount: Int
+}
+
 // MARK: - 阅读报告统计数据
 struct ReadingReportStats {
     let period: ReportPeriod
@@ -63,6 +77,8 @@ struct ReadingReportStats {
     let listeningDays: Int
     let near30DaysDuration: TimeInterval
     let recentListening: [RecentListeningItem]
+    let dailyBookCounts: [DailyBookCount]
+    let hourlyBookCounts: [HourlyBookCount]
 
     var formattedDuration: String {
         let hours = Int(totalDuration) / 3600
@@ -150,6 +166,12 @@ class ReadingReportManager {
         // 计算最近收听列表
         let recentListening = calculateRecentListening(allHistories: allHistories, period: period)
 
+        // 计算天级听书本数
+        let dailyBookCounts = calculateDailyBookCounts(allHistories: allHistories, period: period)
+
+        // 计算小时时段听书本数
+        let hourlyBookCounts = calculateHourlyBookCounts(allHistories: allHistories, period: period)
+
         return ReadingReportStats(
             period: period,
             totalDuration: totalDuration,
@@ -157,7 +179,9 @@ class ReadingReportManager {
             topBooks: Array(topBooks),
             listeningDays: listeningDays,
             near30DaysDuration: near30DaysDuration,
-            recentListening: recentListening
+            recentListening: recentListening,
+            dailyBookCounts: dailyBookCounts,
+            hourlyBookCounts: hourlyBookCounts
         )
     }
 
@@ -227,5 +251,71 @@ class ReadingReportManager {
 
         // 按时间倒序排序
         return items.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private func calculateDailyBookCounts(
+        allHistories: [(id: String, name: String, history: SessionHistory)],
+        period: ReportPeriod
+    ) -> [DailyBookCount] {
+        let now = Date()
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+
+        var result: [DailyBookCount] = []
+
+        // 遍历周期内的每一天
+        for dayOffset in 0..<period.days {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: startDate) else { continue }
+            let dayStart = calendar.startOfDay(for: date)
+            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { continue }
+
+            // 收集当天的 sessionId 集合（去重）
+            var sessionIdsOnDay: Set<String> = []
+            for item in allHistories {
+                for event in item.history.playEvents {
+                    if event.timestamp >= dayStart && event.timestamp < dayEnd {
+                        sessionIdsOnDay.insert(item.id)
+                    }
+                }
+            }
+
+            result.append(DailyBookCount(date: dayStart, bookCount: sessionIdsOnDay.count))
+        }
+
+        return result
+    }
+
+    private func calculateHourlyBookCounts(
+        allHistories: [(id: String, name: String, history: SessionHistory)],
+        period: ReportPeriod
+    ) -> [HourlyBookCount] {
+        let now = Date()
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+
+        // 收集周期内所有播放事件，按小时聚合
+        var sessionsByHour: [Int: Set<String>] = [:]
+
+        for hour in 0..<24 {
+            sessionsByHour[hour] = []
+        }
+
+        for item in allHistories {
+            for event in item.history.playEvents {
+                if event.timestamp >= startDate && event.timestamp <= now {
+                    let hour = calendar.component(.hour, from: event.timestamp)
+                    sessionsByHour[hour, default: []].insert(item.id)
+                }
+            }
+        }
+
+        // 构建结果数组，确保 0-23 小时都有数据
+        var result: [HourlyBookCount] = []
+        for hour in 0..<24 {
+            let bookCount = sessionsByHour[hour]?.count ?? 0
+            result.append(HourlyBookCount(hour: hour, bookCount: bookCount))
+        }
+
+        return result
     }
 }
