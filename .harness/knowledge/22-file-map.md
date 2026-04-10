@@ -48,6 +48,11 @@
 - LLMServiceProtocol/LLMServiceFactory/DoubaoLLMService/OpenAILLMService（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/LLM/LLMService.swift
 - NetworkService：PhotoTTS/Sources/Core/Managers/Network/NetworkService.swift
 
+## 封面管理
+
+- CoverImageManager：PhotoTTS/Sources/Core/Handlers/Image/CoverImageManager.swift（封面生成、裁剪、旋转）
+- CoverEditView：PhotoTTS/Sources/UI/CoverEditView.swift（封面裁剪弹窗）
+
 ## Siri
 
 - SessionRecordEntity/Query：PhotoTTS/Sources/Core/Intents/SessionRecordEntity.swift

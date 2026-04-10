@@ -112,6 +112,10 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     /// 播放方向（翻页动画样式），默认横向翻页（从右到左）
     let animationStyle: AnimationStyle
 
+    // MARK: - 封面图片
+    /// 封面图片路径（相对于 session 目录，如 cover.jpg），nil 时降级使用第1张图片
+    var coverImagePath: String?
+
     // MARK: - 初始化
     init(
         id: String = UUID().uuidString,
@@ -134,7 +138,8 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         makeStatus: MakeStatus? = nil,
         storyHighlights: String? = nil,
         hasVirtualPage: Bool = false,
-        animationStyle: AnimationStyle = .rightToLeft
+        animationStyle: AnimationStyle = .rightToLeft,
+        coverImagePath: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -168,6 +173,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.storyHighlights = storyHighlights
         self.hasVirtualPage = hasVirtualPage
         self.animationStyle = animationStyle
+        self.coverImagePath = coverImagePath
     }
 
     // MARK: - Hashable（用于 navigationDestination(item:) 等，仅以 id 区分）
@@ -179,7 +185,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     }
     
     /// 按成员复制
-    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, llmDuration: TimeInterval = 0, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft) {
+    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, llmDuration: TimeInterval = 0, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft, coverImagePath: String? = nil) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -204,8 +210,9 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.storyHighlights = storyHighlights
         self.hasVirtualPage = hasVirtualPage
         self.animationStyle = animationStyle
+        self.coverImagePath = coverImagePath
     }
-    
+
     // MARK: - Codable 自定义编码
     
     /// 自定义编码，不将图片数据写入JSON（图片已单独保存为文件）
@@ -236,6 +243,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         try container.encodeIfPresent(storyHighlights, forKey: .storyHighlights)
         try container.encode(hasVirtualPage, forKey: .hasVirtualPage)
         try container.encode(animationStyle, forKey: .animationStyle)
+        try container.encodeIfPresent(coverImagePath, forKey: .coverImagePath)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -263,6 +271,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         case storyHighlights
         case hasVirtualPage
         case animationStyle
+        case coverImagePath
     }
     
     // 自定义解码
@@ -293,11 +302,17 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         storyHighlights = try container.decodeIfPresent(String.self, forKey: .storyHighlights)
         hasVirtualPage = try container.decodeIfPresent(Bool.self, forKey: .hasVirtualPage) ?? false
         animationStyle = try container.decodeIfPresent(AnimationStyle.self, forKey: .animationStyle) ?? .rightToLeft
+        coverImagePath = try container.decodeIfPresent(String.self, forKey: .coverImagePath)
     }
     
     /// 返回带新 storageSize 的副本（用于保存后写回 record.json）
     func withStorageSize(_ size: Int64) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: coverImagePath)
+    }
+
+    /// 返回带新 coverImagePath 的副本（用于保存后写回 record.json）
+    func withCoverImagePath(_ path: String?) -> SessionRecord {
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: path)
     }
     
     // MARK: - 辅助方法

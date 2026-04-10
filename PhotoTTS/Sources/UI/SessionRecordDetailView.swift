@@ -24,6 +24,8 @@ struct SessionRecordUnifiedView: View {
     @State private var sessionNameSuffix: String = ""  // 用户可编辑部分
     @State private var selectedAvatarIndex: Int = 0
     @State private var selectedAnimationStyle: AnimationStyle = .rightToLeft
+    @State private var showingCoverEdit = false
+    @State private var showingAvatarEdit = false
     @FocusState private var isTextFieldFocused: Bool
     
     private func scaled(_ value: CGFloat) -> CGFloat {
@@ -65,8 +67,12 @@ struct SessionRecordUnifiedView: View {
                     VStack(spacing: 20) {
                         // 名称
                         nameSection
-                        // 头像
-                        avatarSection
+                        // 头像选择（仅 save 模式）
+                        if case .save = mode {
+                            avatarSection
+                        }
+                        // 头像和封面（edit/view 模式）
+                        avatarAndCoverSection
                         // 播放方向
                         animationStyleSection
 
@@ -111,6 +117,28 @@ struct SessionRecordUnifiedView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationBarHidden(true)
+        .fullScreenCover(isPresented: $showingCoverEdit) {
+            if case .view(let record, _) = mode {
+                CoverEditView(sessionId: record.id, editMode: .cover, imageIndex: 0) {
+                    showingCoverEdit = false
+                }
+            } else if case .edit(let record, _, _) = mode {
+                CoverEditView(sessionId: record.id, editMode: .cover, imageIndex: 0) {
+                    showingCoverEdit = false
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showingAvatarEdit) {
+            if case .view(let record, _) = mode {
+                CoverEditView(sessionId: record.id, editMode: .avatar, imageIndex: record.avatarImageIndex) {
+                    showingAvatarEdit = false
+                }
+            } else if case .edit(let record, _, _) = mode {
+                CoverEditView(sessionId: record.id, editMode: .avatar, imageIndex: selectedAvatarIndex) {
+                    showingAvatarEdit = false
+                }
+            }
+        }
         .onAppear {
             setupFromMode()
         }
@@ -252,6 +280,60 @@ struct SessionRecordUnifiedView: View {
         case .edit(let record, _, _), .view(let record, _):
             LoadableSessionImageView(sessionId: record.id, index: index, maxDimension: 150)
                 .aspectRatio(contentMode: .fill)
+        }
+    }
+
+    // MARK: - 头像和封面区域（edit/view 模式）
+    @ViewBuilder
+    private var avatarAndCoverSection: some View {
+        switch mode {
+        case .save:
+            EmptyView()
+        case .edit(let record, _, _), .view(let record, _):
+            if record.totalImageCount > 0 {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("头像和封面")
+                        .font(Constants.Fonts.headline)
+                        .foregroundColor(.primary)
+
+                    HStack(alignment: .top, spacing: 16) {
+                        // 左侧：头像（1:1）
+                        VStack(spacing: 8) {
+                            LoadableSessionAvatarView(
+                                sessionId: record.id,
+                                fallbackAvatarIndex: selectedAvatarIndex,
+                                totalImageCount: record.totalImageCount
+                            )
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .onTapGesture {
+                                if isEditable { showingAvatarEdit = true }
+                            }
+                            Text("头像")
+                                .font(Constants.Fonts.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // 右侧：封面（16:9）
+                        VStack(spacing: 8) {
+                            CoverThumbnailView(sessionId: record.id)
+                                .frame(height: 80)
+                                .frame(maxWidth: .infinity)
+                                .cornerRadius(8)
+                                .onTapGesture {
+                                    if isEditable { showingCoverEdit = true }
+                                }
+                            Text("封面")
+                                .font(Constants.Fonts.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray5))
+                .cornerRadius(12)
+            }
         }
     }
 
@@ -600,25 +682,32 @@ struct LoadableSessionAvatarView: View {
             }
         }
         .onAppear {
-            if image == nil {
-                let sid = sessionId
-                let fallback = fallbackAvatarIndex
-                let total = totalImageCount
-                DispatchQueue.global(qos: .userInitiated).async {
-                    var loaded = SessionRecordManager.shared.loadAvatar(sessionId: sid)
-                    if loaded == nil, total > 0 {
-                        let idx = min(max(0, fallback), total - 1)
-                        loaded = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: 150)
-                            ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: 150)
-                    }
-                    DispatchQueue.main.async {
-                        image = loaded
-                    }
-                }
-            }
+            if image == nil { loadAvatar() }
         }
         .onDisappear {
             image = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.avatarImageDidUpdate)) { notification in
+            if let updatedId = notification.userInfo?["sessionId"] as? String, updatedId == sessionId {
+                loadAvatar()
+            }
+        }
+    }
+
+    private func loadAvatar() {
+        let sid = sessionId
+        let fallback = fallbackAvatarIndex
+        let total = totalImageCount
+        DispatchQueue.global(qos: .userInitiated).async {
+            var loaded = SessionRecordManager.shared.loadAvatar(sessionId: sid)
+            if loaded == nil, total > 0 {
+                let idx = min(max(0, fallback), total - 1)
+                loaded = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: 150)
+                    ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: 150)
+            }
+            DispatchQueue.main.async {
+                image = loaded
+            }
         }
     }
 }
@@ -656,6 +745,60 @@ struct LoadableSessionImageView: View {
         }
         .onDisappear {
             image = nil
+        }
+    }
+}
+
+// MARK: - 封面缩略图视图
+struct CoverThumbnailView: View {
+    let sessionId: String
+    @State private var coverImage: UIImage?
+
+    private var maxDimension: CGFloat {
+        Constants.HomeCard.coverAvatarMaxDimension
+    }
+
+    var body: some View {
+        Group {
+            if let image = coverImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                // 占位图
+                Rectangle()
+                    .fill(Color(.systemGray4))
+                    .overlay(
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo")
+                                .font(Constants.Fonts.homeCardPlaceholderIcon)
+                                .foregroundColor(.gray)
+                            Text("暂无封面")
+                                .font(Constants.Fonts.caption)
+                                .foregroundColor(.gray)
+                        }
+                    )
+            }
+        }
+        .onAppear { loadCoverImage() }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.coverImageDidUpdate)) { notification in
+            if let updatedId = notification.userInfo?["sessionId"] as? String, updatedId == sessionId {
+                loadCoverImage()
+            }
+        }
+    }
+
+    private func loadCoverImage() {
+        DispatchQueue.global(qos: .utility).async {
+            // 优先加载封面图
+            var image = SessionRecordManager.shared.loadCoverImage(sessionId: sessionId, maxDimension: maxDimension)
+            // 封面不存在时降级使用第一张图
+            if image == nil {
+                image = SessionRecordManager.shared.loadFirstImageAsCover(sessionId: sessionId, maxDimension: maxDimension)
+            }
+            DispatchQueue.main.async {
+                coverImage = image
+            }
         }
     }
 }

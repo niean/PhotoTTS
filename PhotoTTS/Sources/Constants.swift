@@ -212,14 +212,18 @@ extension Constants {
         static let gridSpacing: CGFloat = 12
         /// 网格水平内边距
         static let gridHorizontalPadding: CGFloat = 14
-        /// 封面宽高比 (width:height = 4:3)
-        static let coverAspectRatio: CGFloat = 4.0 / 3.0
+        /// 封面宽高比
+        static let coverAspectRatio: CGFloat = 16.0 / 9.0
         /// 名称栏垂直内边距
         static let titleVerticalPadding: CGFloat = 8
         /// 名称栏水平内边距
         static let titleHorizontalPadding: CGFloat = 10
         /// 封面 avatar 加载最大边长
         static let coverAvatarMaxDimension: CGFloat = 300
+        /// 封面图片最大边长（像素），超过则等比缩小
+        static let coverMaxDimension: CGFloat = 1024
+        /// 封面图片 JPEG 压缩质量
+        static let coverJPEGQuality: CGFloat = 0.8
         /// 制作中蒙层透明度
         static let makingOverlayOpacity: Double = 0.45
         /// iPhone 卡片列数
@@ -319,6 +323,10 @@ extension Constants {
         static let updateImageCount = NSNotification.Name("UpdateImageCount")
         static let configUpdated = NSNotification.Name("ConfigUpdated")
         static let sessionsDidImport = NSNotification.Name("SessionsDidImport")
+        /// 封面图片已更新，userInfo["sessionId"]: String
+        static let coverImageDidUpdate = NSNotification.Name("CoverImageDidUpdate")
+        /// 头像图片已更新，userInfo["sessionId"]: String
+        static let avatarImageDidUpdate = NSNotification.Name("AvatarImageDidUpdate")
         /// 远程播放控制命令（MPRemoteCommandCenter -> PlayView），userInfo["action"]: "play"/"pause"/"toggle"
         static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")
     }

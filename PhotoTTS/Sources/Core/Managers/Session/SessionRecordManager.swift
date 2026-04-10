@@ -21,8 +21,8 @@ class SessionRecordManager {
     private var metadataCacheTime: Date = .distantPast
     private static let metadataCacheTTL: TimeInterval = 2 // 缓存有效期 2 秒
     
-    /// 会话记录存储根目录
-    private var sessionsDirectory: URL {
+    /// 会话记录存储根目录（内部访问）
+    var sessionsDirectory: URL {
         let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let sessionsPath = documentsPath.appendingPathComponent("Sessions", isDirectory: true)
         
@@ -168,8 +168,9 @@ class SessionRecordManager {
                 try? mutableAudioURL.setResourceValues(audioResourceValues)
             }
             
-            // 预生成头像并写入 avatar.jpg
-            if record.totalImageCount > 0 {
+            // 预生成头像：仅在 avatar.jpg 不存在时写入，避免覆盖用户自定义裁剪的头像
+            let avatarURL = sessionDir.appendingPathComponent(Self.avatarFileName)
+            if !fileManager.fileExists(atPath: avatarURL.path), record.totalImageCount > 0 {
                 let avatarIndex = min(max(0, record.avatarImageIndex), record.totalImageCount - 1)
                 writeAvatarImage(sessionDir: sessionDir, imagesDir: imagesDir, avatarImageIndex: avatarIndex)
             }
@@ -256,7 +257,7 @@ class SessionRecordManager {
     /// 获取所有会话记录的元数据列表（按时间倒序）
     /// - Returns: 会话记录元数据数组
     /// 清除元数据缓存（会话增删改后调用）
-    private func invalidateMetadataCache() {
+    func invalidateMetadataCache() {
         metadataCache = nil
     }
 
@@ -923,7 +924,83 @@ class SessionRecordManager {
             logger.error("写入头像失败: \(error.localizedDescription)")
         }
     }
-    
+
+    // MARK: - 封面图片
+
+    /// 加载封面图片
+    /// - Parameters:
+    ///   - sessionId: 会话 ID
+    ///   - maxDimension: 最大边长（点），超过则等比缩小
+    /// - Returns: 封面图片，不存在或加载失败返回 nil
+    func loadCoverImage(sessionId: String, maxDimension: CGFloat? = nil) -> UIImage? {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        guard fileManager.fileExists(atPath: coverURL.path) else { return nil }
+
+        if let maxDim = maxDimension, maxDim > 0 {
+            return Self.downsampleImageFromFile(url: coverURL, maxDimension: maxDim)
+        } else {
+            return UIImage(contentsOfFile: coverURL.path)
+        }
+    }
+
+    /// 加载第一张图片作为封面备选
+    /// - Parameters:
+    ///   - sessionId: 会话 ID
+    ///   - maxDimension: 最大边长（点），超过则等比缩小
+    /// - Returns: 第一张图片，不存在返回 nil
+    func loadFirstImageAsCover(sessionId: String, maxDimension: CGFloat? = nil) -> UIImage? {
+        return loadImage(sessionId: sessionId, index: 0, maxDimension: maxDimension)
+    }
+
+    /// 封面图片完整路径
+    /// - Parameter sessionId: 会话 ID
+    /// - Returns: 封面图片完整路径，不存在返回 nil
+    func coverImagePath(for sessionId: String) -> String? {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        if fileManager.fileExists(atPath: coverURL.path) {
+            return coverURL.path
+        }
+        return nil
+    }
+
+    /// 第一张图片完整路径
+    /// - Parameter sessionId: 会话 ID
+    /// - Returns: 第一张图片完整路径，不存在返回 nil
+    func firstImagePath(for sessionId: String) -> String? {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+        let firstImageURL = imagesDir.appendingPathComponent("image_0.jpg")
+
+        if fileManager.fileExists(atPath: firstImageURL.path) {
+            return firstImageURL.path
+        }
+        return nil
+    }
+
+    /// 保存封面图片数据
+    /// - Parameters:
+    ///   - data: JPEG 数据
+    ///   - sessionId: 会话 ID
+    /// - Returns: 封面文件路径（相对路径），失败抛出异常
+    func saveCoverImage(data: Data, sessionId: String) throws -> String {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        try data.write(to: coverURL)
+
+        var mutable = coverURL
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = false
+        try? mutable.setResourceValues(values)
+
+        logger.info("封面图片保存成功: \(coverURL.path)")
+        return "cover.jpg"
+    }
+
     // MARK: - 草稿会话（后台制作）
 
     /// 保存草稿会话记录（仅落盘图片和 metadata，makeStatus=making，无 OCR/音频结果）
@@ -1085,10 +1162,51 @@ class SessionRecordManager {
 
             invalidateMetadataCache()
             logger.info("草稿会话更新完成: \(oldRecord.name), id=\(id), 文本长度=\(ocrText.count), 音频大小=\(audioData.count)")
+
+            // 生成封面图片
+            generateCoverForSession(sessionId: id, record: sizeUpdatedRecord)
+
             return true
         } catch {
             logger.error("更新草稿会话失败: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// 为会话生成封面图片
+    private func generateCoverForSession(sessionId: String, record: SessionRecord) {
+        // 获取第一张图片路径
+        guard let firstImagePath = firstImagePath(for: sessionId) else {
+            logger.warning("无法生成封面，第一张图片不存在: sessionId=\(sessionId)")
+            return
+        }
+
+        let coverManager = CoverImageManager()
+
+        Task {
+            do {
+                let coverPath = try await coverManager.generateCover(sessionId: sessionId, firstImagePath: firstImagePath)
+
+                // 更新 SessionRecord 的 coverImagePath
+                let updatedRecord = record.withCoverImagePath(coverPath)
+
+                // 保存更新后的 record.json
+                let sessionDir = self.sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+                let recordURL = sessionDir.appendingPathComponent("record.json")
+                let recordData = try JSONEncoder().encode(updatedRecord)
+                try recordData.write(to: recordURL)
+
+                // 保存更新后的 metadata.json
+                let metadata = SessionRecordMetadata(from: updatedRecord)
+                let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+                let metadataData = try JSONEncoder().encode(metadata)
+                try metadataData.write(to: metadataURL)
+
+                self.invalidateMetadataCache()
+                self.logger.info("封面生成并保存成功: sessionId=\(sessionId), path=\(coverPath)")
+            } catch {
+                self.logger.error("封面生成失败: sessionId=\(sessionId), error=\(error.localizedDescription)")
+            }
         }
     }
 

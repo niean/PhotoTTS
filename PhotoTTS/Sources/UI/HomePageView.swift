@@ -298,7 +298,7 @@ private struct SessionRecordCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 封面区域（4:3 宽高比 + 居中裁剪）
+            // 封面区域
             Color.clear
                 .aspectRatio(Constants.HomeCard.coverAspectRatio, contentMode: .fit)
                 .overlay {
@@ -370,18 +370,32 @@ private struct SessionRecordCard: View {
             onTap()
         }
         .onAppear { loadAvatarImage() }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.coverImageDidUpdate)) { notification in
+            if let updatedId = notification.userInfo?["sessionId"] as? String, updatedId == metadata.id {
+                loadAvatarImage()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.avatarImageDidUpdate)) { notification in
+            if let updatedId = notification.userInfo?["sessionId"] as? String, updatedId == metadata.id {
+                loadAvatarImage()
+            }
+        }
     }
 
     private func loadAvatarImage() {
         guard metadata.totalImageCount > 0 else { return }
         let sid = metadata.id
-        let avatarIdx = min(max(0, metadata.avatarImageIndex), metadata.totalImageCount - 1)
         loadingId = sid
         let maxDim = Constants.HomeCard.coverAvatarMaxDimension
         DispatchQueue.global(qos: .utility).async {
-            // 缩略图：直接 loadImage 按需加载（300pt），比 avatar(96pt) 更清晰
-            let image = SessionRecordManager.shared.loadImage(sessionId: sid, index: avatarIdx, maxDimension: maxDim)
-                ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: maxDim)
+            // 优先使用封面图片
+            var image = SessionRecordManager.shared.loadCoverImage(sessionId: sid, maxDimension: maxDim)
+            // 封面不存在时降级使用头像图片
+            if image == nil {
+                let avatarIdx = min(max(0, metadata.avatarImageIndex), metadata.totalImageCount - 1)
+                image = SessionRecordManager.shared.loadImage(sessionId: sid, index: avatarIdx, maxDimension: maxDim)
+                    ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: maxDim)
+            }
             DispatchQueue.main.async {
                 if loadingId == sid { avatarImage = image }
             }
