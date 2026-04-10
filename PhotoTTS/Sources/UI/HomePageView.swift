@@ -298,55 +298,57 @@ private struct SessionRecordCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 封面区域（固定高度 + 居中裁剪）
-            ZStack {
-                // 封面图
-                if let avatar = avatarImage {
-                    Image(uiImage: avatar)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: scaled(Constants.HomeCard.coverHeight))
-                } else {
-                    Rectangle()
-                        .fill(Color.blue.opacity(0.08))
-                        .overlay {
-                            Image(systemName: "book.closed.fill")
-                                .font(Constants.Fonts.homeCardPlaceholderIcon)
-                                .foregroundColor(.blue.opacity(0.25))
+            // 封面区域（4:3 宽高比 + 居中裁剪）
+            Color.clear
+                .aspectRatio(Constants.HomeCard.coverAspectRatio, contentMode: .fit)
+                .overlay {
+                    ZStack {
+                        // 封面图
+                        if let avatar = avatarImage {
+                            Image(uiImage: avatar)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            Rectangle()
+                                .fill(Color.blue.opacity(0.08))
+                                .overlay {
+                                    Image(systemName: "book.closed.fill")
+                                        .font(Constants.Fonts.homeCardPlaceholderIcon)
+                                        .foregroundColor(.blue.opacity(0.25))
+                                }
                         }
-                }
 
-                // 制作中蒙层
-                if isMaking {
-                    Rectangle()
-                        .fill(Color.black.opacity(Constants.HomeCard.makingOverlayOpacity))
-                    if let progress = makeProgress {
-                        Text("制作中 \(Int(progress * 100))%")
-                            .font(Constants.Fonts.homeCardProgress)
-                            .foregroundColor(.white)
-                            .monospacedDigit()
-                    } else {
-                        Text("制作中")
-                            .font(Constants.Fonts.homeCardProgress)
-                            .foregroundColor(.white)
+                        // 制作中蒙层
+                        if isMaking {
+                            Rectangle()
+                                .fill(Color.black.opacity(Constants.HomeCard.makingOverlayOpacity))
+                            if let progress = makeProgress {
+                                Text("制作中 \(Int(progress * 100))%")
+                                    .font(Constants.Fonts.homeCardProgress)
+                                    .foregroundColor(.white)
+                                    .monospacedDigit()
+                            } else {
+                                Text("制作中")
+                                    .font(Constants.Fonts.homeCardProgress)
+                                    .foregroundColor(.white)
+                            }
+                        }
+
+                        // 播放统计（图片左下角，跟标题左对齐）
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Text(playStatsText)
+                                    .font(Constants.Fonts.homeCardPlayStats)
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                            .padding(.horizontal, scaled(Constants.HomeCard.titleHorizontalPadding))
+                            .padding(.bottom, scaled(4))
+                        }
                     }
                 }
-
-                // 播放统计（图片左下角，跟标题左对齐）
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text(playStatsText)
-                            .font(Constants.Fonts.homeCardPlayStats)
-                            .foregroundColor(.white)
-                        Spacer()
-                    }
-                    .padding(.horizontal, scaled(Constants.HomeCard.titleHorizontalPadding))
-                    .padding(.bottom, scaled(4))
-                }
-            }
-            .frame(height: scaled(Constants.HomeCard.coverHeight))
-            .clipped()
+                .clipped()
 
             // 名称栏（去掉日期前缀）
             HStack {

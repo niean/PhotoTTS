@@ -212,8 +212,8 @@ extension Constants {
         static let gridSpacing: CGFloat = 12
         /// 网格水平内边距
         static let gridHorizontalPadding: CGFloat = 14
-        /// 封面区域固定高度
-        static let coverHeight: CGFloat = 120
+        /// 封面宽高比 (width:height = 4:3)
+        static let coverAspectRatio: CGFloat = 4.0 / 3.0
         /// 名称栏垂直内边距
         static let titleVerticalPadding: CGFloat = 8
         /// 名称栏水平内边距
