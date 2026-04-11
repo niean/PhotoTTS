@@ -127,7 +127,7 @@ struct DebugLogView: View {
     private func loadLogs() {
         isLoading = true
         // 使用 flushAndGetLatestLogs 确保所有待写入日志已落盘后再读取
-        DebugLogManager.shared.flushAndGetLatestLogs(lineCount: 50) { logs, size in
+        DebugLogManager.shared.flushAndGetLatestLogs(lineCount: Constants.DebugLog.displayLineCount) { logs, size in
             DispatchQueue.main.async {
                 self.logContent = logs
                 self.logFileSize = size

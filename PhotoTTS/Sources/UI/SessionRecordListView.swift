@@ -62,6 +62,7 @@ struct SessionRecordListView: View {
     @State private var message = ""  // 操作结果消息
     @State private var needReloadAfterMessage = false  // 提示关闭后是否需要刷新列表
     @State private var showClearConfirmation = false  // 显示清空确认弹窗
+    @State private var showDeleteSelectedConfirmation = false  // 显示批量删除确认弹窗
     @State private var searchText: String = ""  // 搜索关键词
     @State private var selectedSeries: String? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
@@ -456,17 +457,6 @@ struct SessionRecordListView: View {
                                 }
                                 .disabled(selectedIDs.isEmpty)
 
-                                // 导出按钮（有选中时可用）
-                                Button(action: {
-                                    if !selectedIDs.isEmpty {
-                                        exportSelectedSessions()
-                                    }
-                                }) {
-                                    Text("导出")
-                                        .font(Constants.Fonts.listAction)
-                                }
-                                .disabled(selectedIDs.isEmpty)
-
                                 // 取消按钮
                                 Button(action: {
                                     isSelectionMode = false
@@ -474,6 +464,34 @@ struct SessionRecordListView: View {
                                 }) {
                                     Text("取消")
                                         .font(Constants.Fonts.listAction)
+                                }
+
+                                // 更多菜单
+                                Menu {
+                                    Button(action: {
+                                        if !selectedIDs.isEmpty {
+                                            exportSelectedSessions()
+                                        }
+                                    }) {
+                                        Label("导出", systemImage: "square.and.arrow.up")
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+
+                                    Divider()
+
+                                    Button(role: .destructive, action: {
+                                        if !selectedIDs.isEmpty {
+                                            showDeleteSelectedConfirmation = true
+                                        }
+                                    }) {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+                                } label: {
+                                    Image(systemName: "plus.circle")
+                                        .font(Constants.Fonts.listAddIcon)
+                                        .foregroundColor(.blue)
+                                        .background(Color.clear)
                                 }
                             }
                         }
@@ -685,6 +703,14 @@ struct SessionRecordListView: View {
         } message: {
             Text("确定要清空所有会话记录吗？")
         }
+        .alert("删除选中记录", isPresented: $showDeleteSelectedConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                deleteSelectedSessions()
+            }
+        } message: {
+            Text("确定要删除选中的 \(selectedIDs.count) 条会话记录吗？此操作无法撤销。")
+        }
     }
     
     // 创建会话记录行视图（拆分类型检查）
@@ -699,6 +725,7 @@ struct SessionRecordListView: View {
 
         let isDefault = metadata.isDefault
         let isMaking = metadata.isMaking
+        let isIncomplete = metadata.isIncomplete
 
         let canEnterSelectionMode = !isDefault && !isMaking && allowEditDelete && !isSelectionMode
 
@@ -709,7 +736,7 @@ struct SessionRecordListView: View {
             metadata: metadata,
             makeProgress: makeProgress,
             mode: mode,
-            onLoad: (mode == .embedded && !isMaking && !isSelectionMode) ? { loadSession(metadata.id) } : nil,
+            onLoad: (mode == .embedded && !isMaking && !isIncomplete && !isSelectionMode) ? { loadSession(metadata.id) } : nil,
             onLoadToMake: (!isDefault && mode == .manage && onLoadToMake != nil && !isSelectionMode) ? { onLoadToMake?(metadata.id) } : nil,
             onView: (!isMaking && !isSelectionMode) ? {
                 viewSessionDetail(metadata.id)
@@ -741,7 +768,13 @@ struct SessionRecordListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if allowSwipeActions {
                 if isMaking {
-                    // 制作中记录仅显示查看按钮
+                    // 制作中记录显示删除和查看按钮
+                    Button("删除") {
+                        sessionToDelete = metadata
+                        showDeleteConfirmation = true
+                    }
+                    .tint(.red)
+
                     Button("查看") {
                         viewSessionDetail(metadata.id)
                     }
@@ -1156,6 +1189,45 @@ struct SessionRecordListView: View {
             }
         }
     }
+
+    // 批量删除选中的会话记录
+    private func deleteSelectedSessions() {
+        guard !selectedIDs.isEmpty else {
+            return
+        }
+
+        let idsToDelete = Array(selectedIDs)
+
+        // 立即从本地数组移除，避免 loadPage() 的 isLoading 闪变
+        withAnimation {
+            if isGroupedMode {
+                allMetadataList.removeAll { idsToDelete.contains($0.id) }
+                totalCount = allMetadataList.count
+                rebuildGroups()
+            } else {
+                pagedMetadataList.removeAll { idsToDelete.contains($0.id) }
+                totalCount = max(0, totalCount - idsToDelete.count)
+            }
+        }
+
+        // 退出多选模式
+        isSelectionMode = false
+        selectedIDs.removeAll()
+
+        // 后台执行磁盘删除
+        DispatchQueue.global(qos: .userInitiated).async {
+            for id in idsToDelete {
+                _ = SessionRecordManager.shared.deleteSession(id: id)
+            }
+            DispatchQueue.main.async {
+                // 当前页为空但还有数据时，回退到上一页
+                if !self.isGroupedMode && self.pagedMetadataList.isEmpty && self.totalCount > 0 && self.currentPage > 1 {
+                    self.currentPage -= 1
+                    self.loadPage()
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 会话记录行视图
@@ -1238,6 +1310,10 @@ struct SessionRecordRow: View {
                                 .font(Constants.Fonts.recordMeta)
                                 .foregroundColor(.orange)
                         }
+                    } else if metadata.isIncomplete {
+                        Text("未完成")
+                            .font(Constants.Fonts.recordMeta)
+                            .foregroundColor(.orange)
                     } else {
                         Label("\(metadata.validImageCount)/\(metadata.totalImageCount) 张", systemImage: "photo")
                             .labelStyle(.titleOnly)

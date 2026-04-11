@@ -248,6 +248,8 @@ extension Constants {
         static let maxLogFileSize: Int64 = 10 * 1024 * 1024 // 10MB
         /// 最多保留的日志文件数
         static let maxLogFiles = 5
+        /// 调试日志页面默认显示行数
+        static let displayLineCount = 200
     }
     
     // MARK: - 播放配置

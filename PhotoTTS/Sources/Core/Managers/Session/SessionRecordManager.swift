@@ -324,7 +324,7 @@ class SessionRecordManager {
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 当前页的元数据列表 + 匹配总数
-    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
         var metadataList: [SessionRecordMetadata] = []
         
         do {
@@ -363,6 +363,11 @@ class SessionRecordManager {
         // 按系列筛选
         if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
             metadataList = metadataList.filter { $0.seriesName == seriesFilter }
+        }
+
+        // 仅保留已完成记录（首页不展示制作中和未完成记录）
+        if completedOnly {
+            metadataList = metadataList.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
         }
 
         // 按名字倒序排序（Z-A），其次按创建时间倒序排序（与 getAllSessionMetadata 一致）
@@ -1074,6 +1079,59 @@ class SessionRecordManager {
             return true
         } catch {
             logger.error("草稿会话保存失败: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// 更新草稿会话的制作状态（同时写 metadata.json 和 record.json）
+    /// - Parameters:
+    ///   - id: 会话ID
+    ///   - status: 目标 MakeStatus
+    /// - Returns: 是否更新成功
+    func updateDraftMakeStatus(id: String, status: MakeStatus) -> Bool {
+        let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+        let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+        guard fileManager.fileExists(atPath: metadataURL.path) else {
+            logger.error("更新草稿状态失败，metadata.json 不存在: \(id)")
+            return false
+        }
+
+        do {
+            // 更新 metadata.json
+            let metaData = try Data(contentsOf: metadataURL)
+            let metadata = try JSONDecoder().decode(SessionRecordMetadata.self, from: metaData)
+            let updatedMeta = metadata.withMakeStatus(status)
+            let encodedMeta = try JSONEncoder().encode(updatedMeta)
+            try encodedMeta.write(to: metadataURL)
+
+            // 同步更新 record.json（防止 loadSession 读到旧 makeStatus）
+            if fileManager.fileExists(atPath: recordURL.path) {
+                let recordData = try Data(contentsOf: recordURL)
+                let record = try JSONDecoder().decode(SessionRecord.self, from: recordData)
+                let updatedRecord = SessionRecord(
+                    id: record.id, name: record.name, createdAt: record.createdAt,
+                    updatedAt: record.updatedAt, imageDataList: record.imageDataList,
+                    ocrText: record.ocrText, ocrTextSegments: record.ocrTextSegments,
+                    audioDataBase64: record.audioDataBase64, audioFormat: record.audioFormat,
+                    audioDuration: record.audioDuration, ocrDuration: record.ocrDuration,
+                    llmDuration: record.llmDuration, ttsDuration: record.ttsDuration,
+                    validImageCount: record.validImageCount, totalImageCount: record.totalImageCount,
+                    textLength: record.textLength, audioSize: record.audioSize,
+                    voiceSettings: record.voiceSettings, avatarImageIndex: record.avatarImageIndex,
+                    storageSize: record.storageSize, makeStatus: status,
+                    storyHighlights: record.storyHighlights, hasVirtualPage: record.hasVirtualPage,
+                    animationStyle: record.animationStyle, coverImagePath: record.coverImagePath
+                )
+                let encodedRecord = try JSONEncoder().encode(updatedRecord)
+                try encodedRecord.write(to: recordURL)
+            }
+
+            invalidateMetadataCache()
+            logger.info("草稿状态更新成功: id=\(id), status=\(status.rawValue)")
+            return true
+        } catch {
+            logger.error("草稿状态更新失败: id=\(id), 错误=\(error.localizedDescription)")
             return false
         }
     }

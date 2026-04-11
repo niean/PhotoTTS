@@ -298,10 +298,12 @@ class TTSService: TTSServiceProtocol {
     // MARK: - 日志方法
     private func logInfo(_ message: String) {
         os.Logger.ttsService.info("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
-    
+
     private func logError(_ message: String) {
         os.Logger.ttsService.error("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
 }
 
@@ -599,10 +601,12 @@ class AliqwenTTSService: TTSServiceProtocol {
     // MARK: - 日志方法
     private func logInfo(_ message: String) {
         os.Logger.ttsService.info("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
-    
+
     private func logError(_ message: String) {
         os.Logger.ttsService.error("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
 }
 
@@ -617,11 +621,15 @@ class TTSServiceFactory {
         let providerConfig = settingsManager.loadActiveTTSProviderConfig()
         
         guard !providerConfig.isEmpty else {
-            os.Logger.ttsService.error("无法读取TTS供应商[\(activeProvider)]配置")
+            let msg = "无法读取TTS供应商[\(activeProvider)]配置"
+            os.Logger.ttsService.error("\(msg)")
+            DebugLogManager.shared.directLog(msg)
             return nil
         }
-        
-        os.Logger.ttsService.info("成功读取TTS配置，活跃供应商: \(activeProvider)")
+
+        let msg = "成功读取TTS配置，活跃供应商: \(activeProvider)"
+        os.Logger.ttsService.info("\(msg)")
+        DebugLogManager.shared.directLog(msg)
         
         switch activeProvider {
         case "aliqwen":
@@ -654,11 +662,17 @@ class TTSServiceFactory {
             ?? ttsConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
-        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))")
-        
+        let configMsg = "[TTS] 模型\(activeProvider)，配置: voiceType=\(voiceType), encoding=\(encoding), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s"
+        os.Logger.ttsService.info("\(configMsg)")
+        DebugLogManager.shared.directLog(configMsg)
+        let credMsg = "[TTS] 模型\(activeProvider)，凭证: appId=\(appId.count > 4 ? "***" + appId.suffix(4) : (appId.isEmpty ? "空" : "已配置")), accessKey=\(accessKey.isEmpty ? "空" : "***" + accessKey.suffix(4))"
+        os.Logger.ttsService.info("\(credMsg)")
+        DebugLogManager.shared.directLog(credMsg)
+
         guard !baseURL.isEmpty && !appId.isEmpty && !accessKey.isEmpty else {
-            os.Logger.ttsService.error("[TTS] 模型\(activeProvider)，TTS配置不完整")
+            let errMsg = "[TTS] 模型\(activeProvider)，TTS配置不完整"
+            os.Logger.ttsService.error("\(errMsg)")
+            DebugLogManager.shared.directLog(errMsg)
             return nil
         }
         
@@ -678,7 +692,9 @@ class TTSServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，TTS服务初始化成功")
+        let successMsg = "[TTS] 模型\(activeProvider)，TTS服务初始化成功"
+        os.Logger.ttsService.info("\(successMsg)")
+        DebugLogManager.shared.directLog(successMsg)
         return TTSService(configuration: configuration)
     }
     
@@ -703,11 +719,17 @@ class TTSServiceFactory {
             ?? ttsConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s")
-        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))")
-        
+        let configMsg = "[TTS] 模型\(activeProvider)，配置: model=\(model), voice=\(voice), lang=\(languageType), timeout=\(timeout)s, retry=\(maxRetryCount)x\(retryDelay)s"
+        os.Logger.ttsService.info("\(configMsg)")
+        DebugLogManager.shared.directLog(configMsg)
+        let credMsg = "[TTS] 模型\(activeProvider)，凭证: secretKey=\(secretKey.isEmpty ? "空" : "***" + secretKey.suffix(4))"
+        os.Logger.ttsService.info("\(credMsg)")
+        DebugLogManager.shared.directLog(credMsg)
+
         guard !secretKey.isEmpty else {
-            os.Logger.ttsService.error("[TTS] 模型\(activeProvider)，未配置TTS Secret Key")
+            let errMsg = "[TTS] 模型\(activeProvider)，未配置TTS Secret Key"
+            os.Logger.ttsService.error("\(errMsg)")
+            DebugLogManager.shared.directLog(errMsg)
             return nil
         }
         
@@ -725,7 +747,9 @@ class TTSServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ttsService.info("[TTS] 模型\(activeProvider)，TTS服务初始化成功")
+        let successMsg = "[TTS] 模型\(activeProvider)，TTS服务初始化成功"
+        os.Logger.ttsService.info("\(successMsg)")
+        DebugLogManager.shared.directLog(successMsg)
         return AliqwenTTSService(configuration: configuration)
     }
 }

@@ -227,7 +227,7 @@ struct HomePageView: View {
         let series = selectedSeries
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
-                page: page, pageSize: pageSize, searchKeyword: keyword, seriesFilter: series, caller: "首页卡片"
+                page: page, pageSize: pageSize, searchKeyword: keyword, seriesFilter: series, completedOnly: true, caller: "首页卡片"
             )
             let statsMap = SessionRecordManager.shared.loadPlayStats(
                 sessionIds: result.items.map(\.id)

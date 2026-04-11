@@ -156,15 +156,15 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         self.llmService = LLMServiceFactory.createLLMService()
 
         if self.ocrService == nil {
-            os.Logger.coordinator.error("ImageToSpeechCoordinator: OCR服务初始化失败")
+            logError("ImageToSpeechCoordinator: OCR服务初始化失败")
         } else {
-            os.Logger.coordinator.info("ImageToSpeechCoordinator: OCR服务初始化成功")
+            logInfo("ImageToSpeechCoordinator: OCR服务初始化成功")
         }
 
         if self.llmService == nil {
-            os.Logger.coordinator.warning("ImageToSpeechCoordinator: LLM服务初始化失败，将跳过绘本分析")
+            logWarning("ImageToSpeechCoordinator: LLM服务初始化失败，将跳过绘本分析")
         } else {
-            os.Logger.coordinator.info("ImageToSpeechCoordinator: LLM服务初始化成功")
+            logInfo("ImageToSpeechCoordinator: LLM服务初始化成功")
         }
     }
     
@@ -258,7 +258,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 // 调用LLM分析（失败不阻断主流程）
                 // 图片少于5张时跳过LLM分析
                 if images.count < Constants.LLM.minImageCountForAnalysis {
-                    os.Logger.coordinator.info("LLM分析跳过：图片数量 \(images.count) 少于 \(Constants.LLM.minImageCountForAnalysis)")
+                    logInfo("LLM分析跳过：图片数量 \(images.count) 少于 \(Constants.LLM.minImageCountForAnalysis)")
                     await MainActor.run {
                         progressHandler(ProcessingProgress(
                             stage: .llm,
@@ -323,7 +323,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             ))
                         }
                     } catch {
-                        os.Logger.coordinator.warning("LLM分析失败，继续进入TTS: \(error.localizedDescription)")
+                        logWarning("LLM分析失败，继续进入TTS: \(error.localizedDescription)")
                         await MainActor.run {
                             progressHandler(ProcessingProgress(
                                 stage: .llm,
@@ -499,13 +499,13 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
             let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedText == AppConstants.ocrEmptyResultIndicator {
                 emptyResultCount += 1
-                os.Logger.coordinator.warning("空图片：第 \(index + 1) 张图片为空（返回了系统保留字符 \(AppConstants.ocrEmptyResultIndicator)）")
+                logWarning("空图片：第 \(index + 1) 张图片为空（返回了系统保留字符 \(AppConstants.ocrEmptyResultIndicator)）")
                 // 即使为空，也保留位置，添加空字符串和分隔符
                 combinedText += "" + (index < results.count - 1 ? AppConstants.ocrTextSeparator : "")
             } else if trimmedText.isEmpty {
                 // OCR失败的情况，也保留位置
                 failedResultCount += 1
-                os.Logger.coordinator.warning("OCR失败：第 \(index + 1) 张图片OCR识别失败，保留空文本记录项")
+                logWarning("OCR失败：第 \(index + 1) 张图片OCR识别失败，保留空文本记录项")
                 // 即使失败，也保留位置，添加空字符串和分隔符
                 combinedText += "" + (index < results.count - 1 ? AppConstants.ocrTextSeparator : "")
             } else {
@@ -519,12 +519,12 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         // 检查文本是否超限
         let maxLength = getTTSMaxLength()
         if combinedText.count > maxLength {
-            os.Logger.coordinator.error("OCR拼接文字超限：长度 \(combinedText.count)，限制 \(maxLength)")
+            logError("OCR拼接文字超限：长度 \(combinedText.count)，限制 \(maxLength)")
             throw ImageToSpeechProcessingError.ttsFailed(NetworkError.textTooLong)
         }
 
         let validImageCount = results.count - emptyResultCount - failedResultCount
-        os.Logger.coordinator.info("OCR拼接完成：总长度 \(combinedText.count)，限制 \(maxLength)，空图片 \(emptyResultCount) 张，失败 \(failedResultCount) 张，有效图片 \(validImageCount) 张")
+        logInfo("OCR拼接完成：总长度 \(combinedText.count)，限制 \(maxLength)，空图片 \(emptyResultCount) 张，失败 \(failedResultCount) 张，有效图片 \(validImageCount) 张")
         return (combinedText, validImageCount)
     }
     
@@ -555,7 +555,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         let concurrentCount = getOCRConcurrentCount()
         let totalImages = images.count
         
-        os.Logger.coordinator.info("开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)")
+        logInfo("开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)")
         
         // 分批处理图片，每批的并发数不超过配置的并发数
         let batchSize = concurrentCount
@@ -563,7 +563,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         var allResults: [(Int, String)] = []
         
         for (batchIndex, batch) in batches.enumerated() {
-            os.Logger.coordinator.info("处理第 \(batchIndex + 1)/\(batches.count) 批，包含 \(batch.count) 张图片")
+            logInfo("处理第 \(batchIndex + 1)/\(batches.count) 批，包含 \(batch.count) 张图片")
             
             // 为当前批次的每张图片创建OCR任务
             await withTaskGroup(of: (Int, String).self) { group in
@@ -578,7 +578,9 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             return (globalIndex, ocrResult.recognizedText)
                         } catch {
                             // OCR失败时，记录错误并返回空字符串，保持索引对应
+                            // 在 TaskGroup 内无法调用 self 的实例方法，使用 os.Logger + directLog
                             os.Logger.coordinator.error("OCR识别失败，图片索引: \(globalIndex + 1)，错误: \(error.localizedDescription)")
+                            DebugLogManager.shared.directLog("OCR识别失败，图片索引: \(globalIndex + 1)，错误: \(error.localizedDescription)")
                             return (globalIndex, "")
                         }
                     }
@@ -648,10 +650,26 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         let emptyCount = recognizedTexts.filter { $0 == AppConstants.ocrEmptyResultIndicator }.count
         let failedCount = recognizedTexts.filter { $0.isEmpty }.count - emptyCount
         
-        os.Logger.coordinator.info("并发OCR识别完成，处理了 \(recognizedTexts.count) 张图片（成功: \(successCount)，空图片: \(emptyCount)，失败: \(failedCount)）")
+        logInfo("并发OCR识别完成，处理了 \(recognizedTexts.count) 张图片（成功: \(successCount)，空图片: \(emptyCount)，失败: \(failedCount)）")
         return recognizedTexts
     }
     
+    // MARK: - 日志方法
+    private func logInfo(_ message: String) {
+        os.Logger.coordinator.info("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logError(_ message: String) {
+        os.Logger.coordinator.error("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logWarning(_ message: String) {
+        os.Logger.coordinator.warning("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
     private func convertTextToSpeechAsync(_ text: String) async throws -> AudioResponse {
         return try await withCheckedThrowingContinuation { continuation in
             networkService.convertTextToSpeech(text, voiceSettings: settingsManager.voiceSettings) { result in

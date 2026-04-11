@@ -32,6 +32,10 @@ class DebugLogManager {
     private let logQueue = DispatchQueue(label: "com.phototts.debuglog", qos: .default, attributes: .concurrent)
     private var logFileHandle: FileHandle?
 
+    // 去重环形缓冲区：存储 directLog 写入的消息，供 processLogData 检查跳过
+    private var recentDirectLogs: [String] = []
+    private static let recentDirectLogsCapacity = 50
+
     private init() {
         setupLogFile()
         startLogging()
@@ -121,6 +125,29 @@ class DebugLogManager {
 
             guard let data = logEntry.data(using: .utf8) else { return }
             // 每次打开-追加-关闭，避免长期持有 FileHandle 在 I/O 异常时导致 writeData 崩溃
+            guard let fileHandle = FileHandle(forWritingAtPath: self.logFileURL.path) else { return }
+            defer { try? fileHandle.close() }
+            fileHandle.seekToEndOfFile()
+            try? fileHandle.write(contentsOf: data)
+        }
+    }
+
+    /// 直写日志到文件（绕过 stderr 管道），供双写机制使用
+    /// 保证非调试环境下 .info/.debug 级别日志也能被捕获
+    func directLog(_ message: String) {
+        logQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+
+            let timestamp = DateFormatter.logFormatter.string(from: Date())
+            let logEntry = "\(timestamp) \(message)\n"
+
+            // 加入去重缓冲区
+            self.recentDirectLogs.append(message)
+            if self.recentDirectLogs.count > Self.recentDirectLogsCapacity {
+                self.recentDirectLogs.removeFirst()
+            }
+
+            guard let data = logEntry.data(using: .utf8) else { return }
             guard let fileHandle = FileHandle(forWritingAtPath: self.logFileURL.path) else { return }
             defer { try? fileHandle.close() }
             fileHandle.seekToEndOfFile()
@@ -302,6 +329,18 @@ class DebugLogManager {
             guard !trimmed.isEmpty else { continue }
             let cleaned = stripOSLogPrefix(trimmed)
             guard !cleaned.isEmpty else { continue }
+
+            // 去重：如果该消息已由 directLog 直写，跳过管道写入
+            // 使用 barrier 确保对 recentDirectLogs 的读写线程安全
+            var isDuplicate = false
+            logQueue.sync(flags: .barrier) {
+                if let index = self.recentDirectLogs.firstIndex(of: cleaned) {
+                    self.recentDirectLogs.remove(at: index)
+                    isDuplicate = true
+                }
+            }
+            if isDuplicate { continue }
+
             log(cleaned)
         }
 

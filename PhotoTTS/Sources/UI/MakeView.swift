@@ -651,11 +651,6 @@ struct MakeView: View {
         // 统计空段数量
         let emptySegmentsCount = ocrTextSegments.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
         os.Logger.makeView.debug("文本分段解析完成: \(ocrTextSegments.count) 段（空段: \(emptySegmentsCount)），总长度: \(combinedText.count)")
-        for (index, range) in textSegmentRanges.enumerated() {
-            let segmentText = ocrTextSegments[index]
-            let isEmpty = segmentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            os.Logger.makeView.debug("   段 \(index): 位置 \(range.start)-\(range.end)，长度: \(range.end - range.start)\(isEmpty ? " (空)" : "")")
-        }
     }
     
     // MARK: - 后台制作

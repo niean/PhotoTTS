@@ -1,4 +1,4 @@
-<!-- SUMMARY: 11个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/后台制作/默认会话保护/iPad适配/错误分层/防息屏 -->
+<!-- SUMMARY: 12个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/后台制作/默认会话保护/iPad适配/错误分层/防息屏/日志双写 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -72,9 +72,9 @@ AppState.fullScreenKind 控制，CustomZStack 根层渲染：fullScreenKind != .
 
 MakeView.processImages() 调 BackgroundMakeManager.shared.startMaking(images:) 返回 sessionId。startMaking 创建草稿会话（图片落盘、makeStatus=making、名称"YY.MM.DD 未命名"），创建 MakeTask（持有独立 Coordinator）启动。
 
-MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectWillChange) 同步进度/结果。完成后后台 updateSessionWithResults 更新 record.json/音频/makeStatus=completed，随后 addMakeEvent 写入制作历史事件（直接调用，绕过 recordSave 的名称过滤；loadEntries 聚合时按当前名称过滤）。失败删除草稿。
+MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectWillChange) 同步进度/结果。完成后后台 updateSessionWithResults 更新 record.json/音频/makeStatus=completed，随后 addMakeEvent 写入制作历史事件（直接调用，绕过 recordSave 的名称过滤；loadEntries 聚合时按当前名称过滤）。失败时保留草稿并标记 makeStatus=incomplete（通过 updateDraftMakeStatus），不删除草稿；取消时仍删除草稿。
 
-重连：切回 Tab1 通过 appState.makeTaskIdToReconnect 或自动检测，调 reconnectToBackgroundTask()。列表中 isMaking 记录显示"制作中"标签，仅允许删除。
+重连：切回 Tab1 通过 appState.makeTaskIdToReconnect 或自动检测，调 reconnectToBackgroundTask()。列表中 isMaking 记录显示"制作中"标签，isIncomplete 记录显示"未完成"标签。incomplete 记录允许查看/编辑/重新制作/删除，禁止播放；首页不展示 incomplete 记录（getSessionMetadataPage excludeIncomplete 参数）。
 
 约束：只允许 1 个后台制作任务（制作页只允许 1 个制作项），已有活跃任务时 startMaking 返回 nil。
 
@@ -134,3 +134,15 @@ NSError 创建：统一使用 Constants.ErrorInfo.domain / Constants.ErrorInfo.d
 陷阱：系统会在特定时机重置 isIdleTimerDisabled（如 App 回前台），不能只依赖全局 init() 设置。每个需要防息屏的场景必须在自己的启动入口独立设置。
 
 新增防息屏页面应在对应的启动/恢复入口设置 `UIApplication.shared.isIdleTimerDisabled = true`。
+
+## 模式十二：日志双写（os.Logger + DebugLogManager）
+
+os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.info` 和 `.debug` 级别日志不输出到 stderr，导致 DebugLogManager 的 stderr 管道捕获机制无法采集这些日志。
+
+双写机制：关键服务通过 `logInfo`/`logError`/`logWarning`/`logDebug` 辅助方法，同时写入 os.Logger（供 Xcode 控制台）和 `DebugLogManager.shared.directLog()`（直写日志文件，绕过管道）。
+
+去重：directLog 写入时将消息存入环形缓冲区（容量 50），processLogData 在管道捕获到相同消息时检查缓冲区并跳过，防止调试环境下重复。
+
+覆盖范围：TTSService（两个实现类 + Factory）、NetworkService、OCRService（+ Factory）、LLMService（DoubaoLLMService + OpenAILLMService + Factory）、ImageToSpeechCoordinator。
+
+新增服务如需在 APP 调试日志中可见，应在服务类中添加同样的 logInfo/logError 双写辅助方法。Factory 类的静态方法中直接内联调用 `DebugLogManager.shared.directLog(msg)`。

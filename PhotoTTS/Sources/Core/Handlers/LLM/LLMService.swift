@@ -142,13 +142,17 @@ enum LLMServiceFactory {
         let settingsManager = SettingsManager.shared
 
         guard let config = settingsManager.loadActiveLLMProviderConfig() else {
-            os.Logger.llmService.warning("LLM配置无效，无法创建服务")
+            let msg = "LLM配置无效，无法创建服务"
+            os.Logger.llmService.warning("\(msg)")
+            DebugLogManager.shared.directLog(msg)
             return nil
         }
 
         // 检查API Key是否为空
         if config.apiKey.isEmpty {
-            os.Logger.llmService.warning("LLM API Key为空，provider: \(config.provider)")
+            let msg = "LLM API Key为空，provider: \(config.provider)"
+            os.Logger.llmService.warning("\(msg)")
+            DebugLogManager.shared.directLog(msg)
         }
 
         let llmConfig = LLMConfiguration(
@@ -168,7 +172,9 @@ enum LLMServiceFactory {
         case "openai":
             return OpenAILLMService(configuration: llmConfig)
         default:
-            os.Logger.llmService.warning("未知的LLM Provider: \(config.provider)，使用豆包作为默认")
+            let msg = "未知的LLM Provider: \(config.provider)，使用豆包作为默认"
+            os.Logger.llmService.warning("\(msg)")
+            DebugLogManager.shared.directLog(msg)
             return DoubaoLLMService(configuration: llmConfig)
         }
     }
@@ -194,12 +200,12 @@ class DoubaoLLMService: LLMServiceProtocol {
     func analyzeStory(ocrText: String) async throws -> LLMStoryAnalysisResult {
         // 输入文本长度校验
         guard ocrText.count <= LLMConstants.maxInputTextLength else {
-            os.Logger.llmService.warning("[LLM] 模型doubao，输入文本过长: \(ocrText.count) 字符，超过限制 \(LLMConstants.maxInputTextLength)")
+            logWarning("[LLM] 模型doubao，输入文本过长: \(ocrText.count) 字符，超过限制 \(LLMConstants.maxInputTextLength)")
             throw LLMError.textTooLong(ocrText.count)
         }
 
         let startTime = Date()
-        os.Logger.llmService.info("[LLM] 模型doubao，开始LLM绘本分析，文本长度: \(ocrText.count)")
+        logInfo("[LLM] 模型doubao，开始LLM绘本分析，文本长度: \(ocrText.count)")
 
         // 构建请求体
         let requestBody: [String: Any] = [
@@ -221,7 +227,7 @@ class DoubaoLLMService: LLMServiceProtocol {
         let result = parseLLMResponse(responseText)
 
         let duration = Date().timeIntervalSince(startTime)
-        os.Logger.llmService.info("[LLM] 模型doubao，LLM分析完成，耗时: \(String(format: "%.2f", duration))s，名称成功: \(result.isNameSuccess)，要点成功: \(result.isHighlightsSuccess)")
+        logInfo("[LLM] 模型doubao，LLM分析完成，耗时: \(String(format: "%.2f", duration))s，名称成功: \(result.isNameSuccess)，要点成功: \(result.isHighlightsSuccess)")
 
         return result
     }
@@ -236,7 +242,7 @@ class DoubaoLLMService: LLMServiceProtocol {
                 return try await callLLMAPI(requestBody: requestBody)
             } catch {
                 let attemptNumber = attempt + 1
-                os.Logger.llmService.warning("[LLM] 模型doubao，LLM API调用失败（尝试 \(attemptNumber)/\(maxRetryCount)）: \(error.localizedDescription)")
+                logWarning("[LLM] 模型doubao，LLM API调用失败（尝试 \(attemptNumber)/\(maxRetryCount)）: \(error.localizedDescription)")
 
                 if attempt < maxRetryCount - 1 {
                     try await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
@@ -244,7 +250,7 @@ class DoubaoLLMService: LLMServiceProtocol {
             }
         }
 
-        os.Logger.llmService.error("[LLM] 模型doubao，LLM API重试次数耗尽")
+        logError("[LLM] 模型doubao，LLM API重试次数耗尽")
         throw LLMError.retryExhausted
     }
 
@@ -252,7 +258,7 @@ class DoubaoLLMService: LLMServiceProtocol {
     private func callLLMAPI(requestBody: [String: Any]) async throws -> String {
         let baseURL = self.configuration.baseURL
         guard let url = URL(string: baseURL) else {
-            os.Logger.llmService.warning("[LLM] 模型doubao，LLM baseURL无效: \(baseURL)")
+            logWarning("[LLM] 模型doubao，LLM baseURL无效: \(baseURL)")
             throw LLMError.invalidConfiguration
         }
 
@@ -264,7 +270,7 @@ class DoubaoLLMService: LLMServiceProtocol {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         } catch {
-            os.Logger.llmService.warning("[LLM] 模型doubao，LLM请求体JSON序列化失败: \(error.localizedDescription)")
+            logWarning("[LLM] 模型doubao，LLM请求体JSON序列化失败: \(error.localizedDescription)")
             throw LLMError.invalidConfiguration
         }
 
@@ -273,18 +279,18 @@ class DoubaoLLMService: LLMServiceProtocol {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            os.Logger.llmService.error("[LLM] 模型doubao，LLM网络请求失败: \(error.localizedDescription)")
+            logError("[LLM] 模型doubao，LLM网络请求失败: \(error.localizedDescription)")
             throw LLMError.networkError(error)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            os.Logger.llmService.warning("[LLM] 模型doubao，LLM响应无效，无法转换为HTTPURLResponse")
+            logWarning("[LLM] 模型doubao，LLM响应无效，无法转换为HTTPURLResponse")
             throw LLMError.networkError(NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode))
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            os.Logger.llmService.error("[LLM] 模型doubao，LLM API错误，状态码: \(httpResponse.statusCode)，响应: \(errorMessage)")
+            logError("[LLM] 模型doubao，LLM API错误，状态码: \(httpResponse.statusCode)，响应: \(errorMessage)")
             throw LLMError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -295,7 +301,7 @@ class DoubaoLLMService: LLMServiceProtocol {
               let message = firstChoice["message"] as? [String: Any],
               let content = message["content"] as? String else {
             let responseString = String(data: data, encoding: .utf8) ?? "无法解码"
-            os.Logger.llmService.warning("[LLM] 模型doubao，LLM响应JSON解析失败，原始响应: \(responseString.prefix(500))")
+            logWarning("[LLM] 模型doubao，LLM响应JSON解析失败，原始响应: \(responseString.prefix(500))")
             throw LLMError.invalidResponse
         }
 
@@ -311,7 +317,7 @@ class DoubaoLLMService: LLMServiceProtocol {
         var isNameSuccess = false
         var isHighlightsSuccess = false
 
-        os.Logger.llmService.debug("[LLM] 模型doubao，LLM原始响应: \(text.prefix(200))...")
+        logDebug("[LLM] 模型doubao，LLM原始响应: \(text.prefix(200))...")
 
         // 第1行匹配"绘本名称："
         if let firstLine = lines.first {
@@ -330,16 +336,16 @@ class DoubaoLLMService: LLMServiceProtocol {
                         storyName = trimmed
                         isNameSuccess = true
                     } else {
-                        os.Logger.llmService.debug("[LLM] 模型doubao，绘本名称过短: \(trimmed.count)字符")
+                        logDebug("[LLM] 模型doubao，绘本名称过短: \(trimmed.count)字符")
                     }
                 } else {
-                    os.Logger.llmService.debug("[LLM] 模型doubao，绘本名称提取失败或包含'总结失败'")
+                    logDebug("[LLM] 模型doubao，绘本名称提取失败或包含'总结失败'")
                 }
             } else {
-                os.Logger.llmService.debug("[LLM] 模型doubao，第一行未匹配绘本名称前缀: \(firstLine.prefix(50))")
+                logDebug("[LLM] 模型doubao，第一行未匹配绘本名称前缀: \(firstLine.prefix(50))")
             }
         } else {
-            os.Logger.llmService.warning("[LLM] 模型doubao，LLM响应为空，无内容行")
+            logWarning("[LLM] 模型doubao，LLM响应为空，无内容行")
         }
 
         // 第2行匹配"绘本要点："
@@ -359,16 +365,16 @@ class DoubaoLLMService: LLMServiceProtocol {
                         storyHighlights = trimmed
                         isHighlightsSuccess = true
                     } else {
-                        os.Logger.llmService.debug("[LLM] 模型doubao，绘本要点过短: \(trimmed.count)字符")
+                        logDebug("[LLM] 模型doubao，绘本要点过短: \(trimmed.count)字符")
                     }
                 } else {
-                    os.Logger.llmService.debug("[LLM] 模型doubao，绘本要点提取失败或包含'总结失败'")
+                    logDebug("[LLM] 模型doubao，绘本要点提取失败或包含'总结失败'")
                 }
             } else {
-                os.Logger.llmService.debug("[LLM] 模型doubao，第二行未匹配绘本要点前缀: \(secondLine.prefix(50))")
+                logDebug("[LLM] 模型doubao，第二行未匹配绘本要点前缀: \(secondLine.prefix(50))")
             }
         } else {
-            os.Logger.llmService.debug("[LLM] 模型doubao，LLM响应只有一行，无法提取要点")
+            logDebug("[LLM] 模型doubao，LLM响应只有一行，无法提取要点")
         }
 
         return LLMStoryAnalysisResult(
@@ -377,6 +383,27 @@ class DoubaoLLMService: LLMServiceProtocol {
             isNameSuccess: isNameSuccess,
             isHighlightsSuccess: isHighlightsSuccess
         )
+    }
+
+    // MARK: - 日志方法
+    private func logInfo(_ message: String) {
+        os.Logger.llmService.info("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logError(_ message: String) {
+        os.Logger.llmService.error("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logWarning(_ message: String) {
+        os.Logger.llmService.warning("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logDebug(_ message: String) {
+        os.Logger.llmService.debug("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
 }
 
@@ -400,12 +427,12 @@ class OpenAILLMService: LLMServiceProtocol {
     func analyzeStory(ocrText: String) async throws -> LLMStoryAnalysisResult {
         // 输入文本长度校验
         guard ocrText.count <= LLMConstants.maxInputTextLength else {
-            os.Logger.llmService.warning("[LLM] 模型openai，输入文本过长: \(ocrText.count) 字符，超过限制 \(LLMConstants.maxInputTextLength)")
+            logWarning("[LLM] 模型openai，输入文本过长: \(ocrText.count) 字符，超过限制 \(LLMConstants.maxInputTextLength)")
             throw LLMError.textTooLong(ocrText.count)
         }
 
         let startTime = Date()
-        os.Logger.llmService.info("[LLM] 模型openai，开始LLM绘本分析，文本长度: \(ocrText.count)")
+        logInfo("[LLM] 模型openai，开始LLM绘本分析，文本长度: \(ocrText.count)")
 
         // 构建请求体
         let requestBody: [String: Any] = [
@@ -427,7 +454,7 @@ class OpenAILLMService: LLMServiceProtocol {
         let result = parseLLMResponse(responseText)
 
         let duration = Date().timeIntervalSince(startTime)
-        os.Logger.llmService.info("[LLM] 模型openai，LLM分析完成，耗时: \(String(format: "%.2f", duration))s，名称成功: \(result.isNameSuccess)，要点成功: \(result.isHighlightsSuccess)")
+        logInfo("[LLM] 模型openai，LLM分析完成，耗时: \(String(format: "%.2f", duration))s，名称成功: \(result.isNameSuccess)，要点成功: \(result.isHighlightsSuccess)")
 
         return result
     }
@@ -442,7 +469,7 @@ class OpenAILLMService: LLMServiceProtocol {
                 return try await callLLMAPI(requestBody: requestBody)
             } catch {
                 let attemptNumber = attempt + 1
-                os.Logger.llmService.warning("[LLM] 模型openai，LLM API调用失败（尝试 \(attemptNumber)/\(maxRetryCount)）: \(error.localizedDescription)")
+                logWarning("[LLM] 模型openai，LLM API调用失败（尝试 \(attemptNumber)/\(maxRetryCount)）: \(error.localizedDescription)")
 
                 if attempt < maxRetryCount - 1 {
                     try await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
@@ -450,7 +477,7 @@ class OpenAILLMService: LLMServiceProtocol {
             }
         }
 
-        os.Logger.llmService.error("[LLM] 模型openai，LLM API重试次数耗尽")
+        logError("[LLM] 模型openai，LLM API重试次数耗尽")
         throw LLMError.retryExhausted
     }
 
@@ -458,7 +485,7 @@ class OpenAILLMService: LLMServiceProtocol {
     private func callLLMAPI(requestBody: [String: Any]) async throws -> String {
         let baseURL = self.configuration.baseURL
         guard let url = URL(string: baseURL) else {
-            os.Logger.llmService.warning("[LLM] 模型openai，LLM baseURL无效: \(baseURL)")
+            logWarning("[LLM] 模型openai，LLM baseURL无效: \(baseURL)")
             throw LLMError.invalidConfiguration
         }
 
@@ -470,7 +497,7 @@ class OpenAILLMService: LLMServiceProtocol {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         } catch {
-            os.Logger.llmService.warning("[LLM] 模型openai，LLM请求体JSON序列化失败: \(error.localizedDescription)")
+            logWarning("[LLM] 模型openai，LLM请求体JSON序列化失败: \(error.localizedDescription)")
             throw LLMError.invalidConfiguration
         }
 
@@ -479,18 +506,18 @@ class OpenAILLMService: LLMServiceProtocol {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            os.Logger.llmService.error("[LLM] 模型openai，LLM网络请求失败: \(error.localizedDescription)")
+            logError("[LLM] 模型openai，LLM网络请求失败: \(error.localizedDescription)")
             throw LLMError.networkError(error)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            os.Logger.llmService.warning("[LLM] 模型openai，LLM响应无效，无法转换为HTTPURLResponse")
+            logWarning("[LLM] 模型openai，LLM响应无效，无法转换为HTTPURLResponse")
             throw LLMError.networkError(NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode))
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            os.Logger.llmService.error("[LLM] 模型openai，LLM API错误，状态码: \(httpResponse.statusCode)，响应: \(errorMessage)")
+            logError("[LLM] 模型openai，LLM API错误，状态码: \(httpResponse.statusCode)，响应: \(errorMessage)")
             throw LLMError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -501,7 +528,7 @@ class OpenAILLMService: LLMServiceProtocol {
               let message = firstChoice["message"] as? [String: Any],
               let content = message["content"] as? String else {
             let responseString = String(data: data, encoding: .utf8) ?? "无法解码"
-            os.Logger.llmService.warning("[LLM] 模型openai，LLM响应JSON解析失败，原始响应: \(responseString.prefix(500))")
+            logWarning("[LLM] 模型openai，LLM响应JSON解析失败，原始响应: \(responseString.prefix(500))")
             throw LLMError.invalidResponse
         }
 
@@ -517,7 +544,7 @@ class OpenAILLMService: LLMServiceProtocol {
         var isNameSuccess = false
         var isHighlightsSuccess = false
 
-        os.Logger.llmService.debug("[LLM] 模型openai，LLM原始响应: \(text.prefix(200))...")
+        logDebug("[LLM] 模型openai，LLM原始响应: \(text.prefix(200))...")
 
         // 第1行匹配"绘本名称："
         if let firstLine = lines.first {
@@ -536,16 +563,16 @@ class OpenAILLMService: LLMServiceProtocol {
                         storyName = trimmed
                         isNameSuccess = true
                     } else {
-                        os.Logger.llmService.debug("[LLM] 模型openai，绘本名称过短: \(trimmed.count)字符")
+                        logDebug("[LLM] 模型openai，绘本名称过短: \(trimmed.count)字符")
                     }
                 } else {
-                    os.Logger.llmService.debug("[LLM] 模型openai，绘本名称提取失败或包含'总结失败'")
+                    logDebug("[LLM] 模型openai，绘本名称提取失败或包含'总结失败'")
                 }
             } else {
-                os.Logger.llmService.debug("[LLM] 模型openai，第一行未匹配绘本名称前缀: \(firstLine.prefix(50))")
+                logDebug("[LLM] 模型openai，第一行未匹配绘本名称前缀: \(firstLine.prefix(50))")
             }
         } else {
-            os.Logger.llmService.warning("[LLM] 模型openai，LLM响应为空，无内容行")
+            logWarning("[LLM] 模型openai，LLM响应为空，无内容行")
         }
 
         // 第2行匹配"绘本要点："
@@ -565,16 +592,16 @@ class OpenAILLMService: LLMServiceProtocol {
                         storyHighlights = trimmed
                         isHighlightsSuccess = true
                     } else {
-                        os.Logger.llmService.debug("[LLM] 模型openai，绘本要点过短: \(trimmed.count)字符")
+                        logDebug("[LLM] 模型openai，绘本要点过短: \(trimmed.count)字符")
                     }
                 } else {
-                    os.Logger.llmService.debug("[LLM] 模型openai，绘本要点提取失败或包含'总结失败'")
+                    logDebug("[LLM] 模型openai，绘本要点提取失败或包含'总结失败'")
                 }
             } else {
-                os.Logger.llmService.debug("[LLM] 模型openai，第二行未匹配绘本要点前缀: \(secondLine.prefix(50))")
+                logDebug("[LLM] 模型openai，第二行未匹配绘本要点前缀: \(secondLine.prefix(50))")
             }
         } else {
-            os.Logger.llmService.debug("[LLM] 模型openai，LLM响应只有一行，无法提取要点")
+            logDebug("[LLM] 模型openai，LLM响应只有一行，无法提取要点")
         }
 
         return LLMStoryAnalysisResult(
@@ -583,5 +610,26 @@ class OpenAILLMService: LLMServiceProtocol {
             isNameSuccess: isNameSuccess,
             isHighlightsSuccess: isHighlightsSuccess
         )
+    }
+
+    // MARK: - 日志方法
+    private func logInfo(_ message: String) {
+        os.Logger.llmService.info("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logError(_ message: String) {
+        os.Logger.llmService.error("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logWarning(_ message: String) {
+        os.Logger.llmService.warning("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logDebug(_ message: String) {
+        os.Logger.llmService.debug("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
 }

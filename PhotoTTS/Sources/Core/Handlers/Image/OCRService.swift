@@ -111,9 +111,9 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         // 打印图片索引和Provider
         let providerTag = "[OCR] 模型\(configuration.provider)，"
         if let index = imageIndex {
-            os.Logger.ocrService.info("\(providerTag) 开始OCR识别，图片索引: \(index + 1)")
+            logInfo("\(providerTag) 开始OCR识别，图片索引: \(index + 1)")
         } else {
-            os.Logger.ocrService.info("\(providerTag) 开始OCR识别")
+            logInfo("\(providerTag) 开始OCR识别")
         }
         
         await MainActor.run {
@@ -208,7 +208,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         for attempt in 1...configuration.maxRetryCount {
             let attemptStartTime = Date()
             do {
-                os.Logger.ocrService.info("\(providerTag) OCR API调用尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)")
+                logInfo("\(providerTag) OCR API调用尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)")
                 let result = try await callOCRAPI(imageData: imageData, prompt: prompt)
                 
                 // 检查返回结果是否为空（且不是系统保留字符）
@@ -219,7 +219,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                    trimmedResult.count <= AppConstants.ocrEmptyResultIndicator.count + 2 {
                     let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                     let totalDuration = Date().timeIntervalSince(totalStartTime)
-                    os.Logger.ocrService.info("\(providerTag) OCR API调用成功（返回空字符串标识），尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，识别结果: \(result)")
+                    logInfo("\(providerTag) OCR API调用成功（返回空字符串标识），尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，识别结果: \(result)")
                     return result
                 }
                 
@@ -229,11 +229,11 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                     lastError = emptyError
                     let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                     let totalDuration = Date().timeIntervalSince(totalStartTime)
-                    os.Logger.ocrService.warning("\(providerTag) OCR API返回结果为空（非系统保留字符），尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
+                    logWarning("\(providerTag) OCR API返回结果为空（非系统保留字符），尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
                     
                     // 如果不是最后一次尝试，等待重试间隔
                     if attempt < configuration.maxRetryCount {
-                        os.Logger.ocrService.info("等待 \(self.configuration.retryDelay) 秒后重试...")
+                        logInfo("等待 \(self.configuration.retryDelay) 秒后重试...")
                         try await Task.sleep(nanoseconds: UInt64(configuration.retryDelay * 1_000_000_000))
                     }
                     continue
@@ -241,13 +241,13 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
                 
                 let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                 let totalDuration = Date().timeIntervalSince(totalStartTime)
-                os.Logger.ocrService.info("\(providerTag) OCR API调用成功，尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
+                logInfo("\(providerTag) OCR API调用成功，尝试 \(attempt)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒")
                 return result
             } catch {
                 lastError = error
                 let attemptDuration = Date().timeIntervalSince(attemptStartTime)
                 let totalDuration = Date().timeIntervalSince(totalStartTime)
-                os.Logger.ocrService.error("\(providerTag) OCR API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，错误: \(error.localizedDescription)")
+                logError("\(providerTag) OCR API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount)\(imageIndexText)，本次耗时: \(String(format: "%.2f", attemptDuration))秒，总耗时: \(String(format: "%.2f", totalDuration))秒，错误: \(error.localizedDescription)")
                 
                 // 如果不是最后一次尝试，等待重试间隔
                 if attempt < configuration.maxRetryCount {
@@ -259,7 +259,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         
         // 所有重试都失败了
         let totalDuration = Date().timeIntervalSince(totalStartTime)
-        os.Logger.ocrService.error("\(providerTag) OCR API调用失败，已重试 \(self.configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
+        logError("\(providerTag) OCR API调用失败，已重试 \(self.configuration.maxRetryCount) 次，总耗时: \(String(format: "%.2f", totalDuration))秒")
         throw lastError ?? OCRError.networkError(NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "重试失败"]))
     }
     
@@ -369,6 +369,22 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
         
         delegate?.ocrService(self, didUpdateProgress: progress)
     }
+
+    // MARK: - 日志方法
+    private func logInfo(_ message: String) {
+        os.Logger.ocrService.info("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logError(_ message: String) {
+        os.Logger.ocrService.error("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
+
+    private func logWarning(_ message: String) {
+        os.Logger.ocrService.warning("\(message)")
+        DebugLogManager.shared.directLog(message)
+    }
 }
 
 // MARK: - OCR错误
@@ -466,11 +482,15 @@ public class OCRServiceFactory {
         let providerConfig = settingsManager.loadActiveOCRProviderConfig()
         
         guard !providerConfig.isEmpty else {
-            os.Logger.ocrService.error("无法读取OCR供应商[\(activeProvider)]配置")
+            let msg = "无法读取OCR供应商[\(activeProvider)]配置"
+            os.Logger.ocrService.error("\(msg)")
+            DebugLogManager.shared.directLog(msg)
             return nil
         }
-        
-        os.Logger.ocrService.info("成功读取OCR配置，活跃供应商: \(activeProvider)")
+
+        let readMsg = "成功读取OCR配置，活跃供应商: \(activeProvider)"
+        os.Logger.ocrService.info("\(readMsg)")
+        DebugLogManager.shared.directLog(readMsg)
         
         let baseURL = providerConfig["base_url"] as? String ?? Constants.ServiceDefaults.ocrBaseURL
         // 按供应商名从对应Keychain key获取密钥，回退到config文件
@@ -491,18 +511,26 @@ public class OCRServiceFactory {
             ?? ocrConfig["retry_delay"] as? TimeInterval
             ?? 1.0
         
-        os.Logger.ocrService.info("配置信息:")
-        os.Logger.ocrService.info("   - Active Provider: \(activeProvider)")
-        os.Logger.ocrService.info("   - Base URL: \(baseURL)")
-        os.Logger.ocrService.info("   - API Key: \(apiKey.isEmpty ? "空" : "***" + apiKey.suffix(4))")
-        os.Logger.ocrService.info("   - Model Name: \(modelName)")
-        os.Logger.ocrService.info("   - Prompt长度: \(promptUser.count)")
-        os.Logger.ocrService.info("   - Timeout: \(timeout)秒")
-        os.Logger.ocrService.info("   - Max Retry: \(maxRetryCount)次")
-        os.Logger.ocrService.info("   - Retry Delay: \(retryDelay)秒")
-        
+        let configLines = [
+            "配置信息:",
+            "   - Active Provider: \(activeProvider)",
+            "   - Base URL: \(baseURL)",
+            "   - API Key: \(apiKey.isEmpty ? "空" : "***" + apiKey.suffix(4))",
+            "   - Model Name: \(modelName)",
+            "   - Prompt长度: \(promptUser.count)",
+            "   - Timeout: \(timeout)秒",
+            "   - Max Retry: \(maxRetryCount)次",
+            "   - Retry Delay: \(retryDelay)秒"
+        ]
+        for line in configLines {
+            os.Logger.ocrService.info("\(line)")
+            DebugLogManager.shared.directLog(line)
+        }
+
         guard !apiKey.isEmpty else {
-            os.Logger.ocrService.error("未配置OCR[\(activeProvider)] API Key")
+            let errMsg = "未配置OCR[\(activeProvider)] API Key"
+            os.Logger.ocrService.error("\(errMsg)")
+            DebugLogManager.shared.directLog(errMsg)
             return nil
         }
         
@@ -517,7 +545,9 @@ public class OCRServiceFactory {
             retryDelay: retryDelay
         )
         
-        os.Logger.ocrService.info("OCR服务初始化成功，供应商: \(activeProvider)")
+        let successMsg = "OCR服务初始化成功，供应商: \(activeProvider)"
+        os.Logger.ocrService.info("\(successMsg)")
+        DebugLogManager.shared.directLog(successMsg)
         return OCRService(configuration: configuration)
     }
 }

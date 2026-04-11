@@ -323,10 +323,14 @@ class BackgroundMakeManager: ObservableObject {
                     case .failure(let error):
                         task.markFailed(error: error)
                         self.logger.error("后台制作失败: sessionId=\(sessionId), 错误=\(error.localizedDescription)")
-                        // 制作失败时删除草稿会话
+                        // 制作失败时保留草稿，标记为未完成
                         DispatchQueue.global(qos: .utility).async {
-                            _ = SessionRecordManager.shared.deleteSession(id: sessionId)
-                            self.logger.info("已清理失败的草稿会话: sessionId=\(sessionId)")
+                            let updated = SessionRecordManager.shared.updateDraftMakeStatus(id: sessionId, status: .incomplete)
+                            if updated {
+                                self.logger.info("草稿已标记为未完成: sessionId=\(sessionId)")
+                            } else {
+                                self.logger.error("草稿状态更新失败，保留 making 状态: sessionId=\(sessionId)")
+                            }
                         }
                     }
                     self.objectWillChange.send()

@@ -5,7 +5,7 @@
 
 SessionRecord（PhotoTTS/Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 ./21-glossary.md。record.json 不存实际音频和图片二进制。
 
-MakeStatus（同文件）：enum { making, completed }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking 计算属性供 UI 判断。
+MakeStatus（同文件）：enum { making, completed, incomplete }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking/isIncomplete 计算属性供 UI 判断。incomplete 表示制作失败但草稿保留（可查看/编辑/重新制作，不可播放）。
 
 AnimationStyle（同文件）：enum { rightToLeft, topToBottom }，SessionRecord/Metadata 的 animationStyle 默认 rightToLeft（横向翻页），向后兼容（旧数据解码时默认横向）。
 

@@ -208,11 +208,13 @@ class NetworkService: NetworkServiceProtocol {
     /// 记录信息日志
     private func logInfo(_ message: String) {
         os.Logger.networkService.info("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
-    
+
     /// 记录错误日志
     private func logError(_ message: String) {
         os.Logger.networkService.error("\(message)")
+        DebugLogManager.shared.directLog(message)
     }
 }
 

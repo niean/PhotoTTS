@@ -18,6 +18,8 @@ enum MakeStatus: String, Codable {
     case making
     /// 制作完成（可播放、可保存）
     case completed
+    /// 制作未完成（失败或中断，可查看/编辑/重新制作，不可播放）
+    case incomplete
 }
 
 // MARK: - 会话历史事件（存储在 history.json 中，随会话导入导出）
@@ -427,6 +429,9 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
 
     /// 是否正在制作中
     var isMaking: Bool { makeStatus == .making }
+
+    /// 是否制作未完成（失败/中断）
+    var isIncomplete: Bool { makeStatus == .incomplete }
     
     /// 是否为内置默认会话
     var isDefault: Bool { id == Constants.DefaultSession.id }
