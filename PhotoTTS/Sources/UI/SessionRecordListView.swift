@@ -83,6 +83,9 @@ struct SessionRecordListView: View {
     @State private var allMetadataList: [SessionRecordMetadata] = []
     // 分组计算结果缓存（避免展开/折叠时重新计算导致乱序）
     @State private var cachedGroups: [(key: String, items: [SessionRecordMetadata])] = []
+
+    // 编辑/查看页导航标记（防止返回时 .onAppear 重新加载列表丢失滚动位置）
+    @State private var isEditingOrViewing: Bool = false
     
     let onLoadSession: (SessionRecord) -> Void
     var onLoadToMake: ((String) -> Void)? = nil
@@ -560,7 +563,12 @@ struct SessionRecordListView: View {
         }
         .navigationBarHidden(true) // 隐藏系统导航栏
         .onAppear {
-            loadPage()
+            if isEditingOrViewing {
+                // 从编辑/查看页返回，@State 已保持，不重新加载，保留滚动位置
+                isEditingOrViewing = false
+            } else {
+                loadPage()
+            }
             handlePendingEditRequest()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
@@ -778,9 +786,11 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 按需加载当前页数据
-    private func loadPage() {
-        isLoading = true
+    // 按需加载当前页数据（showLoading=false 时静默刷新，不销毁列表视图）
+    private func loadPage(showLoading: Bool = true) {
+        if showLoading {
+            isLoading = true
+        }
         let page = currentPage
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
@@ -899,18 +909,20 @@ struct SessionRecordListView: View {
         DispatchQueue.global(qos: .userInitiated).async {
             if let record = SessionRecordManager.shared.loadSession(id: id) {
                 DispatchQueue.main.async {
+                    self.isEditingOrViewing = true
                     self.sessionToView = record
                     self.showSessionDetail = true
                 }
             }
         }
     }
-    
+
     // 编辑会话记录
     private func editSessionDetail(_ id: String) {
         DispatchQueue.global(qos: .userInitiated).async {
             if let record = SessionRecordManager.shared.loadSession(id: id) {
                 DispatchQueue.main.async {
+                    self.isEditingOrViewing = true
                     self.sessionToEditRecord = record
                 }
             }
@@ -982,7 +994,8 @@ struct SessionRecordListView: View {
                     if isGroupedMode {
                         loadAllMetadata()
                     } else {
-                        loadPage()
+                        // 静默刷新：不显示加载指示器，保留列表滚动位置
+                        loadPage(showLoading: false)
                     }
                 }
                 completion()
