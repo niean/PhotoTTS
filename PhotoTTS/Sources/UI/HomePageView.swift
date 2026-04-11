@@ -19,6 +19,8 @@ struct HomePageView: View {
     @State private var isLoading = true
     @State private var searchText: String = ""
     @State private var playStatsMap: [String: PlayStatInfo] = [:]
+    @State private var selectedSeries: String? = nil  // nil 表示不限
+    @State private var seriesOptions: [String] = []   // 所有系列选项
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -132,9 +134,13 @@ struct HomePageView: View {
             })
         }
         .navigationBarHidden(true)
-        .onAppear { loadPage() }
+        .onAppear {
+            loadPage()
+            loadSeriesOptions()
+        }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
             loadPage()
+            loadSeriesOptions()
         }
         .onChange(of: appState.tab0ReselectTrigger) {
             guard currentPage != 1 else { return }
@@ -148,37 +154,26 @@ struct HomePageView: View {
                 loadPage()
             }
         }
+        .onChange(of: selectedSeries) {
+            currentPage = 1
+            loadPage()
+        }
     }
 
     // MARK: - Subviews
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(Constants.Fonts.searchIcon)
-                .foregroundColor(.gray)
-            TextField(Constants.UI.searchPlaceholder, text: $searchText)
-                .font(Constants.Fonts.searchInput)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.search)
-                .onSubmit {
-                    currentPage = 1
-                    loadPage()
-                }
-            if !searchText.isEmpty {
-                Button(action: { searchText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(Constants.Fonts.searchIcon)
-                        .foregroundColor(.gray)
-                }
-                .buttonStyle(.plain)
+        SessionSearchBar(
+            searchText: $searchText,
+            selectedSeries: $selectedSeries,
+            seriesOptions: seriesOptions,
+            unselectedButtonLabel: "系列",
+            unselectedMenuLabel: "不限",
+            onSearchSubmit: {
+                currentPage = 1
+                loadPage()
             }
-        }
-        .padding(.horizontal, Constants.SearchBar.innerHorizontalPadding)
-        .padding(.vertical, Constants.SearchBar.innerVerticalPadding)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: Constants.SearchBar.cornerRadius))
+        )
     }
 
     private var paginationControl: some View {
@@ -211,14 +206,28 @@ struct HomePageView: View {
         sessionToPlayFromHome = PlayFromHomeItem(id: id, queueRecordIds: queue)
     }
 
+    private func loadSeriesOptions() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "首页系列选项")
+            let uncategorized = Constants.GroupDisplay.uncategorizedLabel
+            let seriesSet = Set(allMetadata.map { $0.seriesName })
+                .filter { $0 != uncategorized }
+            let sortedSeries = Array(seriesSet).sorted { $0.localizedCompare($1) == .orderedAscending }
+            DispatchQueue.main.async {
+                self.seriesOptions = sortedSeries
+            }
+        }
+    }
+
     private func loadPage() {
         isLoading = true
         let page = currentPage
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
+        let series = selectedSeries
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
-                page: page, pageSize: pageSize, searchKeyword: keyword, caller: "首页卡片"
+                page: page, pageSize: pageSize, searchKeyword: keyword, seriesFilter: series, caller: "首页卡片"
             )
             let statsMap = SessionRecordManager.shared.loadPlayStats(
                 sessionIds: result.items.map(\.id)

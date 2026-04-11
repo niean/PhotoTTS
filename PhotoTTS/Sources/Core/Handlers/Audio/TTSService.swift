@@ -34,10 +34,10 @@ struct HuoshanTTSConfiguration {
 class TTSService: TTSServiceProtocol {
     private let configuration: HuoshanTTSConfiguration
     private let session: URLSession
-    
+
     init(configuration: HuoshanTTSConfiguration) {
         self.configuration = configuration
-        
+
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = configuration.timeout
         config.timeoutIntervalForResource = configuration.timeout
@@ -45,19 +45,28 @@ class TTSService: TTSServiceProtocol {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         self.session = URLSession(configuration: config)
     }
-    
+
+    // MARK: - 辅助方法
+    /// 安全获取错误的技术描述，如果是TTSError则使用technicalDescription，否则使用localizedDescription
+    private func getErrorTechnicalDescription(_ error: Error) -> String {
+        if let ttsError = error as? TTSError {
+            return ttsError.technicalDescription
+        }
+        return error.localizedDescription
+    }
+
     // MARK: - 语音合成
     func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
         let providerTag = "[TTS] 模型\(configuration.provider)，"
         logInfo("\(providerTag) 转换，文字长度: \(text.count)")
-        
+
         guard !text.isEmpty else {
             let error = TTSError.invalidInput("文字内容不能为空")
-            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: \(error.technicalDescription)")
             completion(.failure(error))
             return
         }
-        
+
         synthesizeSpeechWithRetry(text: text, voiceSettings: voiceSettings, completion: completion)
     }
     
@@ -75,7 +84,7 @@ class TTSService: TTSServiceProtocol {
                     self.logInfo("\(providerTag) TTS API调用成功，尝试 \(attempt)")
                     completion(.success(response))
                 case .failure(let error):
-                    self.logError("\(providerTag) TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
+                    self.logError("\(providerTag) TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(self.getErrorTechnicalDescription(error))")
                     
                     if attempt < self.configuration.maxRetryCount {
                         self.logInfo("\(providerTag) 等待 \(self.configuration.retryDelay) 秒后重试...")
@@ -123,7 +132,7 @@ class TTSService: TTSServiceProtocol {
         
         guard let url = URL(string: configuration.baseURL) else {
             let error = TTSError.invalidURL
-            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: \(error.technicalDescription)")
             completion(.failure(error))
             return
         }
@@ -315,10 +324,10 @@ struct AliqwenTTSConfiguration {
 class AliqwenTTSService: TTSServiceProtocol {
     private let configuration: AliqwenTTSConfiguration
     private let session: URLSession
-    
+
     init(configuration: AliqwenTTSConfiguration) {
         self.configuration = configuration
-        
+
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = configuration.timeout
         config.timeoutIntervalForResource = configuration.timeout
@@ -326,19 +335,28 @@ class AliqwenTTSService: TTSServiceProtocol {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         self.session = URLSession(configuration: config)
     }
-    
+
+    // MARK: - 辅助方法
+    /// 安全获取错误的技术描述，如果是TTSError则使用technicalDescription，否则使用localizedDescription
+    private func getErrorTechnicalDescription(_ error: Error) -> String {
+        if let ttsError = error as? TTSError {
+            return ttsError.technicalDescription
+        }
+        return error.localizedDescription
+    }
+
     // MARK: - 语音合成
     func synthesizeSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
         let providerTag = "[TTS] 模型\(configuration.provider)，"
         logInfo("\(providerTag) 转换，文字长度: \(text.count)")
-        
+
         guard !text.isEmpty else {
             let error = TTSError.invalidInput("文字内容不能为空")
-            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: \(error.technicalDescription)")
             completion(.failure(error))
             return
         }
-        
+
         synthesizeSpeechWithRetry(text: text, voiceSettings: voiceSettings, completion: completion)
     }
     
@@ -356,7 +374,7 @@ class AliqwenTTSService: TTSServiceProtocol {
                     self.logInfo("\(providerTag) TTS API调用成功，尝试 \(attempt)")
                     completion(.success(response))
                 case .failure(let error):
-                    self.logError("\(providerTag) TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(error.localizedDescription)")
+                    self.logError("\(providerTag) TTS API调用失败，尝试 \(attempt)/\(self.configuration.maxRetryCount): \(self.getErrorTechnicalDescription(error))")
                     
                     if attempt < self.configuration.maxRetryCount {
                         self.logInfo("\(providerTag) 等待 \(self.configuration.retryDelay) 秒后重试...")
@@ -390,7 +408,7 @@ class AliqwenTTSService: TTSServiceProtocol {
         
         guard let url = URL(string: configuration.baseURL) else {
             let error = TTSError.invalidURL
-            logError("\(providerTag) TTS转换失败: \(error.localizedDescription)")
+            logError("\(providerTag) TTS转换失败: \(error.technicalDescription)")
             completion(.failure(error))
             return
         }

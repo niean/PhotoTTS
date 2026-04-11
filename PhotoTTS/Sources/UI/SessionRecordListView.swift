@@ -63,6 +63,8 @@ struct SessionRecordListView: View {
     @State private var needReloadAfterMessage = false  // 提示关闭后是否需要刷新列表
     @State private var showClearConfirmation = false  // 显示清空确认弹窗
     @State private var searchText: String = ""  // 搜索关键词
+    @State private var selectedSeries: String? = nil  // nil 表示不限
+    @State private var seriesOptions: [String] = []   // 所有系列选项
     
     // 滚动位置追踪（首页嵌入模式用）
     @State private var scrollAnchorSetup = false
@@ -202,43 +204,21 @@ struct SessionRecordListView: View {
 
     // 搜索栏（微信风格，外层 padding 由 listRowInsets 控制）
     private var searchBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(Constants.Fonts.searchIcon)
-                .foregroundColor(.gray)
-
-            TextField(Constants.UI.searchPlaceholder, text: $searchText)
-                .font(Constants.Fonts.searchInput)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.search)
-                .onSubmit {
-                    if isGroupedMode {
-                        loadAllMetadata()
-                    } else {
-                        currentPage = 1
-                        loadPage()
-                    }
+        SessionSearchBar(
+            searchText: $searchText,
+            selectedSeries: $selectedSeries,
+            seriesOptions: seriesOptions,
+            unselectedButtonLabel: "系列",
+            unselectedMenuLabel: "不限",
+            onSearchSubmit: {
+                if isGroupedMode {
+                    loadAllMetadata()
+                } else {
+                    currentPage = 1
+                    loadPage()
                 }
-
-            if !searchText.isEmpty {
-                Button(action: {
-                    searchText = ""
-                    if isGroupedMode {
-                        loadAllMetadata()
-                    }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(Constants.Fonts.searchIcon)
-                        .foregroundColor(.gray)
-                }
-                .buttonStyle(.plain)
             }
-        }
-        .padding(.horizontal, Constants.SearchBar.innerHorizontalPadding)
-        .padding(.vertical, Constants.SearchBar.innerVerticalPadding)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: Constants.SearchBar.cornerRadius))
+        )
     }
     
     // 分组模式列表内容
@@ -440,12 +420,18 @@ struct SessionRecordListView: View {
                         title: "选中 (\(selectedIDs.count))",
                         onSwipeBack: { },
                         leading: {
-                            // 左侧按钮：全选/反选
+                            // 左侧按钮：全选/本页/反选
                             HStack(spacing: scaled(16)) {
                                 Button(action: {
                                     selectedIDs = Set(allRecordIDs.filter { $0 != Constants.DefaultSession.id })
                                 }) {
                                     Text("全选")
+                                        .font(Constants.Fonts.listAction)
+                                }
+                                Button(action: {
+                                    selectCurrentPage()
+                                }) {
+                                    Text("本页")
                                         .font(Constants.Fonts.listAction)
                                 }
                                 Button(action: {
@@ -568,11 +554,13 @@ struct SessionRecordListView: View {
                 isEditingOrViewing = false
             } else {
                 loadPage()
+                loadSeriesOptions()
             }
             handlePendingEditRequest()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
             loadPage()
+            loadSeriesOptions()
         }
         .onChange(of: appState.selectedTab) { _, newTab in
             if newTab == 2 {
@@ -593,6 +581,14 @@ struct SessionRecordListView: View {
                     currentPage = 1
                     loadPage()
                 }
+            }
+        }
+        .onChange(of: selectedSeries) {
+            if isGroupedMode {
+                loadAllMetadata()
+            } else {
+                currentPage = 1
+                loadPage()
             }
         }
         .alert("删除会话记录", isPresented: $showDeleteConfirmation) {
@@ -794,12 +790,14 @@ struct SessionRecordListView: View {
         let page = currentPage
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
+        let series = selectedSeries
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
                 page: page,
                 pageSize: pageSize,
                 searchKeyword: keyword,
+                seriesFilter: series,
                 caller: "记录列表"
             )
             DispatchQueue.main.async {
@@ -820,17 +818,35 @@ struct SessionRecordListView: View {
     private func loadAllMetadata() {
         isLoading = true
         let keyword = searchText
+        let seriesFilter = selectedSeries
         DispatchQueue.global(qos: .userInitiated).async {
             var list = SessionRecordManager.shared.getAllSessionMetadata(caller: "分组列表")
             let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 list = list.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
             }
+            if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
+                list = list.filter { $0.seriesName == seriesFilter }
+            }
             DispatchQueue.main.async {
                 self.allMetadataList = list
                 self.totalCount = list.count
                 self.rebuildGroups()
                 self.isLoading = false
+            }
+        }
+    }
+
+    // MARK: - 系列筛选
+    private func loadSeriesOptions() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "管理页系列选项")
+            let uncategorized = Constants.GroupDisplay.uncategorizedLabel
+            let seriesSet = Set(allMetadata.map { $0.seriesName })
+                .filter { $0 != uncategorized }
+            let sortedSeries = Array(seriesSet).sorted { $0.localizedCompare($1) == .orderedAscending }
+            DispatchQueue.main.async {
+                self.seriesOptions = sortedSeries
             }
         }
     }
@@ -1066,6 +1082,14 @@ struct SessionRecordListView: View {
                 self.allRecordIDs = allMetadata.map { $0.id }
             }
         }
+    }
+
+    // 选中当前页：选中当前页所有非默认记录
+    private func selectCurrentPage() {
+        let currentPageIDs = pagedMetadataList
+            .filter { $0.id != Constants.DefaultSession.id }
+            .map { $0.id }
+        selectedIDs.formUnion(currentPageIDs)
     }
 
     // 反选：切换当前页所有非默认记录的选中状态

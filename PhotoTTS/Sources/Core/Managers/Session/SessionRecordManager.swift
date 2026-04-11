@@ -321,9 +321,10 @@ class SessionRecordManager {
     ///   - page: 页码（从 1 开始）
     ///   - pageSize: 每页条数
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
+    ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 当前页的元数据列表 + 匹配总数
-    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
         var metadataList: [SessionRecordMetadata] = []
         
         do {
@@ -358,7 +359,12 @@ class SessionRecordManager {
         if !trimmed.isEmpty {
             metadataList = metadataList.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
         }
-        
+
+        // 按系列筛选
+        if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
+            metadataList = metadataList.filter { $0.seriesName == seriesFilter }
+        }
+
         // 按名字倒序排序（Z-A），其次按创建时间倒序排序（与 getAllSessionMetadata 一致）
         metadataList.sort { lhs, rhs in
             if lhs.name != rhs.name {

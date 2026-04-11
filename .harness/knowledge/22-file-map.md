@@ -16,6 +16,7 @@
 - 消息（预留）：MessageTabView（PhotoTTS/Sources/UI/MessageTabView.swift），未集成到 MainTabView
 - 要点图片管理：EndPictManagementView（PhotoTTS/Sources/UI/EndPictManagementView.swift），从我的 Tab 进入
 - 分页控件：PaginationControl（PhotoTTS/Sources/UI/PaginationControl.swift），供 HomePageView/SessionRecordListView 复用
+- 搜索栏组件：SessionSearchBar（PhotoTTS/Sources/UI/SessionSearchBar.swift），可复用搜索栏，含系列筛选和关键词搜索
 
 ## 全屏与相机
 
