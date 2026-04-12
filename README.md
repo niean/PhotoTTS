@@ -1,7 +1,7 @@
 # PhotoTTS - 拍照阅读
 
 <div align="center">
-  <img src="docs/icon_180x180.png" alt="PhotoTTS Logo" width="120" height="120">
+  <img src="docs/githubpages/icon_180x180.png" alt="PhotoTTS Logo" width="120" height="120">
   
   <h3>拍照阅读，让绘本更精彩</h3>
   
