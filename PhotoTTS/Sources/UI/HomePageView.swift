@@ -259,8 +259,23 @@ struct HomePageView: View {
             return
         }
         appState.isPlayViewActive = true
+
+        // 检查播放计划开关
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "HomePageView.连播队列")
-        let queue = SessionRecordManager.buildSameDateQueue(from: id, in: allMetadata)
+        let queue: [String]
+
+        if playPlanEnabled, todoRecordIds.contains(id) {
+            // 播放计划开启且记录在计划内：构建计划内连播队列
+            queue = SessionRecordManager.buildPlanQueue(from: id, in: allMetadata, todoRecordIds: todoRecordIds)
+        } else {
+            // 播放计划关闭或记录不在计划内：仅单条播放
+            queue = [id]
+        }
+
         sessionToPlayFromHome = PlayFromHomeItem(id: id, queueRecordIds: queue)
     }
 

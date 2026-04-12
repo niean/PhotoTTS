@@ -1094,9 +1094,9 @@ private struct PlayerControlLayer: View {
                             .frame(height: 0.5)
                             .padding(.horizontal, scaled(14))
 
-                        // 同日连播 Toggle 行
+                        // 计划内连播 Toggle 行
                         HStack {
-                            Text("同日连播")
+                            Text("计划内连播")
                                 .font(Constants.Fonts.playNextLabel)
                                 .foregroundColor(.white)
                             Spacer()

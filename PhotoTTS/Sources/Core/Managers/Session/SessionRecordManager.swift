@@ -2292,6 +2292,33 @@ class SessionRecordManager {
 
         return queue
     }
+
+    /// 从指定记录开始，收集播放计划内的后续已完成记录 ID 列表
+    /// - Parameters:
+    ///   - startId: 起始记录 ID
+    ///   - metadataList: 所有记录元数据列表（按首页排序顺序）
+    ///   - todoRecordIds: 当前播放计划内的记录 ID 集合
+    /// - Returns: 连播队列 ID 列表（含起始记录）
+    static func buildPlanQueue(from startId: String, in metadataList: [SessionRecordMetadata], todoRecordIds: Set<String>) -> [String] {
+        guard let startIndex = metadataList.firstIndex(where: { $0.id == startId }) else {
+            return []
+        }
+
+        var queue: [String] = []
+
+        for i in startIndex..<metadataList.count {
+            let metadata = metadataList[i]
+            guard todoRecordIds.contains(metadata.id) else {
+                continue
+            }
+            // makeStatus == nil 表示旧数据（已完成），makeStatus == .completed 表示已完成
+            if metadata.makeStatus == nil || metadata.makeStatus == .completed {
+                queue.append(metadata.id)
+            }
+        }
+
+        return queue
+    }
 }
 
 // MARK: - 导出数据结构

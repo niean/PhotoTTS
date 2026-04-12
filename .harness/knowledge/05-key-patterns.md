@@ -25,7 +25,10 @@ SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openC
 PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left：播放/暂停 + 进度条（PlayerProgressBar）。用户横屏 top-right：退出 + "播完本集"开关（autoStopEnabled，默认开启）。
 
 ### 连播队列
-queueRecordIds 参数（默认空），由 HomePageView 通过 buildSameDateQueue 构建（同日期已完成记录，日期从名称前缀解析）。播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。跨天不纳入队列。Siri/MakeView 不传队列。
+queueRecordIds 参数（默认空），由 HomePageView 根据播放计划开关和记录是否在计划内选择不同策略：
+- 播放计划关闭或记录不在计划内：queueRecordIds = [id]（仅单条播放）
+- 播放计划开启且记录在计划内：通过 buildPlanQueue 构建（仅包含排序在起始记录之后的播放计划内记录，todoRecordIds 来自首页播放计划排序逻辑）
+播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。Siri/MakeView 不传队列。UI 文本显示为"计划内连播"。
 
 ### 播放互斥
 AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点打开前检查，为 true 时拒绝。

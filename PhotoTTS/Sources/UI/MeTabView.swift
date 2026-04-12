@@ -51,7 +51,7 @@ struct MeTabView: View {
                     .listRowBackground(Color(.systemGroupedBackground))
                 }
 
-                // 历史记录
+                // Section 1
                 Section {
                     NavigationLink {
                         ReadingReportViewWithBar()
@@ -64,30 +64,28 @@ struct MeTabView: View {
                         Label("播放历史", systemImage: "clock.arrow.circlepath")
                     }
                     NavigationLink {
-                        MakeHistoryViewWithBar()
+                        PlaybackSettingsView()
                     } label: {
-                        Label("制作历史", systemImage: "bookmark.circle")
+                        Label("播放设置", systemImage: "play.circle.fill")
                     }
                 }
 
-                // 设置
+                // Section 2
                 Section {
                     NavigationLink {
                         EndPictManagementView()
                     } label: {
                         Label("要点图片", systemImage: "photo.on.rectangle.angled")
                     }
-
                     NavigationLink {
-                        PlaybackSettingsView()
+                        MakeHistoryViewWithBar()
                     } label: {
-                        Label("播放设置", systemImage: "play.circle.fill")
+                        Label("制作历史", systemImage: "bookmark.circle")
                     }
-
                     NavigationLink {
                         SettingsView()
                     } label: {
-                        Label("系统设置", systemImage: "gearshape.fill")
+                        Label("制作设置", systemImage: "gearshape.fill")
                     }
                 }
 
