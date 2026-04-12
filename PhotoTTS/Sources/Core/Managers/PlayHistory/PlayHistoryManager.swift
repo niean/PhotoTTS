@@ -43,6 +43,7 @@ class PlayHistoryManager {
         formatter.dateFormat = "yyyy.MM.dd HH:mm:ss"
         formatter.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? TimeZone.current
         logger.info("记录播放：\(name) @ \(formatter.string(from: playedAt)), 身份：\(identity)")
+        NotificationCenter.default.post(name: Constants.NotificationNames.playHistoryDidUpdate, object: nil)
     }
 
     /// 供展示用：按名称去重、计数，按最近一次播放时间倒序

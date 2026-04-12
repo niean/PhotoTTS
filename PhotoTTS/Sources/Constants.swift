@@ -322,6 +322,10 @@ extension Constants {
         static let endPictRoundRobinZ = "end_pict_round_robin_z"
         // 播放倍速
         static let playbackSpeed = "playback_speed"
+        // 播放计划：今日已处理的绘本日期（从名称前缀解析的 Date，timeIntervalSince1970 存储）
+        static let playPlanTodayProcessedTodoDate = "play_plan_today_processed_todo_date"
+        // 播放计划：上述记录是针对哪一个自然天（startOfDay，timeIntervalSince1970 存储）
+        static let playPlanTodayProcessedForDate = "play_plan_today_processed_for_date"
     }
     
     // MARK: - 通知名
@@ -335,6 +339,8 @@ extension Constants {
         static let avatarImageDidUpdate = NSNotification.Name("AvatarImageDidUpdate")
         /// 远程播放控制命令（MPRemoteCommandCenter -> PlayView），userInfo["action"]: "play"/"pause"/"toggle"
         static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")
+        /// 播放历史已更新（记录了一次播放）
+        static let playHistoryDidUpdate = NSNotification.Name("PlayHistoryDidUpdate")
     }
     
     // MARK: - 外部链接

@@ -23,6 +23,59 @@ struct HomePageView: View {
     @State private var seriesOptions: [String] = []   // 所有系列选项
     @State private var todoRecordIds: Set<String> = []
 
+    // MARK: - 播放计划每日限制
+
+    /// 检查今天是否已经处理过某个待办日期
+    private var isTodayProcessed: Bool {
+        let today = Calendar.current.startOfDay(for: Date())
+        let storedForDate = UserDefaults.standard.double(forKey: Constants.UserDefaultsKeys.playPlanTodayProcessedForDate)
+        guard storedForDate > 0 else { return false }
+        let storedForDateValue = Date(timeIntervalSince1970: storedForDate)
+        return Calendar.current.isDate(storedForDateValue, inSameDayAs: today)
+    }
+
+    /// 获取今日已处理的待办日期（如果有）
+    private var todayProcessedTodoDate: Date? {
+        guard isTodayProcessed else { return nil }
+        let storedDate = UserDefaults.standard.double(forKey: Constants.UserDefaultsKeys.playPlanTodayProcessedTodoDate)
+        guard storedDate > 0 else { return nil }
+        return Date(timeIntervalSince1970: storedDate)
+    }
+
+    /// 标记某个日期为今日已处理
+    private func markTodoDateAsProcessed(_ date: Date) {
+        let today = Calendar.current.startOfDay(for: Date())
+        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: Constants.UserDefaultsKeys.playPlanTodayProcessedTodoDate)
+        UserDefaults.standard.set(today.timeIntervalSince1970, forKey: Constants.UserDefaultsKeys.playPlanTodayProcessedForDate)
+    }
+
+    /// 检查当前待办日期的所有记录是否都已播放，如果是则标记为今日已处理
+    private func checkAndMarkTodoDateIfNeeded() {
+        // 获取当前的待办日期（从 todoRecordIds 中取第一个记录的日期）
+        guard let firstTodoId = todoRecordIds.first,
+              let metadata = pagedMetadataList.first(where: { $0.id == firstTodoId }) else {
+            return
+        }
+
+        let todoDate = Calendar.current.startOfDay(for: metadata.namePrefixDate)
+
+        // 获取所有该日期的记录
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "HomePageView.检查待办完成")
+        let todoDateRecords = allMetadata.filter {
+            Calendar.current.isDate($0.namePrefixDate, inSameDayAs: todoDate)
+        }
+
+        // 检查是否所有记录都已播放
+        let statsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: todoDateRecords.map(\.id))
+        let allPlayed = todoDateRecords.allSatisfy { statsMap[$0.id] != nil }
+
+        if allPlayed {
+            markTodoDateAsProcessed(todoDate)
+            // 重新加载页面以更新待办状态
+            loadPage()
+        }
+    }
+
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
@@ -160,6 +213,9 @@ struct HomePageView: View {
             currentPage = 1
             loadPage()
         }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
+            checkAndMarkTodoDateIfNeeded()
+        }
     }
 
     // MARK: - Subviews
@@ -266,14 +322,19 @@ struct HomePageView: View {
     ///   - statsMap: 播放统计字典
     /// - Returns: (排序后的列表, 置顶记录ID集合)
     private func applyPlayPlanSort(to items: [SessionRecordMetadata], statsMap: [String: PlayStatInfo]) -> ([SessionRecordMetadata], Set<String>) {
-        // 1. 分离未播放记录
+        // 1. 如果今天已经处理过待办，直接返回原列表和空集合
+        if isTodayProcessed {
+            return (items, [])
+        }
+
+        // 2. 分离未播放记录
         let unplayedItems = items.filter { statsMap[$0.id] == nil }
         guard !unplayedItems.isEmpty else {
             // 无未播放记录，返回原列表和空集合
             return (items, [])
         }
 
-        // 2. 按天分组未播放记录
+        // 3. 按天分组未播放记录
         let calendar = Calendar.current
         var groupsByDate: [Date: [SessionRecordMetadata]] = [:]
         for item in unplayedItems {
@@ -281,23 +342,23 @@ struct HomePageView: View {
             groupsByDate[date, default: []].append(item)
         }
 
-        // 3. 找到最早的日期
+        // 4. 找到最早的日期
         guard let earliestDate = groupsByDate.keys.min() else {
             return (items, [])
         }
 
-        // 4. 最早日期的未播放记录（保持在原列表中的相对顺序）
+        // 5. 最早日期的未播放记录（保持在原列表中的相对顺序）
         let todoItems = items.filter { item in
             guard statsMap[item.id] == nil else { return false }
             let itemDate = calendar.startOfDay(for: item.namePrefixDate)
             return itemDate == earliestDate
         }
 
-        // 5. 其他记录（排除 todoItems，保持原相对顺序）
+        // 6. 其他记录（排除 todoItems，保持原相对顺序）
         let todoIdSet = Set(todoItems.map(\.id))
         let otherItems = items.filter { !todoIdSet.contains($0.id) }
 
-        // 6. 合并结果
+        // 7. 合并结果
         return (todoItems + otherItems, todoIdSet)
     }
 }
