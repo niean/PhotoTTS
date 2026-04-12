@@ -70,25 +70,6 @@ struct MeTabView: View {
                     }
                 }
 
-                // 调试工具
-                Section {
-                    NavigationLink {
-                        RealTimeMonitorView()
-                    } label: {
-                        Label("实时监控", systemImage: "gauge.medium")
-                    }
-                    NavigationLink {
-                        DebugLogView()
-                    } label: {
-                        Label("调试日志", systemImage: "ladybug")
-                    }
-                    NavigationLink {
-                        ChangeLogsView()
-                    } label: {
-                        Label("更新记录", systemImage: "doc.text")
-                    }
-                }
-
                 // 设置
                 Section {
                     NavigationLink {
@@ -98,11 +79,35 @@ struct MeTabView: View {
                     }
 
                     NavigationLink {
+                        PlaybackSettingsView()
+                    } label: {
+                        Label("播放设置", systemImage: "play.circle.fill")
+                    }
+
+                    NavigationLink {
                         SettingsView()
                     } label: {
                         Label("系统设置", systemImage: "gearshape.fill")
                     }
+                }
 
+                // 调试工具
+                Section {
+                    NavigationLink {
+                        DebugLogView()
+                    } label: {
+                        Label("调试日志", systemImage: "ladybug")
+                    }
+                    NavigationLink {
+                        RealTimeMonitorView()
+                    } label: {
+                        Label("实时监控", systemImage: "gauge.medium")
+                    }
+                    NavigationLink {
+                        ChangeLogsView()
+                    } label: {
+                        Label("更新记录", systemImage: "doc.text")
+                    }
                     NavigationLink {
                         IntroPagePushView(appState: appState)
                     } label: {

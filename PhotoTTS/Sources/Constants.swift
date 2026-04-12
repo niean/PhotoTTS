@@ -326,6 +326,8 @@ extension Constants {
         static let playPlanTodayProcessedTodoDate = "play_plan_today_processed_todo_date"
         // 播放计划：上述记录是针对哪一个自然天（startOfDay，timeIntervalSince1970 存储）
         static let playPlanTodayProcessedForDate = "play_plan_today_processed_for_date"
+        // 播放计划：是否开启播放计划功能
+        static let playPlanEnabled = "play_plan_enabled"
     }
     
     // MARK: - 通知名

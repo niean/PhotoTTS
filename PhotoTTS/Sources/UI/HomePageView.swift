@@ -322,43 +322,62 @@ struct HomePageView: View {
     ///   - statsMap: 播放统计字典
     /// - Returns: (排序后的列表, 置顶记录ID集合)
     private func applyPlayPlanSort(to items: [SessionRecordMetadata], statsMap: [String: PlayStatInfo]) -> ([SessionRecordMetadata], Set<String>) {
+        // 检查播放计划开关是否开启
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        guard playPlanEnabled else {
+            return (items, [])
+        }
         // 1. 如果今天已经处理过待办，直接返回原列表和空集合
         if isTodayProcessed {
             return (items, [])
         }
 
-        // 2. 分离未播放记录
-        let unplayedItems = items.filter { statsMap[$0.id] == nil }
+        // 2. 计算30天前的日期
+        let calendar = Calendar.current
+        let now = Date()
+        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) else {
+            // 日期计算失败，安全降级为不过滤
+            return (items, [])
+        }
+        let thirtyDaysAgoStart = calendar.startOfDay(for: thirtyDaysAgo)
+
+        // 3. 分离未播放记录，且仅保留最近30天内的
+        let unplayedItems = items.filter { metadata in
+            guard statsMap[metadata.id] == nil else { return false }
+            let itemDate = calendar.startOfDay(for: metadata.namePrefixDate)
+            return itemDate >= thirtyDaysAgoStart
+        }
         guard !unplayedItems.isEmpty else {
             // 无未播放记录，返回原列表和空集合
             return (items, [])
         }
 
-        // 3. 按天分组未播放记录
-        let calendar = Calendar.current
+        // 4. 按天分组未播放记录
         var groupsByDate: [Date: [SessionRecordMetadata]] = [:]
         for item in unplayedItems {
             let date = calendar.startOfDay(for: item.namePrefixDate)
             groupsByDate[date, default: []].append(item)
         }
 
-        // 4. 找到最早的日期
+        // 5. 找到最早的日期
         guard let earliestDate = groupsByDate.keys.min() else {
             return (items, [])
         }
 
-        // 5. 最早日期的未播放记录（保持在原列表中的相对顺序）
+        // 6. 最早日期的未播放记录（保持在原列表中的相对顺序）
         let todoItems = items.filter { item in
             guard statsMap[item.id] == nil else { return false }
             let itemDate = calendar.startOfDay(for: item.namePrefixDate)
             return itemDate == earliestDate
         }
 
-        // 6. 其他记录（排除 todoItems，保持原相对顺序）
-        let todoIdSet = Set(todoItems.map(\.id))
+        // 7. 其他记录（排除 todoItems，保持原相对顺序）
+        let todoIdSet = Set(todoItems.map { $0.id })
         let otherItems = items.filter { !todoIdSet.contains($0.id) }
 
-        // 7. 合并结果
+        // 8. 合并结果
         return (todoItems + otherItems, todoIdSet)
     }
 }
