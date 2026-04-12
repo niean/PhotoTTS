@@ -226,6 +226,10 @@ extension Constants {
         static let coverJPEGQuality: CGFloat = 0.8
         /// 制作中蒙层透明度
         static let makingOverlayOpacity: Double = 0.45
+        /// 待办卡片背景色 (#fff9e6)
+        static let todoCardBackgroundColor = Color(red: 1.0, green: 0.976, blue: 0.902)
+        /// 待办卡片底部区域背景色 (#fff3bf)
+        static let todoCardBottomBackgroundColor = Color(red: 1.0, green: 0.953, blue: 0.749)
         /// iPhone 卡片列数
         static let iPhoneColumns: Int = 2
         /// iPad 卡片列数

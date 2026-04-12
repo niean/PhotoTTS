@@ -21,6 +21,7 @@ struct HomePageView: View {
     @State private var playStatsMap: [String: PlayStatInfo] = [:]
     @State private var selectedSeries: String? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
+    @State private var todoRecordIds: Set<String> = []
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -100,6 +101,7 @@ struct HomePageView: View {
                                                 metadata: metadata,
                                                 makeProgress: makeProgress(for: metadata),
                                                 playStats: playStatsMap[metadata.id],
+                                                isTodo: todoRecordIds.contains(metadata.id),
                                                 onTap: { loadAndPlay(metadata.id) }
                                             )
                                         }
@@ -233,7 +235,10 @@ struct HomePageView: View {
                 sessionIds: result.items.map(\.id)
             )
             DispatchQueue.main.async {
-                self.pagedMetadataList = result.items
+                // 应用播放计划排序
+                let (sortedItems, todoIds) = self.applyPlayPlanSort(to: result.items, statsMap: statsMap)
+                self.pagedMetadataList = sortedItems
+                self.todoRecordIds = todoIds
                 self.totalCount = result.totalCount
                 self.playStatsMap = statsMap
                 self.isLoading = false
@@ -254,6 +259,47 @@ struct HomePageView: View {
             proxy.scrollTo("cardTopAnchor", anchor: .top)
         }
     }
+
+    /// 对记录列表进行"播放计划"排序：最早日期的未播放记录置顶
+    /// - Parameters:
+    ///   - items: 原始记录列表
+    ///   - statsMap: 播放统计字典
+    /// - Returns: (排序后的列表, 置顶记录ID集合)
+    private func applyPlayPlanSort(to items: [SessionRecordMetadata], statsMap: [String: PlayStatInfo]) -> ([SessionRecordMetadata], Set<String>) {
+        // 1. 分离未播放记录
+        let unplayedItems = items.filter { statsMap[$0.id] == nil }
+        guard !unplayedItems.isEmpty else {
+            // 无未播放记录，返回原列表和空集合
+            return (items, [])
+        }
+
+        // 2. 按天分组未播放记录
+        let calendar = Calendar.current
+        var groupsByDate: [Date: [SessionRecordMetadata]] = [:]
+        for item in unplayedItems {
+            let date = calendar.startOfDay(for: item.namePrefixDate)
+            groupsByDate[date, default: []].append(item)
+        }
+
+        // 3. 找到最早的日期
+        guard let earliestDate = groupsByDate.keys.min() else {
+            return (items, [])
+        }
+
+        // 4. 最早日期的未播放记录（保持在原列表中的相对顺序）
+        let todoItems = items.filter { item in
+            guard statsMap[item.id] == nil else { return false }
+            let itemDate = calendar.startOfDay(for: item.namePrefixDate)
+            return itemDate == earliestDate
+        }
+
+        // 5. 其他记录（排除 todoItems，保持原相对顺序）
+        let todoIdSet = Set(todoItems.map(\.id))
+        let otherItems = items.filter { !todoIdSet.contains($0.id) }
+
+        // 6. 合并结果
+        return (todoItems + otherItems, todoIdSet)
+    }
 }
 
 // MARK: - 绘本卡片
@@ -261,6 +307,7 @@ private struct SessionRecordCard: View {
     let metadata: SessionRecordMetadata
     var makeProgress: Float? = nil
     var playStats: PlayStatInfo? = nil
+    var isTodo: Bool = false
     var onTap: () -> Void
 
     @State private var avatarImage: UIImage? = nil
@@ -292,7 +339,10 @@ private struct SessionRecordCard: View {
     }()
 
     private var playStatsText: String {
-        if let stats = playStats {
+        if isTodo {
+            // 待办卡片：只显示日期
+            return Self.playStatsDateFormatter.string(from: metadata.namePrefixDate)
+        } else if let stats = playStats {
             // 有播放记录：展示 "MM.dd/N"
             return "\(Self.playStatsDateFormatter.string(from: metadata.namePrefixDate))/\(stats.playCount)"
         } else {
@@ -369,8 +419,9 @@ private struct SessionRecordCard: View {
             }
             .padding(.horizontal, scaled(Constants.HomeCard.titleHorizontalPadding))
             .padding(.vertical, scaled(Constants.HomeCard.titleVerticalPadding))
+            .background(isTodo ? Constants.HomeCard.todoCardBottomBackgroundColor : Color.clear)
         }
-        .background(Color(.white))
+        .background(isTodo ? Constants.HomeCard.todoCardBackgroundColor : Color(.white))
         .clipShape(RoundedRectangle(cornerRadius: scaled(Constants.HomeCard.cornerRadius)))
         .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         .contentShape(Rectangle())
