@@ -100,7 +100,7 @@ struct MeTabView: View {
                     NavigationLink {
                         SettingsView()
                     } label: {
-                        Label("设置", systemImage: "gearshape.fill")
+                        Label("系统设置", systemImage: "gearshape.fill")
                     }
 
                     NavigationLink {

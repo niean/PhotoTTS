@@ -231,7 +231,7 @@ struct SettingsView: View {
                 }
             
                 TopAndLeftSideNavigationBar(
-                    title: "设置",
+                    title: "系统设置",
                     onSwipeBack: { dismiss() },
                     onLeftAreaTap: { isJSONEditing = false },
                     leading: {
