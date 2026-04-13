@@ -1,4 +1,4 @@
-<!-- SUMMARY: 项目概览：iOS绘本听读应用，技术栈Swift/iOS18.1+/MVVM+SwiftUI，核心流程选图-OCR-LLM-TTS-播放-保存 -->
+<!-- SUMMARY: 项目概览：iOS绘本听读应用，技术栈Swift/iOS18.1+/MVVM+SwiftUI，核心流程制作(OCR+LLM+TTS)-保存-播放 -->
 # 项目概览
 
 ## 一句话
@@ -17,12 +17,9 @@ Swift 5.0+，iOS 18.1+，MVVM+Coordinator，SwiftUI 为主（相机用 UIKit/AVF
 
 ## 核心流程
 
-1. 选图：首页或制作 Tab 拍照/相册多选
-2. OCR：ImageToSpeechCoordinator 调 OCRService（多 Provider：豆包/OpenAI），每张图文本拼接
-3. LLM：同一 Coordinator 调 LLMService（多 Provider：豆包/OpenAI），生成绘本名称和要点（storyHighlights）
-4. TTS：同一 Coordinator 调 TTSService（多 Provider：火山引擎/阿里千问），得整段音频
-5. 播放：全屏 PlayView，支持进度同步切图
-6. 保存：SessionRecord 由 SessionRecordManager 落盘
+1. 制作：制作 Tab 拍照/相册多选，经 OCR（多 Provider：豆包/OpenAI）、LLM（多 Provider：豆包/OpenAI）、TTS（多 Provider：火山引擎/阿里千问）完成制作
+2. 保存：SessionRecord 由 SessionRecordManager 落盘，解耦记录生产和使用
+3. 播放：从首页选择已保存记录，全屏 PlayView 播放，支持进度同步切图
 
 ## 文档与规则
 
