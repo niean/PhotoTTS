@@ -698,7 +698,7 @@ struct MakeView: View {
     }
 
     /// 启动后台制作任务（从指定阶段）
-    private func processImages(startingFrom startStage: ProcessingStartStage = .ocr) {
+    private func processImages(startingFrom startStage: ProcessingProgress.ProcessingStage = .ocr) {
         guard !selectedImages.isEmpty else { return }
 
         os.Logger.makeView.info("processImages: 开始，图片数=\(selectedImages.count), 阶段=\(String(describing: startStage))")

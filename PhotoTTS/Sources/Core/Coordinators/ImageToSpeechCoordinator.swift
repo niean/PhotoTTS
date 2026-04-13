@@ -20,7 +20,19 @@ protocol ImageToSpeechCoordinatorProtocol {
     ///   - progressHandler: 进度回调，实时报告处理状态
     ///   - completion: 完成回调，返回拼接后的文字和整段音频
     func convertBatchImagesToSpeech(_ images: [Data], progressHandler: @escaping (ProcessingProgress) -> Void, completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void)
-    
+
+    /// 批量图片转语音处理（从指定阶段开始）
+    /// - Parameters:
+    ///   - images: 要处理的图片数据数组
+    ///   - startStage: 启动阶段（.ocr / .llm / .tts）
+    ///   - ocrTexts: 已有 OCR 文本数组（从 LLM/TTS 阶段启动时传入）
+    ///   - ocrCombinedText: 已有 OCR 合并文本（从 TTS 阶段启动时传入）
+    ///   - llmStoryName: 已有 LLM 故事名（从 TTS 阶段启动时传入）
+    ///   - llmHighlights: 已有 LLM 要点（从 TTS 阶段启动时传入）
+    ///   - progressHandler: 进度回调
+    ///   - completion: 完成回调
+    func convertBatchImagesToSpeech(_ images: [Data], startingFrom startStage: ProcessingProgress.ProcessingStage, ocrTexts: [String]?, ocrCombinedText: String?, llmStoryName: String?, llmHighlights: String?, progressHandler: @escaping (ProcessingProgress) -> Void, completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void)
+
     /// 文字转语音处理
     /// - Parameters:
     ///   - text: 要转换的文字内容
@@ -445,8 +457,144 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         }
     }
     
+    // MARK: - 批量图片转语音处理（从指定阶段开始）
+
+    func convertBatchImagesToSpeech(_ images: [Data], startingFrom startStage: ProcessingProgress.ProcessingStage, ocrTexts: [String]?, ocrCombinedText: String?, llmStoryName: String?, llmHighlights: String?, progressHandler: @escaping (ProcessingProgress) -> Void, completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void) {
+        guard !isProcessing else {
+            completion(.failure(.ttsFailed(NetworkError.serverError)))
+            return
+        }
+
+        isProcessing = true
+
+        switch startStage {
+        case .ocr:
+            // 从头开始，委托给原方法
+            isProcessing = false
+            convertBatchImagesToSpeech(images, progressHandler: progressHandler, completion: completion)
+
+        case .llm:
+            // 从 LLM 阶段开始，需要 ocrTexts
+            guard let ocrTexts = ocrTexts, !ocrTexts.isEmpty else {
+                isProcessing = false
+                completion(.failure(.llmFailed(NetworkError.noTexts)))
+                return
+            }
+            Task {
+                do {
+                    let (combinedText, validImageCount) = try self.combineOCRResults(ocrTexts)
+                    await self.performLLMAndTTS(
+                        images: images,
+                        recognizedTexts: ocrTexts,
+                        combinedText: combinedText,
+                        validImageCount: validImageCount,
+                        progressHandler: progressHandler,
+                        completion: completion
+                    )
+                } catch {
+                    await MainActor.run {
+                        self.isProcessing = false
+                        completion(.failure(.llmFailed(error)))
+                    }
+                }
+            }
+
+        case .tts:
+            // 从 TTS 阶段开始，需要 ocrTexts + ocrCombinedText
+            guard let ocrTexts = ocrTexts, !ocrTexts.isEmpty,
+                  let ocrCombinedText = ocrCombinedText else {
+                isProcessing = false
+                completion(.failure(.ttsFailed(NetworkError.noTexts)))
+                return
+            }
+            let validImageCount = ocrTexts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+
+            // 重建 finalText 和 finalSegments（考虑 LLM highlights）
+            var finalText = ocrCombinedText
+            var finalSegments = ocrTexts
+            var hasVirtualPage = false
+            if let highlights = llmHighlights, !highlights.isEmpty {
+                finalSegments.append(highlights)
+                finalText = ocrCombinedText + AppConstants.ocrTextSeparator + highlights
+                hasVirtualPage = true
+            }
+
+            Task {
+                do {
+                    await MainActor.run {
+                        progressHandler(ProcessingProgress(
+                            stage: .tts,
+                            currentStep: 70,
+                            totalSteps: 100,
+                            message: "TTS合成进度: 开始合成",
+                            percentage: 70.0
+                        ))
+                    }
+
+                    let audioResponse = try await self.convertTextToSpeechAsync(finalText)
+
+                    await MainActor.run {
+                        progressHandler(ProcessingProgress(
+                            stage: .tts,
+                            currentStep: 100,
+                            totalSteps: 100,
+                            message: "TTS合成进度: 完成",
+                            percentage: 100.0
+                        ))
+                    }
+
+                    let finalResponse = AudioResponse(
+                        id: audioResponse.id,
+                        audioURL: audioResponse.audioURL,
+                        text: finalText,
+                        language: audioResponse.language,
+                        duration: audioResponse.duration,
+                        format: audioResponse.format,
+                        quality: audioResponse.quality,
+                        timestamp: audioResponse.timestamp,
+                        voiceSettings: audioResponse.voiceSettings,
+                        audioData: audioResponse.audioData,
+                        validImageCount: validImageCount,
+                        recognizedTexts: finalSegments,
+                        storyName: llmStoryName,
+                        storyHighlights: llmHighlights,
+                        hasVirtualPage: hasVirtualPage
+                    )
+
+                    await MainActor.run {
+                        self.isProcessing = false
+                        progressHandler(ProcessingProgress(
+                            stage: .completed,
+                            currentStep: 100,
+                            totalSteps: 100,
+                            message: "批量处理完成",
+                            percentage: 100.0
+                        ))
+                        completion(.success(finalResponse))
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.isProcessing = false
+                        progressHandler(ProcessingProgress(
+                            stage: .failed,
+                            currentStep: 0,
+                            totalSteps: 100,
+                            message: "TTS合成失败: \(error.localizedDescription)",
+                            percentage: 0.0
+                        ))
+                        completion(.failure(.ttsFailed(error)))
+                    }
+                }
+            }
+
+        case .completed, .failed:
+            isProcessing = false
+            return
+        }
+    }
+
     // MARK: - 文字转语音处理
-    
+
     func convertTextToSpeech(_ text: String, completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void) {
         guard !isProcessing else {
             completion(.failure(.ttsFailed(NetworkError.serverError)))
@@ -479,8 +627,163 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         networkService.testConnection(completion: completion)
     }
     
+    // MARK: - LLM + TTS 流程（从 LLM 阶段开始）
+
+    private func performLLMAndTTS(
+        images: [Data],
+        recognizedTexts: [String],
+        combinedText: String,
+        validImageCount: Int,
+        progressHandler: @escaping (ProcessingProgress) -> Void,
+        completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void
+    ) async {
+        do {
+            // LLM 阶段
+            await MainActor.run {
+                progressHandler(ProcessingProgress(
+                    stage: .llm,
+                    currentStep: 50,
+                    totalSteps: 100,
+                    message: "LLM分析: 分析中",
+                    percentage: 50.0,
+                    stageResults: StageResults(
+                        ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                        totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                        llmCharCount: nil, llmDuration: nil, llmStatus: .inProgress
+                    )
+                ))
+            }
+
+            var llmResult: LLMStoryAnalysisResult?
+            var finalText = combinedText
+            var finalSegments = recognizedTexts
+            var storyHighlights: String?
+            var hasVirtualPage = false
+
+            if images.count < Constants.LLM.minImageCountForAnalysis {
+                logInfo("LLM分析跳过：图片数量 \(images.count) 少于 \(Constants.LLM.minImageCountForAnalysis)")
+                await MainActor.run {
+                    progressHandler(ProcessingProgress(
+                        stage: .llm, currentStep: 70, totalSteps: 100,
+                        message: "LLM分析: 跳过（图片少于5张）", percentage: 70.0,
+                        stageResults: StageResults(
+                            ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                            totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                            llmCharCount: nil, llmDuration: nil, llmStatus: .skipped
+                        )
+                    ))
+                }
+            } else if let llmService = llmService {
+                do {
+                    llmResult = try await llmService.analyzeStory(ocrText: combinedText)
+                    if let result = llmResult {
+                        if result.isHighlightsSuccess, let highlights = result.storyHighlights {
+                            finalSegments.append(highlights)
+                            finalText = combinedText + AppConstants.ocrTextSeparator + highlights
+                            storyHighlights = highlights
+                            hasVirtualPage = true
+                        }
+                    }
+                    let capturedStoryName = llmResult?.storyName
+                    let capturedHighlights = storyHighlights
+                    let llmCharCount = (capturedStoryName?.count ?? 0) + (capturedHighlights?.count ?? 0)
+                    await MainActor.run {
+                        progressHandler(ProcessingProgress(
+                            stage: .llm, currentStep: 70, totalSteps: 100,
+                            message: "LLM分析: 完成", percentage: 70.0,
+                            stageResults: StageResults(
+                                ocrTexts: recognizedTexts, validImageCount: validImageCount,
+                                llmStoryName: capturedStoryName, llmHighlights: capturedHighlights,
+                                totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                                llmCharCount: llmCharCount, llmDuration: nil, llmStatus: .completed
+                            )
+                        ))
+                    }
+                } catch {
+                    logWarning("LLM分析失败，继续进入TTS: \(error.localizedDescription)")
+                    await MainActor.run {
+                        progressHandler(ProcessingProgress(
+                            stage: .llm, currentStep: 70, totalSteps: 100,
+                            message: "LLM分析: 跳过", percentage: 70.0,
+                            stageResults: StageResults(
+                                ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                                totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                                llmCharCount: nil, llmDuration: nil, llmStatus: .skipped
+                            )
+                        ))
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    progressHandler(ProcessingProgress(
+                        stage: .llm, currentStep: 70, totalSteps: 100,
+                        message: "LLM分析: 未配置", percentage: 70.0,
+                        stageResults: StageResults(
+                            ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                            totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                            llmCharCount: nil, llmDuration: nil, llmStatus: .notConfigured
+                        )
+                    ))
+                }
+            }
+
+            // TTS 阶段
+            await MainActor.run {
+                progressHandler(ProcessingProgress(
+                    stage: .tts, currentStep: 70, totalSteps: 100,
+                    message: "TTS合成进度: 开始合成", percentage: 70.0
+                ))
+            }
+
+            let audioResponse = try await convertTextToSpeechAsync(finalText)
+
+            await MainActor.run {
+                progressHandler(ProcessingProgress(
+                    stage: .tts, currentStep: 100, totalSteps: 100,
+                    message: "TTS合成进度: 完成", percentage: 100.0
+                ))
+            }
+
+            let finalResponse = AudioResponse(
+                id: audioResponse.id,
+                audioURL: audioResponse.audioURL,
+                text: finalText,
+                language: audioResponse.language,
+                duration: audioResponse.duration,
+                format: audioResponse.format,
+                quality: audioResponse.quality,
+                timestamp: audioResponse.timestamp,
+                voiceSettings: audioResponse.voiceSettings,
+                audioData: audioResponse.audioData,
+                validImageCount: validImageCount,
+                recognizedTexts: finalSegments,
+                storyName: llmResult?.storyName,
+                storyHighlights: storyHighlights,
+                hasVirtualPage: hasVirtualPage
+            )
+
+            await MainActor.run {
+                self.isProcessing = false
+                progressHandler(ProcessingProgress(
+                    stage: .completed, currentStep: 100, totalSteps: 100,
+                    message: "批量处理完成", percentage: 100.0
+                ))
+                completion(.success(finalResponse))
+            }
+        } catch {
+            await MainActor.run {
+                self.isProcessing = false
+                progressHandler(ProcessingProgress(
+                    stage: .failed, currentStep: 0, totalSteps: 100,
+                    message: "处理失败: \(error.localizedDescription)", percentage: 0.0
+                ))
+                completion(.failure(.ttsFailed(error)))
+            }
+        }
+    }
+
     // MARK: - 取消处理
-    
+
     func cancelProcessing() {
         guard isProcessing else { return }
         

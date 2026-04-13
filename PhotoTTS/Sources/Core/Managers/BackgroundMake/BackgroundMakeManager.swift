@@ -249,7 +249,7 @@ class BackgroundMakeManager: ObservableObject {
     /// - Returns: sessionId（草稿会话的 ID），nil 表示启动失败
     func startMaking(
         images: [UIImage],
-        startingFrom startStage: ProcessingStartStage,
+        startingFrom startStage: ProcessingProgress.ProcessingStage,
         ocrTexts: [String]?,
         ocrCombinedText: String?,
         llmStoryName: String?,
@@ -392,6 +392,8 @@ class BackgroundMakeManager: ObservableObject {
                     progressHandler: progressHandler,
                     completion: completionHandler
                 )
+            case .completed, .failed:
+                break
             }
         }
 
