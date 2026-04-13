@@ -618,8 +618,8 @@ private struct EndPictQueueSectionView: View {
 
                 // 标题
                 Text("播放队列")
-                    .font(Constants.Fonts.headline)
-                    .foregroundStyle(.primary)
+                    .font(Constants.Fonts.caption)
+                    .foregroundStyle(.secondary)
 
                 // 队列网格（已播 + 待播合并展示）
                 LazyVGrid(columns: [
