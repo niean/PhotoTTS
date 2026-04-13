@@ -15,7 +15,7 @@
 | Slash Command | 用户通过 slash command 触发 | 直接执行 |
 | 显式指定 | 用户明确指定已注册 Workflow/Skill 名称（含治理类 Workflow） | 直接路由到对应 Workflow/Skill |
 | 功能迭代 | 人工下发功能需求或修改代码 | Workflow: 迭代功能 |
-| 精调功能 | 用户明确指定"精调功能"或路由到此 Workflow | Workflow: 精调功能 |
+| 功能精调 | 人工下发简单需求或功能精调 | Workflow: 精调功能 |
 | Bug修复 | Bug修复或异常行为修复 | Workflow: 修复Bug |
 | 文档修改 | 修改文档需求 | Workflow: 迭代文档 |
 | 其他 | 以上均未匹配 | 直接执行 |

@@ -228,6 +228,33 @@ class BackgroundMakeManager: ObservableObject {
     ///   - images: 已降采样的图片数组
     /// - Returns: sessionId（草稿会话的 ID），nil 表示启动失败
     func startMaking(images: [UIImage]) -> String? {
+        return startMaking(
+            images: images,
+            startingFrom: .ocr,
+            ocrTexts: nil,
+            ocrCombinedText: nil,
+            llmStoryName: nil,
+            llmHighlights: nil
+        )
+    }
+
+    /// 启动后台制作任务（从指定阶段开始）
+    /// - Parameters:
+    ///   - images: 已降采样的图片数组
+    ///   - startStage: 启动阶段
+    ///   - ocrTexts: 已有 OCR 文本数组（从 LLM/TTS 阶段启动时）
+    ///   - ocrCombinedText: 已有 OCR 合并文本（从 TTS 阶段启动时）
+    ///   - llmStoryName: 已有 LLM 故事名（从 TTS 阶段启动时）
+    ///   - llmHighlights: 已有 LLM 要点（从 TTS 阶段启动时）
+    /// - Returns: sessionId（草稿会话的 ID），nil 表示启动失败
+    func startMaking(
+        images: [UIImage],
+        startingFrom startStage: ProcessingStartStage,
+        ocrTexts: [String]?,
+        ocrCombinedText: String?,
+        llmStoryName: String?,
+        llmHighlights: String?
+    ) -> String? {
         // 只允许1个后台制作任务
         if let existing = currentTask, !existing.isCompleted {
             logger.warning("已有活跃的后台制作任务: sessionId=\(existing.id)，拒绝启动新任务")
@@ -279,19 +306,18 @@ class BackgroundMakeManager: ObservableObject {
                 return
             }
 
-            self.logger.info("后台制作: 草稿保存+图片转换完成，启动 Coordinator: sessionId=\(sessionId)")
+            self.logger.info("后台制作: 草稿保存+图片转换完成，启动 Coordinator: sessionId=\(sessionId), 阶段=\(String(describing: startStage))")
 
-            // 启动 Coordinator 处理
-            task.coordinator.convertBatchImagesToSpeech(
-            imageDataList,
-            progressHandler: { [weak self, weak task] progress in
+            // 启动 Coordinator 处理（根据阶段选择不同方法）
+            let progressHandler: (ProcessingProgress) -> Void = { [weak self, weak task] progress in
                 guard let self = self, let task = task else { return }
                 DispatchQueue.main.async {
                     task.updateProgress(progress)
                     self.objectWillChange.send()
                 }
-            },
-            completion: { [weak self, weak task] result in
+            }
+
+            let completionHandler: (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void = { [weak self, weak task] result in
                 guard let self = self, let task = task else { return }
                 DispatchQueue.main.async {
                     switch result {
@@ -336,7 +362,37 @@ class BackgroundMakeManager: ObservableObject {
                     self.objectWillChange.send()
                 }
             }
-        )
+
+            switch startStage {
+            case .ocr:
+                task.coordinator.convertBatchImagesToSpeech(
+                    imageDataList,
+                    progressHandler: progressHandler,
+                    completion: completionHandler
+                )
+            case .llm:
+                task.coordinator.convertBatchImagesToSpeech(
+                    imageDataList,
+                    startingFrom: .llm,
+                    ocrTexts: ocrTexts,
+                    ocrCombinedText: nil,
+                    llmStoryName: nil,
+                    llmHighlights: nil,
+                    progressHandler: progressHandler,
+                    completion: completionHandler
+                )
+            case .tts:
+                task.coordinator.convertBatchImagesToSpeech(
+                    imageDataList,
+                    startingFrom: .tts,
+                    ocrTexts: ocrTexts,
+                    ocrCombinedText: ocrCombinedText,
+                    llmStoryName: llmStoryName,
+                    llmHighlights: llmHighlights,
+                    progressHandler: progressHandler,
+                    completion: completionHandler
+                )
+            }
         }
 
         return sessionId

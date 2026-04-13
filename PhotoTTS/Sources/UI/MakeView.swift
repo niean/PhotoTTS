@@ -394,7 +394,7 @@ struct MakeView: View {
             onProcessOCRTTS: {
                 processingOverlayDismissed = false
                 clearDataAndState()
-                processImages()
+                processImages(startingFrom: .ocr)
             },
             onTakePhoto: {
                 checkCameraPermissionAndTakePhoto()
@@ -471,7 +471,26 @@ struct MakeView: View {
     }
     
     private var recordPageNavigationTitle: String { "制作" }
-    
+
+    /// 根据错误类型返回对应的标题
+    private func errorTitle(for error: Error) -> String {
+        if let processingError = error as? ImageToSpeechProcessingError {
+            switch processingError {
+            case .ocrFailed:
+                return "OCR失败"
+            case .llmFailed:
+                return "LLM失败"
+            case .ttsFailed:
+                return "TTS失败"
+            case .partialSuccess:
+                return "部分失败"
+            case .cancelled:
+                return "已取消"
+            }
+        }
+        return "制作失败"
+    }
+
     // MARK: - 顶部导航视图
     private var customNavigationBar: some View {
         Group {
@@ -487,19 +506,78 @@ struct MakeView: View {
                             .foregroundColor(.blue)
                     }
                 })
-            } else if error != nil && !processingOverlayDismissed {
-                CustomNavigationBar(title: "制作失败", trailing: {
-                    Button {
-                        processingOverlayDismissed = true
+            } else if let err = error, !processingOverlayDismissed {
+                // 制作失败后显示完整更多按钮，根据错误类型显示标题
+                CustomNavigationBar(title: errorTitle(for: err), trailing: {
+                    Menu {
+                        Button {
+                            processingOverlayDismissed = false
+                            clearDataAndState()
+                            processImages(startingFrom: .ocr)
+                        } label: {
+                            Label("OCR", systemImage: "text.viewfinder")
+                        }
+                        .disabled(isProcessing || selectedImages.isEmpty)
+                        Button {
+                            processingOverlayDismissed = false
+                            clearLLMAndTTSData()
+                            processImages(startingFrom: .llm)
+                        } label: {
+                            Label("LLM", systemImage: "sparkles")
+                        }
+                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
+                        Button {
+                            processingOverlayDismissed = false
+                            clearTTSData()
+                            processImages(startingFrom: .tts)
+                        } label: {
+                            Label("TTS", systemImage: "waveform")
+                        }
+                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
+                        Divider()
+                        Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
+                            Label("保存", systemImage: "bookmark.fill")
+                        }
+                        .disabled(!canSaveSession())
+                        Divider()
+                        Button { clearAllState() } label: {
+                            Label("清空", systemImage: "trash.fill")
+                        }
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(Constants.Fonts.makeImageDeleteIcon)
+                        Image(systemName: "plus.circle")
+                            .font(Constants.Fonts.listAddIcon)
                             .foregroundColor(.blue)
+                            .background(Color.clear)
                     }
                 })
             } else {
                 CustomNavigationBar(title: recordPageNavigationTitle, trailing: {
                     Menu {
+                        Button {
+                            processingOverlayDismissed = false
+                            clearDataAndState()
+                            processImages(startingFrom: .ocr)
+                        } label: {
+                            Label("OCR", systemImage: "text.viewfinder")
+                        }
+                        .disabled(isProcessing || selectedImages.isEmpty)
+                        Button {
+                            processingOverlayDismissed = false
+                            clearLLMAndTTSData()
+                            processImages(startingFrom: .llm)
+                        } label: {
+                            Label("LLM", systemImage: "sparkles")
+                        }
+                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
+                        Button {
+                            processingOverlayDismissed = false
+                            clearTTSData()
+                            processImages(startingFrom: .tts)
+                        } label: {
+                            Label("TTS", systemImage: "waveform")
+                        }
+                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
+                        Divider()
                         Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
                             Label("保存", systemImage: "bookmark.fill")
                         }
@@ -547,7 +625,7 @@ struct MakeView: View {
         if !selectedImages.isEmpty && !bgMakeManager.hasActiveTask {
             os.Logger.makeView.info("onImagesChanged: 触发 processImages，图片数=\(selectedImages.count)")
             processingOverlayDismissed = false
-            processImages()
+            processImages(startingFrom: .ocr)
         }
     }
 
@@ -597,28 +675,66 @@ struct MakeView: View {
     
     // MARK: - 后台制作
 
-    /// 启动后台制作任务
-    private func processImages() {
+    /// 清空 LLM/TTS 数据（保留 OCR）
+    private func clearLLMAndTTSData() {
+        audioData = nil
+        audioResponse = nil
+        llmDuration = 0.0
+        ttsDuration = 0.0
+        ttsStartTime = nil
+        intermediateResults?.llmStoryName = nil
+        intermediateResults?.llmHighlights = nil
+        intermediateResults?.llmStatus = .notStarted
+        intermediateResults?.llmCharCount = 0
+        intermediateResults?.llmDuration = 0
+    }
+
+    /// 清空 TTS 数据（保留 OCR+LLM）
+    private func clearTTSData() {
+        audioData = nil
+        audioResponse = nil
+        ttsDuration = 0.0
+        ttsStartTime = nil
+    }
+
+    /// 启动后台制作任务（从指定阶段）
+    private func processImages(startingFrom startStage: ProcessingStartStage = .ocr) {
         guard !selectedImages.isEmpty else { return }
 
-        os.Logger.makeView.info("processImages: 开始，图片数=\(selectedImages.count)")
+        os.Logger.makeView.info("processImages: 开始，图片数=\(selectedImages.count), 阶段=\(String(describing: startStage))")
         isProcessing = true
         os.Logger.makeView.info("processImages: isProcessing=true，制作页开始 Loading")
         processingProgress = 0.0
         currentOperation = "开始处理图片..."
         error = nil
-        ocrResult = ""
-        audioData = nil
-        ocrDuration = 0.0
-        ttsDuration = 0.0
         ocrStartTime = Date()
         ttsStartTime = nil
+
+        // OCR 阶段需要清空 OCR 结果
+        if startStage == .ocr {
+            ocrResult = ""
+            audioData = nil
+            ocrDuration = 0.0
+        }
 
         // 防息屏：制作过程耗时较长，防止系统重置 idleTimer（教训 L001/P001）
         UIApplication.shared.isIdleTimerDisabled = true
 
         os.Logger.makeView.info("processImages: 调用 startMaking")
-        if let sessionId = bgMakeManager.startMaking(images: selectedImages) {
+
+        let ocrTextsForLLM: [String]? = (startStage == .llm || startStage == .tts) ? ocrTextSegments : nil
+        let ocrCombinedTextForTTS: String? = (startStage == .tts) ? ocrResult : nil
+        let llmStoryNameForTTS: String? = (startStage == .tts) ? intermediateResults?.llmStoryName : nil
+        let llmHighlightsForTTS: String? = (startStage == .tts) ? intermediateResults?.llmHighlights : nil
+
+        if let sessionId = bgMakeManager.startMaking(
+            images: selectedImages,
+            startingFrom: startStage,
+            ocrTexts: ocrTextsForLLM,
+            ocrCombinedText: ocrCombinedTextForTTS,
+            llmStoryName: llmStoryNameForTTS,
+            llmHighlights: llmHighlightsForTTS
+        ) {
             observingTaskId = sessionId
             os.Logger.makeView.info("processImages: startMaking 返回成功，sessionId=\(sessionId)")
         } else {
@@ -628,14 +744,14 @@ struct MakeView: View {
         }
     }
 
-    /// 取消当前观察的后台任务，并清空除图片外的其它状态
+    /// 取消当前观察的后台任务，清除所有数据、删除临时记录、退出制作
     private func cancelBackgroundTask() {
         guard let taskId = observingTaskId else { return }
         bgMakeManager.cancelTask(sessionId: taskId)
         observingTaskId = nil
-        // 清空除图片外的其它状态（OCR文字、TTS音频等）
-        clearDataAndState()
-        os.Logger.makeView.info("已停止制作任务: sessionId=\(taskId)")
+        // 清空所有状态（包括图片）
+        clearAllState()
+        os.Logger.makeView.info("已取消制作任务: sessionId=\(taskId)")
     }
 
     /// 同步后台任务状态到本地 @State（由 onReceive 触发）
@@ -685,11 +801,24 @@ struct MakeView: View {
                 // 消费完成后移除任务
                 bgMakeManager.removeTask(sessionId: taskId)
             } else {
+                // 制作失败：不主动清空数据状态或删除临时记录，不调用 removeTask
                 error = task.error
                 processingProgress = 0.0
                 currentOperation = "处理失败"
-                os.Logger.makeView.error("处理失败: \(task.error?.localizedDescription ?? "未知错误")")
-                bgMakeManager.removeTask(sessionId: taskId)
+                // 同步 OCR 结果（如果有）
+                if !task.ocrText.isEmpty {
+                    ocrResult = task.ocrText
+                    ocrTextSegments = task.ocrTextSegments
+                } else if let intermediate = task.intermediateResults, !intermediate.ocrTexts.isEmpty {
+                    // 从中间结果中获取 OCR 文本
+                    ocrTextSegments = intermediate.ocrTexts
+                    ocrResult = intermediate.ocrTexts.joined(separator: AppConstants.ocrTextSeparator)
+                }
+                if let intermediate = task.intermediateResults {
+                    intermediateResults = intermediate
+                }
+                os.Logger.makeView.error("处理失败: \(task.error?.localizedDescription ?? "未知错误")，保留数据状态供用户重试，OCR文本长度: \(ocrResult.count)")
+                // 注意：不调用 bgMakeManager.removeTask，保留任务让用户可以查看错误
             }
         }
     }
@@ -963,26 +1092,6 @@ struct PhotoProcessingView: View {
                 .frame(maxWidth: layout.contentWidth, maxHeight: layout.imageAreaHeight)
 
                 HStack(spacing: 5) {
-                    // 识别按钮
-                    Button(action: {
-                        onProcessOCRTTS()
-                    }) {
-                        Image(systemName: "text.viewfinder")
-                            .font(Constants.Fonts.makeStartIcon)
-                            .foregroundColor(isProcessing || selectedImages.isEmpty ? Color.gray : Color.green)
-                            .frame(width: layout.thumbSize, height: layout.thumbSize)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.gray.opacity(0.1))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.white, lineWidth: 1)
-                                    )
-                            )
-                    }
-                    .disabled(isProcessing || selectedImages.isEmpty || !allowChangeOperations)
-                    .padding(.leading, 6)
-
                     // 缩略图列表
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -1397,24 +1506,27 @@ struct ProcessingResultView: View {
 // MARK: - 错误视图
 struct ErrorView: View {
     let error: Error
-    
+
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(Constants.Fonts.makeErrorIcon)
                 .foregroundColor(.red)
-            
+
             Text("处理失败")
                 .font(Constants.Fonts.headline)
                 .foregroundColor(.red)
-            
+
             Text(error.localizedDescription)
                 .font(Constants.Fonts.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3) // 限制行数，防止过高
         }
-        .padding()
+        .padding(.top, 80)  // 跳过进度条区域，与状态详情(IntermediateResultsView)顶部对齐
+        .padding(.bottom, 8)
+        .padding(.horizontal)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
