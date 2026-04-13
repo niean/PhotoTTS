@@ -47,9 +47,7 @@ struct MakeView: View {
     
     // 状态弹出层：失败时持续展示直至用户点击关闭
     @State private var processingOverlayDismissed = false
-    /// 制作页 OCR+TTS 完成后用当前数据全屏播放
-    @State private var currentSessionToPlay: SessionRecord? = nil
-    
+
     // 后台制作：当前观察的任务 sessionId
     @State private var observingTaskId: String? = nil
 
@@ -146,19 +144,6 @@ struct MakeView: View {
             .onReceive(bgMakeManager.objectWillChange) { _ in
                 syncBackgroundTaskState()
             }
-            .fullScreenCover(isPresented: Binding(
-                get: { currentSessionToPlay != nil },
-                set: { if !$0 { currentSessionToPlay = nil } }
-            )) {
-                if let record = currentSessionToPlay {
-                    PlayView(preloadedRecord: record, onDismiss: {
-                        currentSessionToPlay = nil
-                        appState.isPlayViewActive = false
-                    })
-                } else {
-                    EmptyView()
-                }
-            }
             .sheet(isPresented: $showPhotoPicker) {
                 MultiImagePicker(
                     selectedImages: $photoPickerSelectedImages,
@@ -231,30 +216,6 @@ struct MakeView: View {
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
-    }
-    
-    /// 用当前页数据构建 SessionRecord（用于未保存会话的 PlayView 全屏播放）
-    private func buildCurrentSessionRecord() -> SessionRecord? {
-        let images = selectedImages
-        guard !images.isEmpty,
-              let audioData = audioData,
-              let audioResponse = audioResponse else { return nil }
-        let audioFormat = audioResponse.format.isEmpty ? "mp3" : audioResponse.format
-        return SessionRecord(
-            name: Constants.defaultSessionName,
-            images: images,
-            ocrText: ocrResult,
-            ocrTextSegments: ocrTextSegments,
-            audioData: audioData,
-            audioFormat: audioFormat,
-            audioDuration: audioResponse.duration,
-            ocrDuration: ocrDuration,
-            llmDuration: llmDuration,
-            ttsDuration: ttsDuration,
-            validImageCount: audioResponse.validImageCount ?? images.count,
-            voiceSettings: audioResponse.voiceSettings,
-            avatarImageIndex: min(max(0, currentImageIndex), images.count > 0 ? images.count - 1 : 0)
-        )
     }
     
     // 保存会话记录
@@ -425,14 +386,11 @@ struct MakeView: View {
             showProcessingOverlay: showProcessingOverlay,
             onDismissErrorOverlay: { processingOverlayDismissed = true },
             onCancelProcessing: { cancelBackgroundTask() },
-            isPlaying: false,
-            playbackProgress: 0,
             ocrDuration: ocrDuration,
             llmDuration: llmDuration,
             ttsDuration: ttsDuration,
             intermediateResults: intermediateResults,
             allowChangeOperations: true,
-            onTogglePlayback: { togglePlayback() },
             onProcessOCRTTS: {
                 processingOverlayDismissed = false
                 clearDataAndState()
@@ -593,22 +551,6 @@ struct MakeView: View {
         }
     }
 
-    /// 播放：用 PlayView 全屏播放当前制作数据
-    private func togglePlayback() {
-        guard audioData != nil else {
-            os.Logger.audioPlayer.error("没有音频数据，请先完成OCR和TTS处理")
-            return
-        }
-        guard !appState.isPlayViewActive else {
-            os.Logger.audioPlayer.warning("播放互斥: 已有播放中，拒绝制作页触发播放")
-            return
-        }
-        if let record = buildCurrentSessionRecord() {
-            appState.isPlayViewActive = true
-            currentSessionToPlay = record
-        }
-    }
-    
     // 解析OCR结果，保存文本分段信息用于音频播放同步
     private func parseOCRTextSegments(_ combinedText: String) {
         let separator = Constants.ocrTextSeparator
@@ -866,15 +808,12 @@ struct PhotoProcessingView: View {
     let showProcessingOverlay: Bool
     let onDismissErrorOverlay: () -> Void
     let onCancelProcessing: () -> Void
-    let isPlaying: Bool
-    let playbackProgress: Double
     let ocrDuration: TimeInterval
     let llmDuration: TimeInterval
     let ttsDuration: TimeInterval
     let intermediateResults: IntermediateResults?
     /// 是否允许变更操作（识别、删除、保存、拍照、缩略图顺序/删除）
     let allowChangeOperations: Bool
-    let onTogglePlayback: () -> Void
     let onProcessOCRTTS: () -> Void
     let onTakePhoto: () -> Void
     let onOpenPhotoPicker: () -> Void  // 选图制作（与首页入口一致）
@@ -974,7 +913,7 @@ struct PhotoProcessingView: View {
                         .onTapGesture {
                             onTakePhoto()
                         }
-                        .disabled(isProcessing || isPlaying || !allowChangeOperations)
+                        .disabled(isProcessing || !allowChangeOperations)
 
                         Spacer()
                         // 选图制作
@@ -1042,29 +981,6 @@ struct PhotoProcessingView: View {
                             )
                     }
                     .disabled(isProcessing || selectedImages.isEmpty || !allowChangeOperations)
-                    .padding(.leading, 6)
-
-                    // 播放按钮
-                    Button(action: {
-                        onTogglePlayback()
-                    }) {
-                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(Constants.Fonts.makeControlIcon)
-                            .foregroundColor(
-                                isProcessing || audioData == nil ? Color.gray :
-                                (isPlaying ? Color.yellow : Color.green)
-                            )
-                            .frame(width: layout.thumbSize, height: layout.thumbSize)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.gray.opacity(0.1))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.white, lineWidth: 1)
-                                    )
-                            )
-                    }
-                    .disabled(isProcessing || audioData == nil)
                     .padding(.leading, 6)
 
                     // 缩略图列表
@@ -1218,7 +1134,6 @@ struct PhotoProcessingView: View {
                         ocrTextSegments: ocrTextSegments,
                         selectedImages: selectedImages,
                         currentImageIndex: currentImageIndex,
-                        isPlaying: isPlaying,
                         audioData: audioData,
                         ocrDuration: ocrDuration,
                         llmDuration: llmDuration,
@@ -1402,7 +1317,6 @@ struct ProcessingResultView: View {
     let ocrTextSegments: [String]  // OCR文本分段
     let selectedImages: [UIImage]
     let currentImageIndex: Int  // 当前图片索引，用于滚动同步
-    let isPlaying: Bool  // 是否正在播放，用于控制自动滚动
     let audioData: Data?
     let ocrDuration: TimeInterval
     let llmDuration: TimeInterval
