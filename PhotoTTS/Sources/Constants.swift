@@ -422,10 +422,6 @@ extension Constants {
         static let horizontalDirectoryName = "h"
         /// 纵向动画（topToBottom）对应的结束图目录名
         static let verticalDirectoryName = "z"
-        /// 横向目录图片数量（系统内置，h-0 ~ h-24）
-        static let horizontalImageCount = 25
-        /// 纵向目录图片数量（系统内置，z-0 ~ z-4）
-        static let verticalImageCount = 5
         /// Bundle 中 EndPicts 根目录名
         static let bundleDirectoryName = "EndPicts"
         /// 用户上传要点图片存储目录（Documents/EndPicts/）
@@ -435,7 +431,7 @@ extension Constants {
         /// 上传图片最大边长（像素）
         static let uploadImageMaxPixel: CGFloat = 2048
         /// 轮询状态版本号，用于检测图片池变化后重置队列
-        static let roundRobinVersion = 1
+        static let roundRobinVersion = 2
     }
 
     // MARK: - 字体常量

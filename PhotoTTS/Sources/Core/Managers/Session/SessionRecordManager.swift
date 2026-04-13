@@ -497,30 +497,68 @@ class SessionRecordManager {
         return loadImageImpl(sessionId: sessionId, index: effectiveIndex, maxDimension: maxDimension)
     }
 
+    // MARK: - 系统内置要点图片缓存
+
+    /// 横向系统要点图片资源名列表（懒加载，不含扩展名，自然排序）
+    private lazy var cachedHorizontalResourceNames: [String] = {
+        scanBundleEndPictResources(prefix: Constants.EndPicts.horizontalDirectoryName + "-")
+    }()
+
+    /// 纵向系统要点图片资源名列表（懒加载，不含扩展名，自然排序）
+    private lazy var cachedVerticalResourceNames: [String] = {
+        scanBundleEndPictResources(prefix: Constants.EndPicts.verticalDirectoryName + "-")
+    }()
+
+    /// 获取指定方向的系统要点图片资源名列表
+    func systemEndPictResourceNames(direction: String) -> [String] {
+        direction == Constants.EndPicts.horizontalDirectoryName
+            ? cachedHorizontalResourceNames
+            : cachedVerticalResourceNames
+    }
+
+    /// 获取指定方向的系统要点图片数量
+    func systemEndPictCount(direction: String) -> Int {
+        systemEndPictResourceNames(direction: direction).count
+    }
+
+    /// 扫描 Bundle 中指定前缀的要点图片资源名
+    private func scanBundleEndPictResources(prefix: String) -> [String] {
+        var resourceNames: Set<String> = []
+        for ext in ["jpg", "png"] {
+            if let urls = Bundle.main.urls(forResourcesWithExtension: ext, subdirectory: nil) {
+                for url in urls {
+                    let name = url.deletingPathExtension().lastPathComponent
+                    if name.hasPrefix(prefix) {
+                        resourceNames.insert(name)
+                    }
+                }
+            }
+        }
+        let sorted = resourceNames.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        logger.info("扫描系统要点图片: prefix=\(prefix), count=\(sorted.count)")
+        return sorted
+    }
+
     /// 从 Bundle 加载要点图片（EndPicts），根据动画方向从对应目录随机选取
     /// - Parameters:
     ///   - animationStyle: 动画方向（横向/纵向）
     ///   - maxDimension: 最大边长（点），超过则等比缩小
     /// - Returns: 图片，加载失败返回 nil
     func loadEndPictFromBundle(animationStyle: AnimationStyle, maxDimension: CGFloat) -> UIImage? {
-        // 根据动画方向确定目录和图片数量
-        let directoryName: String
-        let imageCount: Int
+        let directionName: String
         switch animationStyle {
         case .rightToLeft:
-            directoryName = Constants.EndPicts.horizontalDirectoryName
-            imageCount = Constants.EndPicts.horizontalImageCount
+            directionName = Constants.EndPicts.horizontalDirectoryName
         case .topToBottom:
-            directoryName = Constants.EndPicts.verticalDirectoryName
-            imageCount = Constants.EndPicts.verticalImageCount
+            directionName = Constants.EndPicts.verticalDirectoryName
         }
 
-        // 随机选取一张（索引从 0 开始，匹配文件名 h-0, h-1... 或 z-0, z-1...）
-        let randomIndex = Int.random(in: 0..<imageCount)
-        // 资源文件被扁平化复制到 Bundle 根目录，直接使用文件名
-        let resourceName = "\(directoryName)-\(randomIndex)"
+        let resourceNames = systemEndPictResourceNames(direction: directionName)
+        guard let resourceName = resourceNames.randomElement() else {
+            logger.warning("系统要点图片池为空: direction=\(directionName)")
+            return nil
+        }
 
-        // 从 Bundle 加载（兼容 jpg/png 两种格式）
         let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
             ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
         guard let imageURL else {
@@ -528,7 +566,6 @@ class SessionRecordManager {
             return nil
         }
 
-        // 使用 Image I/O 降采样加载
         return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
     }
 
@@ -554,12 +591,36 @@ class SessionRecordManager {
         return dir
     }
 
-    // MARK: - 要点图片轮询状态管理
+    // MARK: - 要点图片队列公开信息
+
+/// 要点图片队列项信息
+public struct EndPictQueueItem {
+    public let id: String
+    public let isSystem: Bool
+    public let resourceName: String?  // 系统图片的资源名
+    public let url: URL?              // 用户图片的URL
+}
+
+/// 要点图片队列完整信息
+public struct EndPictQueueInfo {
+    /// 合并后的图片列表（系统在前，用户在后）
+    public let items: [EndPictQueueItem]
+    /// 当前待播队列（索引是 items 的下标）
+    public let queue: [Int]
+    /// 已播队列（索引是 items 的下标）
+    public let playedIndices: [Int]
+    /// 下一张将播放的位置（queue 的下标，0 表示下一张是 queue[0]）
+    public let nextQueueIndex: Int
+}
+
+// MARK: - 要点图片轮询状态管理
 
     /// 轮询队列状态（存储到 UserDefaults）
     private struct EndPictRoundRobinState: Codable {
-        /// 当前轮次的已选索引队列（按顺序取出）
+        /// 当前轮次的待播索引队列（按顺序取出）
         var queue: [Int]
+        /// 已播索引队列
+        var playedIndices: [Int]
         /// 生成队列时的图片总数（用于检测池变化）
         var totalCount: Int
         /// 版本号（用于兼容性）
@@ -600,6 +661,7 @@ class SessionRecordManager {
         }
         let state = EndPictRoundRobinState(
             queue: queue,
+            playedIndices: [],
             totalCount: totalCount,
             version: Constants.EndPicts.roundRobinVersion
         )
@@ -609,12 +671,7 @@ class SessionRecordManager {
 
     /// 图片池变化后重置轮询队列（计算新总数并重置）
     private func resetRoundRobinQueueAfterChange(direction: String) {
-        let systemCount: Int
-        if direction == Constants.EndPicts.horizontalDirectoryName {
-            systemCount = Constants.EndPicts.horizontalImageCount
-        } else {
-            systemCount = Constants.EndPicts.verticalImageCount
-        }
+        let systemCount = systemEndPictCount(direction: direction)
         let userCount = getUserEndPictURLs(direction: direction).count
         let totalCount = systemCount + userCount
         resetRoundRobinQueue(direction: direction, totalCount: totalCount)
@@ -628,21 +685,34 @@ class SessionRecordManager {
         // 加载现有状态
         var state = loadRoundRobinState(direction: direction)
 
-        // 需要重新生成的情况：无状态、总数变化、队列为空
-        if state == nil || state!.totalCount != totalCount || state!.queue.isEmpty {
+        // 需要重新生成的情况：无状态、总数变化、版本变化
+        if state == nil || state!.totalCount != totalCount || state!.version != Constants.EndPicts.roundRobinVersion {
             resetRoundRobinQueue(direction: direction, totalCount: totalCount)
             state = loadRoundRobinState(direction: direction)
         }
 
-        guard var validState = state, !validState.queue.isEmpty else {
+        guard var validState = state else {
             // 兜底：纯随机
             return Int.random(in: 0..<totalCount)
         }
 
-        // 取出队首
+        // 检查：如果 queue 为空且已播一轮，则重新洗牌重置
+        if validState.queue.isEmpty && Set(validState.playedIndices).count == totalCount {
+            resetRoundRobinQueue(direction: direction, totalCount: totalCount)
+            state = loadRoundRobinState(direction: direction)
+            validState = state ?? validState
+        }
+
+        // 如果 queue 还是空，兜底返回随机
+        guard !validState.queue.isEmpty else {
+            return Int.random(in: 0..<totalCount)
+        }
+
+        // 取出队首，追加到已播队列
         let index = validState.queue.removeFirst()
+        validState.playedIndices.append(index)
         saveRoundRobinState(direction: direction, state: validState)
-        logger.debug("要点图片轮询: direction=\(direction), index=\(index), remaining=\(validState.queue.count)")
+        logger.debug("要点图片轮询: direction=\(direction), index=\(index), remaining=\(validState.queue.count), played=\(validState.playedIndices.count)")
         return index
     }
 
@@ -653,17 +723,15 @@ class SessionRecordManager {
     /// - Returns: 图片，加载失败返回 nil
     func loadEndPict(animationStyle: AnimationStyle, maxDimension: CGFloat) -> UIImage? {
         let directionName: String
-        let systemImageCount: Int
         switch animationStyle {
         case .rightToLeft:
             directionName = Constants.EndPicts.horizontalDirectoryName
-            systemImageCount = Constants.EndPicts.horizontalImageCount
         case .topToBottom:
             directionName = Constants.EndPicts.verticalDirectoryName
-            systemImageCount = Constants.EndPicts.verticalImageCount
         }
 
-        // 获取用户上传图片列表
+        let resourceNames = systemEndPictResourceNames(direction: directionName)
+        let systemImageCount = resourceNames.count
         let userImageURLs = getUserEndPictURLs(direction: directionName)
         let totalCount = systemImageCount + userImageURLs.count
 
@@ -672,7 +740,6 @@ class SessionRecordManager {
             return nil
         }
 
-        // 从轮询队列获取索引
         let selectedIndex = getNextRoundRobinIndex(direction: directionName, totalCount: totalCount)
         guard selectedIndex >= 0 && selectedIndex < totalCount else {
             logger.warning("要点图片索引无效: \(selectedIndex)")
@@ -680,8 +747,7 @@ class SessionRecordManager {
         }
 
         if selectedIndex < systemImageCount {
-            // 选中系统内置图片（索引从 0 开始，文件名从 0 开始）
-            let resourceName = "\(directionName)-\(selectedIndex)"
+            let resourceName = resourceNames[selectedIndex]
             let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
                 ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
             guard let imageURL else {
@@ -691,7 +757,6 @@ class SessionRecordManager {
             logger.info("播放要点图片: \(resourceName).\(imageURL.pathExtension) (系统内置)")
             return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
         } else {
-            // 选中用户上传图片
             let userIndex = selectedIndex - systemImageCount
             guard userIndex < userImageURLs.count else {
                 logger.warning("用户要点图片索引越界")
@@ -772,12 +837,7 @@ class SessionRecordManager {
     /// - Parameter direction: 方向标识（h/z）
     /// - Returns: (系统内置数量, 用户上传数量)
     func getEndPictCounts(direction: String) -> (system: Int, user: Int) {
-        let systemCount: Int
-        if direction == Constants.EndPicts.horizontalDirectoryName {
-            systemCount = Constants.EndPicts.horizontalImageCount
-        } else {
-            systemCount = Constants.EndPicts.verticalImageCount
-        }
+        let systemCount = systemEndPictCount(direction: direction)
         let userCount = getUserEndPictURLs(direction: direction).count
         return (systemCount, userCount)
     }
@@ -798,13 +858,106 @@ class SessionRecordManager {
     ///   - maxDimension: 最大边长，默认 96pt
     /// - Returns: 缩略图
     func loadSystemEndPictThumbnail(direction: String, index: Int, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
-        let resourceName = "\(direction)-\(index)"
+        let resourceNames = systemEndPictResourceNames(direction: direction)
+        guard index >= 0 && index < resourceNames.count else { return nil }
+        let resourceName = resourceNames[index]
         let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
             ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
         guard let imageURL else {
             return nil
         }
         return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
+    }
+
+    // MARK: - 要点图片队列公开查询
+
+    /// 获取指定方向的要点图片队列信息
+    /// - Parameter direction: 方向标识（h/z）
+    /// - Returns: 队列信息，无图片时返回 nil
+    public func getEndPictQueueInfo(direction: String) -> EndPictQueueInfo? {
+        let systemNames = systemEndPictResourceNames(direction: direction)
+        let userURLs = getUserEndPictURLs(direction: direction)
+        let totalCount = systemNames.count + userURLs.count
+
+        guard totalCount > 0 else {
+            return nil
+        }
+
+        // 构建合并后的 items 列表
+        var items: [EndPictQueueItem] = []
+        for name in systemNames {
+            items.append(EndPictQueueItem(
+                id: "system-\(name)",
+                isSystem: true,
+                resourceName: name,
+                url: nil
+            ))
+        }
+        for url in userURLs {
+            items.append(EndPictQueueItem(
+                id: url.path,
+                isSystem: false,
+                resourceName: nil,
+                url: url
+            ))
+        }
+
+        // 加载轮询状态
+        let state = loadRoundRobinState(direction: direction)
+        let queue: [Int]
+        let playedIndices: [Int]
+        let nextQueueIndex: Int
+
+        if let state = state, state.totalCount == totalCount, state.version == Constants.EndPicts.roundRobinVersion {
+            queue = state.queue
+            playedIndices = state.playedIndices
+            // 下一张是 queue[0]
+            nextQueueIndex = 0
+        } else {
+            // 无有效状态，生成新队列但不保存
+            var newQueue = Array(0..<totalCount)
+            // Fisher-Yates 洗牌
+            for i in stride(from: newQueue.count - 1, through: 1, by: -1) {
+                let j = Int.random(in: 0...i)
+                newQueue.swapAt(i, j)
+            }
+            queue = newQueue
+            playedIndices = []
+            nextQueueIndex = 0
+        }
+
+        return EndPictQueueInfo(
+            items: items,
+            queue: queue,
+            playedIndices: playedIndices,
+            nextQueueIndex: nextQueueIndex
+        )
+    }
+
+    /// 获取队列中指定位置的图片缩略图
+    /// - Parameters:
+    ///   - item: 队列项信息
+    ///   - maxDimension: 最大边长
+    /// - Returns: 缩略图
+    public func getEndPictItemThumbnail(item: EndPictQueueItem, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
+        if item.isSystem, let resourceName = item.resourceName {
+            let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
+                ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
+            guard let url = imageURL else {
+                return nil
+            }
+            return Self.downsampleImageFromFile(url: url, maxDimension: maxDimension)
+        } else if let url = item.url {
+            return loadUserEndPictThumbnail(url: url, maxDimension: maxDimension)
+        }
+        return nil
+    }
+
+    /// 重置指定方向的要点图片播放队列
+    /// - Parameter direction: 方向标识（h/z）
+    public func resetEndPictQueue(direction: String) {
+        resetRoundRobinQueueAfterChange(direction: direction)
+        logger.info("要点图片队列手动重置: direction=\(direction)")
     }
 
     /// 内部实现：实际加载图片

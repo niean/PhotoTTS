@@ -34,6 +34,7 @@ struct EndPictManagementView: View {
                         items: $horizontalImages,
                         thumbnailSize: thumbnailSize,
                         gridSpacing: gridSpacing,
+                        direction: Constants.EndPicts.horizontalDirectoryName,
                         onAdd: {
                             selectedDirection = Constants.EndPicts.horizontalDirectoryName
                             showImagePicker = true
@@ -61,6 +62,7 @@ struct EndPictManagementView: View {
                         items: $verticalImages,
                         thumbnailSize: thumbnailSize,
                         gridSpacing: gridSpacing,
+                        direction: Constants.EndPicts.verticalDirectoryName,
                         onAdd: {
                             selectedDirection = Constants.EndPicts.verticalDirectoryName
                             showImagePicker = true
@@ -147,21 +149,22 @@ struct EndPictManagementView: View {
         let hDirection = Constants.EndPicts.horizontalDirectoryName
         let vDirection = Constants.EndPicts.verticalDirectoryName
 
-        // 加载系统内置图片
         var hItems: [EndPictItem] = []
         var vItems: [EndPictItem] = []
 
-        // 横向系统图片（索引从 0 开始）
-        for i in 0..<Constants.EndPicts.horizontalImageCount {
+        // 横向系统图片（动态扫描）
+        let hResourceNames = SessionRecordManager.shared.systemEndPictResourceNames(direction: hDirection)
+        for (i, name) in hResourceNames.enumerated() {
             if let thumbnail = SessionRecordManager.shared.loadSystemEndPictThumbnail(direction: hDirection, index: i) {
-                hItems.append(EndPictItem(id: "system-h-\(i)", thumbnail: thumbnail, isSystem: true, url: nil))
+                hItems.append(EndPictItem(id: "system-\(name)", thumbnail: thumbnail, isSystem: true, url: nil, resourceName: name))
             }
         }
 
-        // 纵向系统图片（索引从 0 开始）
-        for i in 0..<Constants.EndPicts.verticalImageCount {
+        // 纵向系统图片（动态扫描）
+        let vResourceNames = SessionRecordManager.shared.systemEndPictResourceNames(direction: vDirection)
+        for (i, name) in vResourceNames.enumerated() {
             if let thumbnail = SessionRecordManager.shared.loadSystemEndPictThumbnail(direction: vDirection, index: i) {
-                vItems.append(EndPictItem(id: "system-z-\(i)", thumbnail: thumbnail, isSystem: true, url: nil))
+                vItems.append(EndPictItem(id: "system-\(name)", thumbnail: thumbnail, isSystem: true, url: nil, resourceName: name))
             }
         }
 
@@ -169,14 +172,14 @@ struct EndPictManagementView: View {
         let hUserURLs = SessionRecordManager.shared.getUserEndPictURLs(direction: hDirection)
         for url in hUserURLs {
             if let thumbnail = SessionRecordManager.shared.loadUserEndPictThumbnail(url: url) {
-                hItems.append(EndPictItem(id: url.path, thumbnail: thumbnail, isSystem: false, url: url))
+                hItems.append(EndPictItem(id: url.path, thumbnail: thumbnail, isSystem: false, url: url, resourceName: nil))
             }
         }
 
         let vUserURLs = SessionRecordManager.shared.getUserEndPictURLs(direction: vDirection)
         for url in vUserURLs {
             if let thumbnail = SessionRecordManager.shared.loadUserEndPictThumbnail(url: url) {
-                vItems.append(EndPictItem(id: url.path, thumbnail: thumbnail, isSystem: false, url: url))
+                vItems.append(EndPictItem(id: url.path, thumbnail: thumbnail, isSystem: false, url: url, resourceName: nil))
             }
         }
 
@@ -231,6 +234,8 @@ struct EndPictItem: Identifiable {
     let thumbnail: UIImage
     let isSystem: Bool
     let url: URL?
+    /// 系统图片的 Bundle 资源名（不含扩展名），用户图片为 nil
+    let resourceName: String?
 }
 
 // MARK: - 要点图片分组视图
@@ -240,6 +245,7 @@ struct EndPictSectionView: View {
     @Binding var items: [EndPictItem]
     let thumbnailSize: CGFloat
     let gridSpacing: CGFloat
+    let direction: String
     let onAdd: () -> Void
     let onDelete: (EndPictItem) -> Void
     let onTap: (EndPictItem) -> Void
@@ -287,6 +293,14 @@ struct EndPictSectionView: View {
                 .cornerRadius(scaled(10))
             }
             .buttonStyle(.plain)
+
+            // 播放队列区段
+            EndPictQueueSectionView(
+                direction: direction,
+                thumbnailSize: thumbnailSize,
+                gridSpacing: gridSpacing
+            )
+            .padding(.top, scaled(16))
         }
     }
 }
@@ -456,13 +470,201 @@ struct FullScreenEndPictView: View {
     private func loadImage(for index: Int) {
         guard index >= 0, index < items.count else { return }
         let item = items[index]
-        if item.isSystem {
-            let parts = item.id.split(separator: "-")
-            guard parts.count == 3, let idx = Int(parts[2]) else { return }
-            let direction = String(parts[1])
-            loadedImage = SessionRecordManager.shared.loadSystemEndPictThumbnail(direction: direction, index: idx, maxDimension: Self.maxDim)
+        if item.isSystem, let resourceName = item.resourceName {
+            let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
+                ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
+            if let imageURL {
+                loadedImage = SessionRecordManager.shared.loadUserEndPictThumbnail(url: imageURL, maxDimension: Self.maxDim)
+            }
         } else if let url = item.url {
             loadedImage = SessionRecordManager.shared.loadUserEndPictThumbnail(url: url, maxDimension: Self.maxDim)
         }
+    }
+}
+
+// MARK: - 要点图片队列项视图
+private struct EndPictQueueItemView: View {
+    let item: SessionRecordManager.EndPictQueueItem
+    let queueNumber: Int
+    let isNext: Bool
+    let isPlayed: Bool
+    let size: CGFloat
+
+    @State private var loadedImage: UIImage? = nil
+
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // 图片
+            if let img = loadedImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: scaled(8)))
+                    .opacity(isPlayed ? 0.5 : 1.0)
+            } else {
+                RoundedRectangle(cornerRadius: scaled(8))
+                    .fill(Color(.systemGray5))
+                    .frame(width: size, height: size)
+                    .overlay {
+                        ProgressView()
+                            .tint(.secondary)
+                    }
+            }
+
+            // 序号标记
+            ZStack {
+                Circle()
+                    .fill(isPlayed ? Color.gray : Color.blue)
+                    .frame(width: scaled(24), height: scaled(24))
+                Text("\(queueNumber)")
+                    .font(.system(size: scaled(12), weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .offset(x: scaled(4), y: scaled(4))
+        }
+        .frame(width: size, height: size)
+        .overlay(
+            RoundedRectangle(cornerRadius: scaled(8))
+                .stroke(isNext ? Color.orange : Color.clear, lineWidth: scaled(2))
+        )
+        .overlay(
+            // 下一张标签
+            Group {
+                if isNext {
+                    Text("下一张")
+                        .font(.system(size: scaled(10)))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, scaled(6))
+                        .padding(.vertical, scaled(2))
+                        .background(Color.orange)
+                        .cornerRadius(scaled(4))
+                        .offset(y: scaled(size/2 - 14))
+                }
+            }
+        )
+        .onAppear {
+            if loadedImage == nil {
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let img = SessionRecordManager.shared.getEndPictItemThumbnail(
+                        item: item,
+                        maxDimension: Constants.EndPicts.thumbnailMaxDimension
+                    )
+                    DispatchQueue.main.async {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            loadedImage = img
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 要点图片队列区段视图
+private struct EndPictQueueSectionView: View {
+    let direction: String
+    let thumbnailSize: CGFloat
+    let gridSpacing: CGFloat
+
+    @State private var queueInfo: SessionRecordManager.EndPictQueueInfo? = nil
+    @State private var refreshId = UUID()
+
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
+
+    /// 构建合并后的显示队列（已播 + 待播）
+    private func combinedDisplayItems(_ queueInfo: SessionRecordManager.EndPictQueueInfo) -> [(item: SessionRecordManager.EndPictQueueItem, displayNumber: Int, isNext: Bool, isPlayed: Bool)] {
+        var result: [(item: SessionRecordManager.EndPictQueueItem, displayNumber: Int, isNext: Bool, isPlayed: Bool)] = []
+
+        // 已播图片：编号从 1 开始
+        for (playedIdx, itemIdx) in queueInfo.playedIndices.enumerated() {
+            if itemIdx < queueInfo.items.count {
+                result.append((
+                    item: queueInfo.items[itemIdx],
+                    displayNumber: playedIdx + 1,
+                    isNext: false,
+                    isPlayed: true
+                ))
+            }
+        }
+
+        // 待播图片：编号从 (已播数量 + 1) 开始
+        let playedCount = queueInfo.playedIndices.count
+        for (queueIdx, itemIdx) in queueInfo.queue.enumerated() {
+            if itemIdx < queueInfo.items.count {
+                result.append((
+                    item: queueInfo.items[itemIdx],
+                    displayNumber: playedCount + queueIdx + 1,
+                    isNext: queueIdx == queueInfo.nextQueueIndex,
+                    isPlayed: false
+                ))
+            }
+        }
+
+        return result
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: scaled(12)) {
+            if let queueInfo = queueInfo, !(queueInfo.queue.isEmpty && queueInfo.playedIndices.isEmpty) {
+                // 分割线
+                Divider()
+
+                // 标题
+                Text("播放队列")
+                    .font(Constants.Fonts.headline)
+                    .foregroundStyle(.primary)
+
+                // 队列网格（已播 + 待播合并展示）
+                LazyVGrid(columns: [
+                    GridItem(.adaptive(minimum: thumbnailSize, maximum: thumbnailSize), spacing: gridSpacing)
+                ], spacing: gridSpacing) {
+                    ForEach(Array(combinedDisplayItems(queueInfo).enumerated()), id: \.offset) { _, displayItem in
+                        EndPictQueueItemView(
+                            item: displayItem.item,
+                            queueNumber: displayItem.displayNumber,
+                            isNext: displayItem.isNext,
+                            isPlayed: displayItem.isPlayed,
+                            size: thumbnailSize
+                        )
+                    }
+                }
+
+                // 重置按钮
+                Button(action: {
+                    SessionRecordManager.shared.resetEndPictQueue(direction: direction)
+                    refreshId = UUID()
+                    loadQueueInfo()
+                }) {
+                    HStack {
+                        Spacer()
+                        Label("重置队列", systemImage: "arrow.clockwise")
+                            .font(Constants.Fonts.subheadline)
+                        Spacer()
+                    }
+                    .padding(.vertical, scaled(12))
+                    .background(Color(.systemBackground))
+                    .cornerRadius(scaled(10))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .onAppear {
+            loadQueueInfo()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            loadQueueInfo()
+        }
+        .id(refreshId)
+    }
+
+    private func loadQueueInfo() {
+        queueInfo = SessionRecordManager.shared.getEndPictQueueInfo(direction: direction)
     }
 }
