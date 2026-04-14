@@ -1289,6 +1289,76 @@ public struct EndPictQueueInfo {
         }
     }
 
+    /// 更新草稿会话的 OCR 结果（makeStatus 置为 incomplete，用于 TTS 失败时保存已完成的 OCR）
+    /// - Parameters:
+    ///   - id: 会话ID
+    ///   - ocrTexts: OCR 识别文本数组
+    ///   - ocrCombinedText: OCR 合并后的完整文本
+    ///   - validImageCount: 有效图片数
+    ///   - ocrDuration: OCR 耗时
+    ///   - llmDuration: LLM 耗时
+    ///   - llmStoryName: LLM 生成的故事名
+    ///   - llmHighlights: LLM 生成的要点
+    ///   - hasVirtualPage: 是否有虚拟页（要点页）
+    /// - Returns: 是否更新成功
+    func updateDraftWithOCRResults(
+        id: String,
+        ocrTexts: [String],
+        ocrCombinedText: String,
+        validImageCount: Int,
+        ocrDuration: TimeInterval,
+        llmDuration: TimeInterval,
+        llmStoryName: String?,
+        llmHighlights: String?,
+        hasVirtualPage: Bool
+    ) -> Bool {
+        let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+        let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+        guard fileManager.fileExists(atPath: metadataURL.path) else {
+            logger.error("更新草稿OCR结果失败，metadata.json 不存在: \(id)")
+            return false
+        }
+
+        do {
+            // 更新 metadata.json
+            let metaData = try Data(contentsOf: metadataURL)
+            let metadata = try JSONDecoder().decode(SessionRecordMetadata.self, from: metaData)
+            let updatedMeta = metadata.withMakeStatus(.incomplete)
+            let encodedMeta = try JSONEncoder().encode(updatedMeta)
+            try encodedMeta.write(to: metadataURL)
+
+            // 同步更新 record.json
+            if fileManager.fileExists(atPath: recordURL.path) {
+                let recordData = try Data(contentsOf: recordURL)
+                let record = try JSONDecoder().decode(SessionRecord.self, from: recordData)
+                let updatedRecord = SessionRecord(
+                    id: record.id, name: record.name, createdAt: record.createdAt,
+                    updatedAt: Date(), imageDataList: record.imageDataList,
+                    ocrText: ocrCombinedText, ocrTextSegments: ocrTexts,
+                    audioDataBase64: record.audioDataBase64, audioFormat: record.audioFormat,
+                    audioDuration: record.audioDuration, ocrDuration: ocrDuration,
+                    llmDuration: llmDuration, ttsDuration: record.ttsDuration,
+                    validImageCount: validImageCount, totalImageCount: record.totalImageCount,
+                    textLength: ocrCombinedText.count, audioSize: record.audioSize,
+                    voiceSettings: record.voiceSettings, avatarImageIndex: record.avatarImageIndex,
+                    storageSize: record.storageSize, makeStatus: .incomplete,
+                    storyHighlights: llmHighlights, hasVirtualPage: hasVirtualPage,
+                    animationStyle: record.animationStyle, coverImagePath: record.coverImagePath
+                )
+                let encodedRecord = try JSONEncoder().encode(updatedRecord)
+                try encodedRecord.write(to: recordURL)
+            }
+
+            invalidateMetadataCache()
+            logger.info("草稿OCR结果更新成功: id=\(id), 文本长度=\(ocrCombinedText.count)")
+            return true
+        } catch {
+            logger.error("草稿OCR结果更新失败: id=\(id), 错误=\(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// 更新草稿会话的 OCR/TTS 结果（makeStatus 置为 completed）
     /// - Parameters:
     ///   - id: 会话ID

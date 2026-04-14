@@ -349,13 +349,36 @@ class BackgroundMakeManager: ObservableObject {
                     case .failure(let error):
                         task.markFailed(error: error)
                         self.logger.error("后台制作失败: sessionId=\(sessionId), 错误=\(error.localizedDescription)")
-                        // 制作失败时保留草稿，标记为未完成
+                        // 制作失败时保留草稿，先尝试保存已有的 OCR 结果，再标记为未完成
                         DispatchQueue.global(qos: .utility).async {
-                            let updated = SessionRecordManager.shared.updateDraftMakeStatus(id: sessionId, status: .incomplete)
-                            if updated {
-                                self.logger.info("草稿已标记为未完成: sessionId=\(sessionId)")
-                            } else {
-                                self.logger.error("草稿状态更新失败，保留 making 状态: sessionId=\(sessionId)")
+                            var saved = false
+                            // 如果有中间结果（OCR已完成），先保存 OCR 文本
+                            if let intermediate = task.intermediateResults, !intermediate.ocrTexts.isEmpty {
+                                let ocrCombinedText = intermediate.ocrTexts.joined(separator: Constants.ocrTextSeparator)
+                                let hasVirtualPage = intermediate.llmHighlights != nil && !intermediate.llmHighlights!.isEmpty
+                                saved = SessionRecordManager.shared.updateDraftWithOCRResults(
+                                    id: sessionId,
+                                    ocrTexts: intermediate.ocrTexts,
+                                    ocrCombinedText: ocrCombinedText,
+                                    validImageCount: intermediate.validImageCount,
+                                    ocrDuration: task.ocrDuration,
+                                    llmDuration: task.llmDuration,
+                                    llmStoryName: intermediate.llmStoryName,
+                                    llmHighlights: intermediate.llmHighlights,
+                                    hasVirtualPage: hasVirtualPage
+                                )
+                                if saved {
+                                    self.logger.info("草稿OCR结果已保存: sessionId=\(sessionId), 文本长度=\(ocrCombinedText.count)")
+                                }
+                            }
+                            // 标记为未完成（如果上面没保存成功，单独更新状态）
+                            if !saved {
+                                let updated = SessionRecordManager.shared.updateDraftMakeStatus(id: sessionId, status: .incomplete)
+                                if updated {
+                                    self.logger.info("草稿已标记为未完成: sessionId=\(sessionId)")
+                                } else {
+                                    self.logger.error("草稿状态更新失败，保留 making 状态: sessionId=\(sessionId)")
+                                }
                             }
                         }
                     }
