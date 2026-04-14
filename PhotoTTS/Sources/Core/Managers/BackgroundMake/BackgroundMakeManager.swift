@@ -12,6 +12,14 @@ enum LLMStageStatus {
     case notConfigured // 未配置
 }
 
+// MARK: - TTS阶段状态
+enum TTSStageStatus {
+    case notStarted    // 未开始
+    case inProgress    // 合成中
+    case completed     // 已完成
+    case failed        // 失败
+}
+
 // MARK: - 中间结果
 struct IntermediateResults {
     var ocrTexts: [String] = []
@@ -27,6 +35,13 @@ struct IntermediateResults {
     var llmCharCount: Int = 0            // LLM分析字数（故事名+要点）
     var llmDuration: TimeInterval = 0    // LLM耗时（秒）
     var llmStatus: LLMStageStatus = .notStarted  // LLM阶段状态
+
+    // TTS统计字段
+    var ttsCharCount: Int = 0            // TTS合成字数
+    var ttsDuration: TimeInterval = 0    // TTS耗时（秒）
+    var ttsStatus: TTSStageStatus = .notStarted  // TTS阶段状态
+    var ttsAudioSize: Int = 0            // TTS音频大小（字节）
+    var ttsAudioDuration: TimeInterval = 0  // TTS音频时长（秒）
 }
 
 // MARK: - 后台制作任务
@@ -149,6 +164,23 @@ class MakeTask: ObservableObject, Identifiable {
             if let llmStatus = stageResults.llmStatus {
                 self.intermediateResults?.llmStatus = llmStatus
             }
+
+            // 同步 TTS 统计字段
+            if let ttsCharCount = stageResults.ttsCharCount {
+                self.intermediateResults?.ttsCharCount = ttsCharCount
+            }
+            if let ttsDuration = stageResults.ttsDuration {
+                self.intermediateResults?.ttsDuration = ttsDuration
+            }
+            if let ttsStatus = stageResults.ttsStatus {
+                self.intermediateResults?.ttsStatus = ttsStatus
+            }
+            if let ttsAudioSize = stageResults.ttsAudioSize {
+                self.intermediateResults?.ttsAudioSize = ttsAudioSize
+            }
+            if let ttsAudioDuration = stageResults.ttsAudioDuration {
+                self.intermediateResults?.ttsAudioDuration = ttsAudioDuration
+            }
         }
 
         // 耗时同步放在 stageResults 守卫外部，确保即使 stageResults 为 nil 也能同步
@@ -160,6 +192,11 @@ class MakeTask: ObservableObject, Identifiable {
         // LLM 耗时在阶段切换时更新
         if processingProgress.stage == .tts {
             self.intermediateResults?.llmDuration = self.llmDuration
+        }
+
+        // TTS 耗时在完成时更新
+        if processingProgress.stage == .completed || processingProgress.stage == .tts {
+            self.intermediateResults?.ttsDuration = self.ttsDuration
         }
     }
 
@@ -182,6 +219,17 @@ class MakeTask: ObservableObject, Identifiable {
         self.audioData = response.audioData
         self.ocrText = response.text
         self.ocrTextSegments = response.recognizedTexts ?? []
+
+        // 同步 TTS 最终统计到 intermediateResults
+        if self.intermediateResults == nil {
+            self.intermediateResults = IntermediateResults()
+        }
+        self.intermediateResults?.ttsDuration = self.ttsDuration
+        self.intermediateResults?.ttsStatus = .completed
+        self.intermediateResults?.ttsCharCount = response.text.count
+        self.intermediateResults?.ttsAudioSize = response.audioData?.count ?? 0
+        self.intermediateResults?.ttsAudioDuration = response.duration
+
         self.progress = 1.0
         self.operationMessage = "处理完成"
         self.isSuccess = true

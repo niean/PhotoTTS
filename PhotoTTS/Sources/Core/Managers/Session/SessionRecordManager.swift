@@ -1165,6 +1165,42 @@ public struct EndPictQueueInfo {
         return "cover.jpg"
     }
 
+    /// 从来源会话复制头像和封面到目标会话（用于"再次制作"保存新记录时复用老记录的自定义裁剪）
+    /// - Parameters:
+    ///   - sourceId: 来源会话 ID
+    ///   - targetId: 目标会话 ID
+    func copyAvatarAndCover(from sourceId: String, to targetId: String) {
+        let sourceDir = sessionsDirectory.appendingPathComponent(sourceId, isDirectory: true)
+        let targetDir = sessionsDirectory.appendingPathComponent(targetId, isDirectory: true)
+
+        // 复制头像（覆盖 saveSession 生成的默认头像）
+        let sourceAvatar = sourceDir.appendingPathComponent(Self.avatarFileName)
+        let targetAvatar = targetDir.appendingPathComponent(Self.avatarFileName)
+        if fileManager.fileExists(atPath: sourceAvatar.path) {
+            do {
+                if fileManager.fileExists(atPath: targetAvatar.path) {
+                    try fileManager.removeItem(at: targetAvatar)
+                }
+                try fileManager.copyItem(at: sourceAvatar, to: targetAvatar)
+                logger.info("复用头像成功: \(sourceId) -> \(targetId)")
+            } catch {
+                logger.error("复用头像失败: \(error.localizedDescription)")
+            }
+        }
+
+        // 复制封面
+        let sourceCover = sourceDir.appendingPathComponent("cover.jpg")
+        let targetCover = targetDir.appendingPathComponent("cover.jpg")
+        if fileManager.fileExists(atPath: sourceCover.path) {
+            do {
+                try fileManager.copyItem(at: sourceCover, to: targetCover)
+                logger.info("复用封面成功: \(sourceId) -> \(targetId)")
+            } catch {
+                logger.error("复用封面失败: \(error.localizedDescription)")
+            }
+        }
+    }
+
     // MARK: - 草稿会话（后台制作）
 
     /// 保存草稿会话记录（仅落盘图片和 metadata，makeStatus=making，无 OCR/音频结果）

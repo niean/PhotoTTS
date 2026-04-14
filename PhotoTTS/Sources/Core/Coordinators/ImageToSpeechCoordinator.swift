@@ -62,6 +62,33 @@ struct StageResults {
     let llmCharCount: Int?            // LLM分析字数
     let llmDuration: TimeInterval?    // LLM耗时
     let llmStatus: LLMStageStatus?    // LLM阶段状态
+
+    // TTS统计字段
+    let ttsCharCount: Int?            // TTS合成字数
+    let ttsDuration: TimeInterval?    // TTS耗时
+    let ttsStatus: TTSStageStatus?    // TTS阶段状态
+    let ttsAudioSize: Int?            // TTS音频大小
+    let ttsAudioDuration: TimeInterval?  // TTS音频时长
+
+    // 便利 init：TTS 参数默认 nil，兼容现有调用点
+    init(ocrTexts: [String]? = nil, validImageCount: Int? = nil, llmStoryName: String? = nil, llmHighlights: String? = nil, totalImageCount: Int? = nil, ocrCompletedCount: Int? = nil, ocrCharCount: Int? = nil, ocrDuration: TimeInterval? = nil, llmCharCount: Int? = nil, llmDuration: TimeInterval? = nil, llmStatus: LLMStageStatus? = nil, ttsCharCount: Int? = nil, ttsDuration: TimeInterval? = nil, ttsStatus: TTSStageStatus? = nil, ttsAudioSize: Int? = nil, ttsAudioDuration: TimeInterval? = nil) {
+        self.ocrTexts = ocrTexts
+        self.validImageCount = validImageCount
+        self.llmStoryName = llmStoryName
+        self.llmHighlights = llmHighlights
+        self.totalImageCount = totalImageCount
+        self.ocrCompletedCount = ocrCompletedCount
+        self.ocrCharCount = ocrCharCount
+        self.ocrDuration = ocrDuration
+        self.llmCharCount = llmCharCount
+        self.llmDuration = llmDuration
+        self.llmStatus = llmStatus
+        self.ttsCharCount = ttsCharCount
+        self.ttsDuration = ttsDuration
+        self.ttsStatus = ttsStatus
+        self.ttsAudioSize = ttsAudioSize
+        self.ttsAudioDuration = ttsAudioDuration
+    }
 }
 
 // MARK: - 处理进度
@@ -392,7 +419,13 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                         currentStep: 70,
                         totalSteps: 100,
                         message: "TTS合成进度: 开始合成",
-                        percentage: 70.0
+                        percentage: 70.0,
+                        stageResults: StageResults(
+                            ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                            totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                            llmCharCount: nil, llmDuration: nil, llmStatus: nil,
+                            ttsCharCount: nil, ttsDuration: nil, ttsStatus: .inProgress, ttsAudioSize: nil, ttsAudioDuration: nil
+                        )
                     ))
                 }
 
@@ -400,13 +433,23 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 let audioResponse = try await convertTextToSpeechAsync(finalText)
 
                 // 报告TTS完成
+                let ttsCharCount = finalText.count
+                let ttsAudioSize = audioResponse.audioData?.count
+                let ttsAudioDuration = audioResponse.duration
                 await MainActor.run {
                     progressHandler(ProcessingProgress(
                         stage: .tts,
                         currentStep: 100,
                         totalSteps: 100,
                         message: "TTS合成进度: 完成",
-                        percentage: 100.0
+                        percentage: 100.0,
+                        stageResults: StageResults(
+                            ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                            totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                            llmCharCount: nil, llmDuration: nil, llmStatus: nil,
+                            ttsCharCount: ttsCharCount, ttsDuration: nil, ttsStatus: .completed,
+                            ttsAudioSize: ttsAudioSize, ttsAudioDuration: ttsAudioDuration
+                        )
                     ))
                 }
 
@@ -533,13 +576,23 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
 
                     let audioResponse = try await self.convertTextToSpeechAsync(finalText)
 
+                    let ttsCharCount = finalText.count
+                    let ttsAudioSize = audioResponse.audioData?.count
+                    let ttsAudioDuration = audioResponse.duration
                     await MainActor.run {
                         progressHandler(ProcessingProgress(
                             stage: .tts,
                             currentStep: 100,
                             totalSteps: 100,
                             message: "TTS合成进度: 完成",
-                            percentage: 100.0
+                            percentage: 100.0,
+                            stageResults: StageResults(
+                                ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                                totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                                llmCharCount: nil, llmDuration: nil, llmStatus: nil,
+                                ttsCharCount: ttsCharCount, ttsDuration: nil, ttsStatus: .completed,
+                                ttsAudioSize: ttsAudioSize, ttsAudioDuration: ttsAudioDuration
+                            )
                         ))
                     }
 
@@ -737,10 +790,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
 
             let audioResponse = try await convertTextToSpeechAsync(finalText)
 
+            let ttsCharCount = finalText.count
+            let ttsAudioSize = audioResponse.audioData?.count
+            let ttsAudioDuration = audioResponse.duration
             await MainActor.run {
                 progressHandler(ProcessingProgress(
                     stage: .tts, currentStep: 100, totalSteps: 100,
-                    message: "TTS合成进度: 完成", percentage: 100.0
+                    message: "TTS合成进度: 完成", percentage: 100.0,
+                    stageResults: StageResults(
+                        ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
+                        totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
+                        llmCharCount: nil, llmDuration: nil, llmStatus: nil,
+                        ttsCharCount: ttsCharCount, ttsDuration: nil, ttsStatus: .completed,
+                        ttsAudioSize: ttsAudioSize, ttsAudioDuration: ttsAudioDuration
+                    )
                 ))
             }
 

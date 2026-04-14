@@ -55,6 +55,8 @@ struct MakeView: View {
 
     // 记录再制作：图片加载中状态
     @State private var isLoadingRecord: Bool = false
+    // 记录再制作：来源记录ID（用于复用头像和封面）
+    @State private var loadedSourceSessionId: String? = nil
     
     /// 是否显示制作过程覆盖层（制作中或出错未关闭）
     private var showProcessingOverlay: Bool {
@@ -238,6 +240,9 @@ struct MakeView: View {
         // 显示保存提示
         isSavingSession = true
         
+        // 捕获来源记录ID（用于复用头像和封面）
+        let sourceSessionId = loadedSourceSessionId
+
         // 在后台线程执行保存操作
         DispatchQueue.global(qos: .userInitiated).async {
             // 获取音频格式（从audioResponse或默认mp3）
@@ -246,7 +251,7 @@ struct MakeView: View {
             
             // 创建会话记录
             let record = SessionRecord(
-                name: name.isEmpty ? Constants.defaultSessionName : name,
+                name: name.isEmpty ? (self.intermediateResults?.llmStoryName ?? Constants.defaultSessionName) : name,
                 images: images,
                 ocrText: self.ocrResult,
                 ocrTextSegments: self.ocrTextSegments,
@@ -258,7 +263,9 @@ struct MakeView: View {
                 ttsDuration: self.ttsDuration,
                 validImageCount: audioResponse.validImageCount ?? images.count,
                 voiceSettings: audioResponse.voiceSettings,
-                avatarImageIndex: avatarIndex
+                avatarImageIndex: avatarIndex,
+                storyHighlights: self.intermediateResults?.llmHighlights,
+                hasVirtualPage: self.intermediateResults?.llmHighlights != nil
             )
             
             // 保存到文件系统
@@ -267,13 +274,19 @@ struct MakeView: View {
             // 回到主线程更新UI
             DispatchQueue.main.async {
                 self.isSavingSession = false
-                
+
                 if result.success {
+                    // 复用来源记录的头像和封面
+                    if let sourceId = sourceSessionId {
+                        SessionRecordManager.shared.copyAvatarAndCover(from: sourceId, to: record.id)
+                    }
                     MakeHistoryManager.shared.recordSave(sessionId: record.id, name: record.name, savedAt: Date())
                     let sizeText = result.size != nil ? "\n存储空间: \(self.formatStorageSize(result.size!))" : ""
                     os.Logger.makeView.info("会话记录保存成功: \(record.name)\(sizeText)")
-                    self.alertMessage = "会话记录已保存\(sizeText)"
-                    self.showingAlert = true
+                    // 跳转管理Tab编辑页（与正常制作完成流程对齐）
+                    self.appState.recordIdToEditInManageTab = record.id
+                    self.appState.selectedTab = 2
+                    self.clearAllState()
                 } else {
                     os.Logger.makeView.error("会话记录保存失败")
                     self.alertMessage = "会话记录保存失败"
@@ -324,6 +337,7 @@ struct MakeView: View {
 
         // 清理记录加载状态
         isLoadingRecord = false
+        loadedSourceSessionId = nil
     }
     
     /// 处理从首页跳转过来的待办：拍照、选图
@@ -344,13 +358,75 @@ struct MakeView: View {
         }
     }
     
-    /// 从记录管理「加载到制作」：按会话 ID 加载图片到制作页，清空 OCR/音频，便于重新识别与合成；按 saveImageMaxPixel 限制加载
+    /// 从记录管理「加载到制作」：还原记录完整制作状态，展示"再次制作"进度，不自动触发制作
     private func loadRecordIntoMake(sessionId: String) {
         guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else { return }
         let count = record.totalImageCount
         guard count > 0 else { return }
+
+        // 记录来源记录ID，保存新记录时复用头像和封面
+        loadedSourceSessionId = sessionId
+
         // 立即显示加载状态，避免跳转后空白页
         isLoadingRecord = true
+
+        // 还原制作状态数据（同步，不依赖图片加载）
+        ocrResult = record.ocrText
+        ocrDuration = record.ocrDuration
+        llmDuration = record.llmDuration
+        ttsDuration = record.ttsDuration
+        ocrTextSegments = record.ocrTextSegments
+
+        // 还原音频数据
+        if !record.audioDataBase64.isEmpty,
+           let data = Data(base64Encoded: record.audioDataBase64) {
+            audioData = data
+            audioResponse = AudioResponse(
+                id: record.id,
+                audioURL: "",
+                text: record.ocrText,
+                language: "",
+                duration: record.audioDuration,
+                format: record.audioFormat,
+                quality: "",
+                timestamp: record.createdAt,
+                voiceSettings: nil,
+                audioData: data,
+                validImageCount: record.validImageCount,
+                recognizedTexts: record.ocrTextSegments,
+                storyName: record.name,
+                storyHighlights: record.storyHighlights,
+                hasVirtualPage: record.hasVirtualPage
+            )
+        } else {
+            audioData = nil
+            audioResponse = nil
+        }
+
+        // 还原 IntermediateResults
+        var intermediate = IntermediateResults()
+        intermediate.totalImageCount = record.totalImageCount
+        intermediate.validImageCount = record.validImageCount
+        intermediate.ocrCharCount = record.textLength
+        intermediate.ocrCompletedCount = record.totalImageCount
+        intermediate.ocrDuration = record.ocrDuration
+        intermediate.ocrTexts = record.ocrTextSegments
+        intermediate.llmStoryName = record.storyHighlights != nil ? record.name : nil
+        intermediate.llmHighlights = record.storyHighlights
+        intermediate.llmDuration = record.llmDuration
+        intermediate.llmCharCount = (record.storyHighlights != nil) ? (record.name.count + (record.storyHighlights?.count ?? 0)) : 0
+        intermediate.llmStatus = record.llmDuration > 0 ? .completed : (record.ocrDuration > 0 ? .skipped : .notStarted)
+        intermediate.ttsDuration = record.ttsDuration
+        intermediate.ttsCharCount = record.textLength
+        intermediate.ttsAudioSize = record.audioSize
+        intermediate.ttsAudioDuration = record.audioDuration
+        if audioData != nil {
+            intermediate.ttsStatus = .completed
+        } else {
+            intermediate.ttsStatus = .notStarted
+        }
+        intermediateResults = intermediate
+
         // 按点换算使解码边长不超过 saveImageMaxPixel，避免大图解码
         let scale = max(1, UIScreen.main.scale)
         let maxDim = Constants.ImageDisplay.saveImageMaxPixel / scale
@@ -365,7 +441,25 @@ struct MakeView: View {
                 self.isLoadingRecord = false
                 self.selectedImages = images
                 self.currentImageIndex = 0
-                self.onImagesChanged()
+
+                // 设置"再次制作"进度展示
+                self.isProcessing = true
+                self.currentOperation = "再次制作"
+                self.processingOverlayDismissed = false
+
+                // 计算实际完成进度
+                if self.audioData != nil {
+                    self.processingProgress = 1.0
+                } else if record.llmDuration > 0 {
+                    self.processingProgress = 0.7
+                } else if !record.ocrText.isEmpty {
+                    self.processingProgress = 0.5
+                } else {
+                    self.processingProgress = 0.0
+                }
+
+                os.Logger.makeView.info("loadRecordIntoMake: 还原记录状态，图片=\(images.count)，进度=\(self.processingProgress)")
+                // 注意：不调用 onImagesChanged()，不自动触发制作
             }
         }
     }
@@ -501,12 +595,68 @@ struct MakeView: View {
                 CustomNavigationBar(title: "制作中")
             } else if isProcessing {
                 CustomNavigationBar(title: "制作中", trailing: {
-                    Button {
-                        cancelBackgroundTask()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(Constants.Fonts.makeImageRemoveIcon)
-                            .foregroundColor(.blue)
+                    HStack(spacing: 16) {
+                        Menu {
+                            Button {
+                                processingOverlayDismissed = false
+                                clearDataAndState()
+                                processImages(startingFrom: .ocr)
+                            } label: {
+                                Label("OCR", systemImage: "text.viewfinder")
+                            }
+                            .disabled(selectedImages.isEmpty)
+                            Button {
+                                processingOverlayDismissed = false
+                                clearLLMAndTTSData()
+                                processImages(startingFrom: .llm)
+                            } label: {
+                                Label("LLM", systemImage: "sparkles")
+                            }
+                            .disabled(selectedImages.isEmpty || ocrResult.isEmpty)
+                            Button {
+                                processingOverlayDismissed = false
+                                clearTTSData()
+                                processImages(startingFrom: .tts)
+                            } label: {
+                                Label("TTS", systemImage: "waveform")
+                            }
+                            .disabled(selectedImages.isEmpty || ocrResult.isEmpty)
+                            Divider()
+                            Button {
+                                if canSaveSession() {
+                                    if processingProgress >= 1.0 {
+                                        // 整体100% 直接保存并跳转编辑页（与正常制作完成流程对齐）
+                                        saveCurrentSession(name: "", avatarImageIndex: 0)
+                                    } else {
+                                        showSaveSessionDialog = true
+                                    }
+                                }
+                            } label: {
+                                Label("保存", systemImage: "bookmark.fill")
+                            }
+                            .disabled(!canSaveSession())
+                            Divider()
+                            Button { clearAllState() } label: {
+                                Label("清空", systemImage: "trash.fill")
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(Constants.Fonts.listAddIcon)
+                                .foregroundColor(.blue)
+                                .background(Color.clear)
+                        }
+                        // 制作完成状态（整体100%）不展示取消按钮
+                        if processingProgress < 1.0 {
+                            Button {
+                                cancelBackgroundTask()
+                                // 取消后退出进度展示，清空制作数据（clearDataAndState 不清除图片），回到图片预览状态
+                                clearDataAndState()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(Constants.Fonts.makeImageRemoveIcon)
+                                    .foregroundColor(.blue)
+                            }
+                        }
                     }
                 })
             } else if let err = error, !processingOverlayDismissed {
@@ -690,6 +840,12 @@ struct MakeView: View {
         intermediateResults?.llmStatus = .notStarted
         intermediateResults?.llmCharCount = 0
         intermediateResults?.llmDuration = 0
+        // 清理 TTS 中间结果
+        intermediateResults?.ttsCharCount = 0
+        intermediateResults?.ttsDuration = 0
+        intermediateResults?.ttsStatus = .notStarted
+        intermediateResults?.ttsAudioSize = 0
+        intermediateResults?.ttsAudioDuration = 0
     }
 
     /// 清空 TTS 数据（保留 OCR+LLM）
@@ -698,6 +854,12 @@ struct MakeView: View {
         audioResponse = nil
         ttsDuration = 0.0
         ttsStartTime = nil
+        // 清理 TTS 中间结果
+        intermediateResults?.ttsCharCount = 0
+        intermediateResults?.ttsDuration = 0
+        intermediateResults?.ttsStatus = .notStarted
+        intermediateResults?.ttsAudioSize = 0
+        intermediateResults?.ttsAudioDuration = 0
     }
 
     /// 启动后台制作任务（从指定阶段）
@@ -1371,6 +1533,30 @@ struct IntermediateResultsView: View {
                 }
 
                 Spacer()
+                
+                // TTS 结果区
+                if results.ttsStatus != .notStarted || results.ttsCharCount > 0 {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(ttsTitleText())
+                            .font(Constants.Fonts.headline)
+                            .foregroundColor(.secondary)
+
+                        if results.ttsAudioDuration > 0 {
+                            Text("时长: \(Int(results.ttsAudioDuration))秒")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if results.ttsAudioSize > 0 {
+                            Text("大小: \(formatAudioSize(results.ttsAudioSize))")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                Spacer()
             }
             .padding(.vertical, 8)
         }
@@ -1424,6 +1610,37 @@ struct IntermediateResultsView: View {
             return "LLM绘本分析（分析中...）"
         case .notStarted:
             return "LLM绘本分析"
+        }
+    }
+
+    /// TTS 标题文本
+    private func ttsTitleText() -> String {
+        switch results.ttsStatus {
+        case .completed:
+            let charCount = results.ttsCharCount
+            let duration = results.ttsDuration
+            if duration > 0 {
+                return "TTS语音合成（\(charCount)字，\(Int(duration))秒）"
+            } else {
+                return "TTS语音合成（\(charCount)字）"
+            }
+        case .failed:
+            return "TTS语音合成（失败）"
+        case .inProgress:
+            return "TTS语音合成（合成中...）"
+        case .notStarted:
+            return "TTS语音合成"
+        }
+    }
+
+    /// 格式化音频大小
+    private func formatAudioSize(_ bytes: Int) -> String {
+        if bytes < 1024 {
+            return "\(bytes)B"
+        } else if bytes < 1024 * 1024 {
+            return String(format: "%.1fKB", Double(bytes) / 1024.0)
+        } else {
+            return String(format: "%.1fMB", Double(bytes) / (1024.0 * 1024.0))
         }
     }
 }

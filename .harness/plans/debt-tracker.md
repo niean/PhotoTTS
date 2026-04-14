@@ -15,6 +15,7 @@
 | DEBT007 | 图片处理-PlayerImageView第1194行CGImageSourceCreateImageAtIndex fallback全尺寸解码，未经降采样，违反Image I/O规范 | medium | plan-260324-continuous-playback | 2026-03-24 | open |
 | DEBT008 | 编码约定-PlayView.swift第746行控制条自动隐藏间隔`1.5`秒硬编码；第937-939/1058-1059行padding数值硬编码，未归入Constants.swift | low | plan-260324-progress-drag-while-playing | 2026-03-24 | resolved |
 | DEBT012 | 编码约定-CustomCameraView.swift约30+处UI布局魔法值（圆角/边框/字号/间距等）硬编码，未集中到Constants.swift | low | plan-260329-camera-thumbnail | 2026-03-29 | open |
+| DEBT013 | 编码约定-ImageToSpeechProcessingError.errorDescription包含底层error.localizedDescription可能泄露技术细节给用户；缺少technicalDescription属性；ErrorView直接展示error.localizedDescription | medium | plan-260414-manage-load-only | 2026-04-14 | open |
 
 ---
 

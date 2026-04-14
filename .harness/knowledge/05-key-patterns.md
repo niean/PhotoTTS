@@ -81,6 +81,8 @@ MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectW
 
 约束：只允许 1 个后台制作任务（制作页只允许 1 个制作项），已有活跃任务时 startMaking 返回 nil。
 
+再次制作：管理 Tab 点击"制作"按钮调 loadRecordIntoMake(sessionId:)，从 SessionRecord 还原全量状态（图片/OCR/LLM/TTS 音频/IntermediateResults），设置 isProcessing=true + currentOperation="再次制作" + processingProgress=实际完成进度，不调用 onImagesChanged()、不自动触发制作。用户通过更多菜单选择 OCR/LLM/TTS 环节手动触发。进度计算：有音频1.0/仅OCR+LLM0.7/仅OCR0.5/无OCR0.0。
+
 ## 模式九：默认会话只读保护
 
 内置默认会话（Constants.DefaultSession.id）除播放外禁止所有操作，三层协防：
