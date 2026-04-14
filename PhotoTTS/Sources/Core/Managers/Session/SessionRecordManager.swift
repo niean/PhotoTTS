@@ -1175,60 +1175,78 @@ public struct EndPictQueueInfo {
     /// - Returns: 是否保存成功
     func saveDraftSession(id: String, name: String, images: [UIImage]) -> Bool {
         let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
+        let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+
+        // 检查是否为复用已有会话（metadata.json 已存在）
+        let isReusingExistingSession = fileManager.fileExists(atPath: metadataURL.path)
+
         do {
-            // 创建会话目录
+            // 创建会话目录（如果不存在）
             if !fileManager.fileExists(atPath: sessionDir.path) {
                 try fileManager.createDirectory(at: sessionDir, withIntermediateDirectories: true)
             }
 
-            // 保存图片文件
-            let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
-            if !fileManager.fileExists(atPath: imagesDir.path) {
-                try fileManager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
-            }
-            let saveMaxPixel = Int(Constants.ImageDisplay.saveImageMaxPixel)
-            for (index, image) in images.enumerated() {
-                let imageToSave = Self.downsampleImageToMaxPixel(image, maxPixelLength: saveMaxPixel) ?? image
-                guard let jpegData = imageToSave.jpegData(compressionQuality: 1.0) else { continue }
-                let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
-                try jpegData.write(to: imageURL)
+            // 保存图片文件（仅当复用会话时才跳过）
+            if !isReusingExistingSession {
+                let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+                if !fileManager.fileExists(atPath: imagesDir.path) {
+                    try fileManager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+                }
+                let saveMaxPixel = Int(Constants.ImageDisplay.saveImageMaxPixel)
+                for (index, image) in images.enumerated() {
+                    let imageToSave = Self.downsampleImageToMaxPixel(image, maxPixelLength: saveMaxPixel) ?? image
+                    guard let jpegData = imageToSave.jpegData(compressionQuality: 1.0) else { continue }
+                    let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
+                    try jpegData.write(to: imageURL)
+                }
+
+                // 预生成头像（仅新建时）
+                if !images.isEmpty {
+                    let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+                    writeAvatarImage(sessionDir: sessionDir, imagesDir: imagesDir, avatarImageIndex: 0)
+                }
             }
 
-            // 预生成头像
-            if !images.isEmpty {
-                writeAvatarImage(sessionDir: sessionDir, imagesDir: imagesDir, avatarImageIndex: 0)
+            // 构建或更新 record
+            let record: SessionRecord
+            if isReusingExistingSession, let existingRecord = loadSession(id: id) {
+                // 复用已有记录，仅更新 makeStatus 为 making
+                record = existingRecord.withMakeStatus(.making)
+            } else {
+                // 新建记录（空 OCR/音频，makeStatus=making）
+                let emptySegments = Array(repeating: "", count: images.count)
+                record = SessionRecord(
+                    id: id,
+                    name: name,
+                    images: images,
+                    ocrText: "",
+                    ocrTextSegments: emptySegments,
+                    audioData: Data(),
+                    audioFormat: "mp3",
+                    audioDuration: 0,
+                    ocrDuration: 0,
+                    ttsDuration: 0,
+                    validImageCount: 0,
+                    makeStatus: .making
+                )
             }
-
-            // 构建 record（空 OCR/音频，makeStatus=making）
-            let emptySegments = Array(repeating: "", count: images.count)
-            let record = SessionRecord(
-                id: id,
-                name: name,
-                images: images,
-                ocrText: "",
-                ocrTextSegments: emptySegments,
-                audioData: Data(),
-                audioFormat: "mp3",
-                audioDuration: 0,
-                ocrDuration: 0,
-                ttsDuration: 0,
-                validImageCount: 0,
-                makeStatus: .making
-            )
 
             // 保存 metadata.json
             let metadata = SessionRecordMetadata(from: record)
             let metadataData = try JSONEncoder().encode(metadata)
-            let metadataURL = sessionDir.appendingPathComponent("metadata.json")
             try metadataData.write(to: metadataURL)
 
             // 保存 record.json
             let recordData = try JSONEncoder().encode(record)
-            let recordURL = sessionDir.appendingPathComponent("record.json")
             try recordData.write(to: recordURL)
 
             invalidateMetadataCache()
-            logger.info("草稿会话保存成功: \(name), id=\(id), 图片数=\(images.count)")
+            if isReusingExistingSession {
+                logger.info("草稿会话复用成功: \(name), id=\(id)")
+            } else {
+                logger.info("草稿会话保存成功: \(name), id=\(id), 图片数=\(images.count)")
+            }
             return true
         } catch {
             logger.error("草稿会话保存失败: \(error.localizedDescription)")

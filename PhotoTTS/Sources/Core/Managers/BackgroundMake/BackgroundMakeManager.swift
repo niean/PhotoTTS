@@ -246,6 +246,7 @@ class BackgroundMakeManager: ObservableObject {
     ///   - ocrCombinedText: 已有 OCR 合并文本（从 TTS 阶段启动时）
     ///   - llmStoryName: 已有 LLM 故事名（从 TTS 阶段启动时）
     ///   - llmHighlights: 已有 LLM 要点（从 TTS 阶段启动时）
+    ///   - reuseSessionId: 可选，复用已有草稿会话的 ID（重试时使用）
     /// - Returns: sessionId（草稿会话的 ID），nil 表示启动失败
     func startMaking(
         images: [UIImage],
@@ -253,7 +254,8 @@ class BackgroundMakeManager: ObservableObject {
         ocrTexts: [String]?,
         ocrCombinedText: String?,
         llmStoryName: String?,
-        llmHighlights: String?
+        llmHighlights: String?,
+        reuseSessionId: String? = nil
     ) -> String? {
         // 只允许1个后台制作任务
         if let existing = currentTask, !existing.isCompleted {
@@ -261,7 +263,7 @@ class BackgroundMakeManager: ObservableObject {
             return nil
         }
 
-        let sessionId = UUID().uuidString
+        let sessionId = reuseSessionId ?? UUID().uuidString
 
         // 生成草稿名称 "YY.MM.DD 未命名"
         let formatter = DateFormatter()

@@ -50,6 +50,8 @@ struct MakeView: View {
 
     // 后台制作：当前观察的任务 sessionId
     @State private var observingTaskId: String? = nil
+    // 后台制作：失败任务的 sessionId（重试时复用草稿记录）
+    @State private var failedSessionId: String? = nil
 
     // 记录再制作：图片加载中状态
     @State private var isLoadingRecord: Bool = false
@@ -318,6 +320,7 @@ struct MakeView: View {
         
         // 清理后台制作观察
         observingTaskId = nil
+        failedSessionId = nil
 
         // 清理记录加载状态
         isLoadingRecord = false
@@ -733,9 +736,11 @@ struct MakeView: View {
             ocrTexts: ocrTextsForLLM,
             ocrCombinedText: ocrCombinedTextForTTS,
             llmStoryName: llmStoryNameForTTS,
-            llmHighlights: llmHighlightsForTTS
+            llmHighlights: llmHighlightsForTTS,
+            reuseSessionId: failedSessionId ?? observingTaskId
         ) {
             observingTaskId = sessionId
+            failedSessionId = nil
             os.Logger.makeView.info("processImages: startMaking 返回成功，sessionId=\(sessionId)")
         } else {
             isProcessing = false
@@ -773,6 +778,7 @@ struct MakeView: View {
             observingTaskId = nil
 
             if task.isSuccess, let response = task.audioResponse {
+                failedSessionId = nil
                 ocrResult = response.text
                 audioData = response.audioData
                 audioResponse = response
@@ -801,7 +807,8 @@ struct MakeView: View {
                 // 消费完成后移除任务
                 bgMakeManager.removeTask(sessionId: taskId)
             } else {
-                // 制作失败：不主动清空数据状态或删除临时记录，不调用 removeTask
+                // 制作失败：保存 sessionId 供重试复用草稿记录
+                failedSessionId = taskId
                 error = task.error
                 processingProgress = 0.0
                 currentOperation = "处理失败"

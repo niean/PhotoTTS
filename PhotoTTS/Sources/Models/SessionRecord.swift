@@ -316,6 +316,11 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     func withCoverImagePath(_ path: String?) -> SessionRecord {
         SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: path)
     }
+
+    /// 返回带新 makeStatus 的副本（用于重试时更新状态）
+    func withMakeStatus(_ status: MakeStatus?) -> SessionRecord {
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: status, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: coverImagePath)
+    }
     
     // MARK: - 辅助方法
     
