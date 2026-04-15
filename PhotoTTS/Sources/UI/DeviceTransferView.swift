@@ -4,6 +4,7 @@ import MultipeerConnectivity
 struct DeviceTransferView: View {
     /// 要传输的记录 ID 列表（由调用方确定，不为空）
     let sessionIDs: [String]
+    var transferMode: TransferMode = .full
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var transferManager = PeerTransferManager.shared
 
@@ -21,7 +22,7 @@ struct DeviceTransferView: View {
 
             // 顶导 + 手势识别
             TopAndLeftSideNavigationBar(
-                title: "传输",
+                title: transferMode == .playOnly ? "传输播放记录" : "传输",
                 onSwipeBack: { handleDismiss() },
                 leading: {
                     Button(action: { handleDismiss() }) {
@@ -47,10 +48,7 @@ struct DeviceTransferView: View {
             set: { if !$0 { transferManager.pendingInvitation?.handler(false); transferManager.pendingInvitation = nil } }
         )) {
             if let invitation = transferManager.pendingInvitation {
-                Button("跳过重复") {
-                    handleInvitationDecision(invitation: invitation, skipDuplicates: true)
-                }
-                Button("覆盖重复", role: .destructive) {
+                Button("接收") {
                     handleInvitationDecision(invitation: invitation, skipDuplicates: false)
                 }
                 Button("拒绝", role: .cancel) {
@@ -63,7 +61,7 @@ struct DeviceTransferView: View {
                 let total = invitation.context.sessionCount
                 let existing = invitation.existingIDs.count
                 if existing > 0 {
-                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条本机已存在。")
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条已存在（播放记录将覆盖）")
                 } else {
                     Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录。")
                 }
@@ -83,6 +81,8 @@ struct DeviceTransferView: View {
         )
         // 存储决策，连接建立后发送给发送方
         transferManager.pendingDecisionToSend = decision
+        // 接收方保存本地已存在的 sessionID，供传输完成后使用
+        transferManager.setReceiverExistingSessionIDs(invitation.existingIDs)
         // 接受连接
         invitation.handler(true)
         transferManager.pendingInvitation = nil
@@ -127,7 +127,11 @@ struct DeviceTransferView: View {
                 Spacer()
                 List(transferManager.discoveredPeers, id: \.displayName) { peer in
                     Button(action: {
-                        transferManager.invitePeer(peer, sessionIDs: sessionIDs)
+                        if transferMode == .playOnly {
+                            transferManager.invitePeerPlayOnly(peer, sessionIDs: sessionIDs)
+                        } else {
+                            transferManager.invitePeer(peer, sessionIDs: sessionIDs)
+                        }
                     }) {
                         HStack {
                             Image(systemName: "iphone.radiowaves.left.and.right")
@@ -147,7 +151,9 @@ struct DeviceTransferView: View {
                 Spacer()
             }
 
-            Text("将传输 \(sessionIDs.count) 条记录")
+            Text(transferMode == .playOnly
+                     ? "将传输 \(sessionIDs.count) 条播放记录"
+                     : "将传输 \(sessionIDs.count) 条记录")
                 .font(Constants.Fonts.caption)
                 .foregroundColor(.secondary)
                 .padding(.bottom, scaled(16))
@@ -162,7 +168,7 @@ struct DeviceTransferView: View {
             ProgressView(value: transferManager.transferProgress)
                 .progressViewStyle(.linear)
                 .frame(width: scaled(200))
-            Text("正在传输 \(transferManager.actualSendCount) 条记录...")
+            Text("正在传输 \(transferManager.actualSendCount) 条\(transferMode == .playOnly ? "播放" : "")记录...")
                 .font(Constants.Fonts.body)
             if transferManager.skippedDuplicateCount > 0 {
                 Text("跳过 \(transferManager.skippedDuplicateCount) 条重复")
@@ -194,7 +200,7 @@ struct DeviceTransferView: View {
                 .foregroundColor(.green)
             Text("传输完成")
                 .font(Constants.Fonts.headline)
-            Text("已发送 \(count) 条记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
+            Text("已发送 \(count) 条\(transferMode == .playOnly ? "播放" : "")记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
                 .font(Constants.Fonts.body)
                 .foregroundColor(.secondary)
 

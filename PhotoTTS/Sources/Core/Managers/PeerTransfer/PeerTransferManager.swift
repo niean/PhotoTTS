@@ -32,6 +32,13 @@ enum TransferState: Equatable {
     }
 }
 
+// MARK: - 传输模式
+
+enum TransferMode: String, Codable {
+    case full      // 现有全量传输（记录+图片+音频+历史）
+    case playOnly  // 仅传输播放记录（history.json）
+}
+
 // MARK: - 邀请上下文
 
 struct TransferInvitationContext: Codable {
@@ -39,6 +46,29 @@ struct TransferInvitationContext: Codable {
     let totalSize: Int64
     let deviceName: String
     let sessionIDs: [String]
+    let mode: TransferMode
+
+    enum CodingKeys: String, CodingKey {
+        case sessionCount, totalSize, deviceName, sessionIDs, mode
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionCount = try container.decode(Int.self, forKey: .sessionCount)
+        totalSize = try container.decode(Int64.self, forKey: .totalSize)
+        deviceName = try container.decode(String.self, forKey: .deviceName)
+        sessionIDs = try container.decode([String].self, forKey: .sessionIDs)
+        // 旧版本不发送 mode，默认 .full
+        mode = try container.decodeIfPresent(TransferMode.self, forKey: .mode) ?? .full
+    }
+
+    init(sessionCount: Int, totalSize: Int64, deviceName: String, sessionIDs: [String], mode: TransferMode = .full) {
+        self.sessionCount = sessionCount
+        self.totalSize = totalSize
+        self.deviceName = deviceName
+        self.sessionIDs = sessionIDs
+        self.mode = mode
+    }
 }
 
 struct TransferConflictDecision: Codable {
@@ -86,6 +116,12 @@ class PeerTransferManager: NSObject, ObservableObject {
     private(set) var pendingDecision: TransferConflictDecision?
     /// 决策等待超时定时器（发送方使用）
     private var decisionTimeoutTimer: Timer?
+    /// 当前传输模式（发送方使用）
+    private var currentTransferMode: TransferMode = .full
+    /// 接收到的传输模式（接收方使用）
+    @Published var receivedTransferMode: TransferMode = .full
+    /// 接收方：本地已存在的 sessionID 集合（接受邀请时保存，供传输完成后使用）
+    private(set) var receiverExistingSessionIDs: Set<String> = []
 
     private override init() {
         self.myPeerID = MCPeerID(displayName: UIDevice.current.name)
@@ -189,6 +225,8 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.pendingDecisionToSend = nil
             self.actualSendCount = 0
             self.skippedDuplicateCount = 0
+            self.receivedTransferMode = .full
+            self.receiverExistingSessionIDs = []
         }
     }
 
@@ -205,6 +243,7 @@ class PeerTransferManager: NSObject, ObservableObject {
         }
 
         pendingSendIDs = sessionIDs
+        currentTransferMode = .full
         pendingSendPeer = peer
 
         let context = TransferInvitationContext(
@@ -221,6 +260,35 @@ class PeerTransferManager: NSObject, ObservableObject {
         os.Logger.peerTransfer.info("已邀请设备: \(peer.displayName)")
     }
 
+    func invitePeerPlayOnly(_ peer: MCPeerID, sessionIDs: [String]) {
+        guard let browser, let session else {
+            DispatchQueue.main.async { self.transferState = .failed("搜索未启动") }
+            return
+        }
+        DispatchQueue.main.async {
+            self.transferState = .connecting
+            self.isSender = true
+        }
+
+        currentTransferMode = .playOnly
+        pendingSendIDs = sessionIDs
+        pendingSendPeer = peer
+
+        let context = TransferInvitationContext(
+            sessionCount: sessionIDs.count,
+            totalSize: 0,
+            deviceName: UIDevice.current.name,
+            sessionIDs: sessionIDs,
+            mode: .playOnly
+        )
+        let contextData = try? JSONEncoder().encode(context)
+
+        browser.invitePeer(peer, to: session, withContext: contextData,
+                           timeout: Constants.PeerTransfer.transferTimeout)
+        stopBrowsing()
+        os.Logger.peerTransfer.info("已邀请设备(playOnly): \(peer.displayName)")
+    }
+
     // MARK: - 发送
 
     func sendSessions(ids: [String], to peer: MCPeerID) {
@@ -233,31 +301,12 @@ class PeerTransferManager: NSObject, ObservableObject {
 
         beginBackgroundTask()
 
-        // 根据决策过滤IDs
-        var idsToSend = ids
-        var skippedCount = 0
-        if let decision = pendingDecision {
-            if decision.skipDuplicates {
-                let existingSet = Set(decision.existingIDs)
-                idsToSend = ids.filter { !existingSet.contains($0) }
-            }
-            skippedCount = ids.count - idsToSend.count
-            pendingDecision = nil  // 清理决策
-        }
+        // 全量模式：始终传输所有记录（接收方对重复记录仅覆盖播放历史）
+        pendingDecision = nil
 
-        // 发布去重结果供 UI 展示
         DispatchQueue.main.async {
-            self.actualSendCount = idsToSend.count
-            self.skippedDuplicateCount = skippedCount
-        }
-
-        // 如果没有需要传输的记录
-        if idsToSend.isEmpty {
-            os.Logger.peerTransfer.info("无需传输: 全部 \(ids.count) 条已存在")
-            DispatchQueue.main.async {
-                self.transferState = .completed(imported: 0, skipped: skippedCount)
-            }
-            return
+            self.actualSendCount = ids.count
+            self.skippedDuplicateCount = 0
         }
 
         DispatchQueue.main.async {
@@ -272,7 +321,7 @@ class PeerTransferManager: NSObject, ObservableObject {
                     .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
 
                 let exportResult = SessionRecordManager.shared.exportSelectedSessions(
-                    idsToSend, to: tempDir, isAllSelected: false
+                    ids, to: tempDir, isAllSelected: false
                 )
                 guard exportResult.success else {
                     throw NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode,
@@ -294,8 +343,8 @@ class PeerTransferManager: NSObject, ObservableObject {
                             os.Logger.peerTransfer.error("传输失败: \(error.localizedDescription)")
                             self?.transferState = .failed("传输失败，请重试")
                         } else {
-                            os.Logger.peerTransfer.info("传输完成: \(idsToSend.count) 条")
-                            self?.transferState = .completed(imported: idsToSend.count, skipped: skippedCount)
+                            os.Logger.peerTransfer.info("传输完成: \(ids.count) 条")
+                            self?.transferState = .completed(imported: ids.count, skipped: 0)
                         }
                     }
                 }
@@ -305,6 +354,83 @@ class PeerTransferManager: NSObject, ObservableObject {
                         let fraction = prog.fractionCompleted
                         DispatchQueue.main.async {
                             PeerTransferManager.shared.transferProgress = fraction
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        self.transferProgressObserver = observer
+                    }
+                }
+
+            } catch {
+                DispatchQueue.main.async {
+                    self.cancelBackgroundTask()
+                    os.Logger.peerTransfer.error("打包失败: \(error.localizedDescription)")
+                    self.transferState = .failed("数据打包失败，请重试")
+                }
+            }
+        }
+    }
+
+    func sendPlayHistory(ids: [String], to peer: MCPeerID) {
+        guard let session, session.connectedPeers.contains(peer) else {
+            DispatchQueue.main.async {
+                self.transferState = .failed("设备未连接，请重试")
+            }
+            return
+        }
+
+        beginBackgroundTask()
+
+        // 始终传输所有记录（接收方对重复记录仅覆盖播放历史）
+        pendingDecision = nil
+
+        DispatchQueue.main.async {
+            self.actualSendCount = ids.count
+            self.skippedDuplicateCount = 0
+        }
+
+        DispatchQueue.main.async {
+            self.transferState = .preparing
+            self.transferProgress = 0
+        }
+        UIApplication.shared.isIdleTimerDisabled = true
+
+        Task {
+            do {
+                let tempDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
+
+                let archiveURL = try SessionRecordManager.shared.packageHistoryFilesOnly(
+                    ids, to: tempDir
+                )
+                guard let archiveURL else {
+                    throw NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode,
+                                  userInfo: [NSLocalizedDescriptionKey: "打包失败，未找到历史记录"])
+                }
+                try? FileManager.default.removeItem(at: tempDir)
+
+                DispatchQueue.main.async {
+                    self.transferState = .transferring
+                }
+
+                let progress = session.sendResource(at: archiveURL, withName: "playHistory.ptarchive", toPeer: peer) { [weak self] error in
+                    try? FileManager.default.removeItem(at: archiveURL)
+                    DispatchQueue.main.async {
+                        self?.cancelBackgroundTask()
+                        if let error {
+                            os.Logger.peerTransfer.error("传输失败: \(error.localizedDescription)")
+                            self?.transferState = .failed("传输失败，请重试")
+                        } else {
+                            os.Logger.peerTransfer.info("播放记录传输完成: \(ids.count) 条")
+                            self?.transferState = .completed(imported: ids.count, skipped: 0)
+                        }
+                    }
+                }
+
+                if let progress {
+                    let observer = progress.observe(\.fractionCompleted) { prog, _ in
+                        DispatchQueue.main.async {
+                            PeerTransferManager.shared.transferProgress = prog.fractionCompleted
                         }
                     }
                     DispatchQueue.main.async {
@@ -350,7 +476,14 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.skippedDuplicateCount = 0
             self.decisionTimeoutTimer?.invalidate()
             self.decisionTimeoutTimer = nil
+            self.receivedTransferMode = .full
+            self.receiverExistingSessionIDs = []
         }
+    }
+
+    /// 接收方：保存本地已存在的 sessionID（接受邀请时调用，供传输完成后 applyHistoryPackage 使用）
+    func setReceiverExistingSessionIDs(_ ids: [String]) {
+        receiverExistingSessionIDs = Set(ids)
     }
 
     /// 接收方：设置去重统计（接受邀请时由 UI 调用）
@@ -570,7 +703,12 @@ extension PeerTransferManager: MCSessionDelegate {
                         os.Logger.peerTransfer.warning("等待决策超时，使用默认行为")
                         DispatchQueue.main.async {
                             if let sendPeer = self.pendingSendPeer, !self.pendingSendIDs.isEmpty {
-                                self.sendSessions(ids: self.pendingSendIDs, to: sendPeer)
+                                switch self.currentTransferMode {
+                                case .full:
+                                    self.sendSessions(ids: self.pendingSendIDs, to: sendPeer)
+                                case .playOnly:
+                                    self.sendPlayHistory(ids: self.pendingSendIDs, to: sendPeer)
+                                }
                                 self.pendingSendIDs = []
                                 self.pendingSendPeer = nil
                             }
@@ -612,7 +750,12 @@ extension PeerTransferManager: MCSessionDelegate {
                 self.pendingDecision = decision
                 // 开始传输
                 if let sendPeer = self.pendingSendPeer, sendPeer == peerID, !self.pendingSendIDs.isEmpty {
-                    self.sendSessions(ids: self.pendingSendIDs, to: peerID)
+                    switch self.currentTransferMode {
+                    case .full:
+                        self.sendSessions(ids: self.pendingSendIDs, to: peerID)
+                    case .playOnly:
+                        self.sendPlayHistory(ids: self.pendingSendIDs, to: peerID)
+                    }
                     self.pendingSendIDs = []
                     self.pendingSendPeer = nil
                 }
@@ -654,6 +797,10 @@ extension PeerTransferManager: MCSessionDelegate {
             self.transferState = .importing
         }
 
+        // 在进入 Task 前捕获主线程状态，避免跨线程读取
+        let transferMode = self.receivedTransferMode
+        let existingIDs = self.receiverExistingSessionIDs
+
         Task {
             do {
                 // 检查磁盘空间
@@ -664,30 +811,42 @@ extension PeerTransferManager: MCSessionDelegate {
                                   userInfo: [NSLocalizedDescriptionKey: "设备存储空间不足，无法接收"])
                 }
 
-                let unpackDir = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
-                try FileManager.default.createDirectory(at: unpackDir, withIntermediateDirectories: true)
-                try unarchiveFile(source: localURL, destination: unpackDir)
+                if transferMode == .playOnly {
+                    // playOnly 模式：覆盖 history.json
+                    let applyResult = SessionRecordManager.shared.applyHistoryPackage(
+                        from: localURL, existingSessionIDs: existingIDs
+                    )
+                    try? FileManager.default.removeItem(at: localURL)
+                    DispatchQueue.main.async {
+                        self.cancelBackgroundTask()
+                        os.Logger.peerTransfer.info("播放记录导入完成: \(applyResult.received) 条, 跳过 \(applyResult.skipped) 条")
+                        self.transferState = .completed(imported: applyResult.received, skipped: applyResult.skipped)
+                    }
+                } else {
+                    // 全量模式：走现有 importSessions 流程
+                    let unpackDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
+                    try FileManager.default.createDirectory(at: unpackDir, withIntermediateDirectories: true)
+                    try unarchiveFile(source: localURL, destination: unpackDir)
 
-                // exportSelectedSessions 在目标目录下创建子目录（如 PhotoTTS-P_YYMMDD/），
-                // 需要找到包含 export_manifest.json 的实际导出目录传给 importSessions
-                let importDir = try findImportDirectory(in: unpackDir)
-                let result = SessionRecordManager.shared.importSessions(from: importDir)
+                    let importDir = try findImportDirectory(in: unpackDir)
+                    let result = SessionRecordManager.shared.importSessions(from: importDir)
 
-                try? FileManager.default.removeItem(at: unpackDir)
-                try? FileManager.default.removeItem(at: localURL)
+                    try? FileManager.default.removeItem(at: unpackDir)
+                    try? FileManager.default.removeItem(at: localURL)
 
-                DispatchQueue.main.async {
-                    self.cancelBackgroundTask()
-                    if result.success {
-                        os.Logger.peerTransfer.info("导入完成: \(result.importedCount) 条, 跳过 \(result.skippedCount + result.duplicateCount) 条")
-                        self.transferState = .completed(imported: result.importedCount, skipped: result.skippedCount + result.duplicateCount)
-                        if result.importedCount > 0 {
-                            NotificationCenter.default.post(name: Constants.NotificationNames.sessionsDidImport, object: nil)
+                    DispatchQueue.main.async {
+                        self.cancelBackgroundTask()
+                        if result.success {
+                            os.Logger.peerTransfer.info("导入完成: \(result.importedCount) 条, 跳过 \(result.skippedCount + result.duplicateCount) 条")
+                            self.transferState = .completed(imported: result.importedCount, skipped: result.skippedCount + result.duplicateCount)
+                            if result.importedCount > 0 {
+                                NotificationCenter.default.post(name: Constants.NotificationNames.sessionsDidImport, object: nil)
+                            }
+                        } else {
+                            os.Logger.peerTransfer.error("导入失败: \(result.errorMessage ?? "未知错误")")
+                            self.transferState = .failed(result.errorMessage ?? "导入失败")
                         }
-                    } else {
-                        os.Logger.peerTransfer.error("导入失败: \(result.errorMessage ?? "未知错误")")
-                        self.transferState = .failed(result.errorMessage ?? "导入失败")
                     }
                 }
             } catch {
@@ -710,6 +869,7 @@ extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
         var invitationContext = TransferInvitationContext(sessionCount: 0, totalSize: 0, deviceName: peerID.displayName, sessionIDs: [])
         if let context, let decoded = try? JSONDecoder().decode(TransferInvitationContext.self, from: context) {
             invitationContext = decoded
+            self.receivedTransferMode = decoded.mode
         }
 
         // 检查本地已存在哪些重复 session

@@ -150,4 +150,20 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 
 覆盖范围：TTSService（两个实现类 + Factory）、NetworkService、OCRService（+ Factory）、LLMService（DoubaoLLMService + OpenAILLMService + Factory）、ImageToSpeechCoordinator。
 
-新增服务如需在 APP 调试日志中可见，应在服务类中添加同样的 logInfo/logError 双写辅助方法。Factory 类的静态方法中直接内联调用 `DebugLogManager.shared.directLog(msg)`。
+## 模式十三：播放记录传输（复用传输基础设施）
+
+设备间传输复用现有 PeerTransferManager 的 MultipeerConnectivity 基础设施，通过 TransferMode 枚举区分 full / playOnly 两种模式，避免新增独立的传输通道。
+
+调用链：SessionRecordListView "更多" 菜单 -> 选择"传输播放记录" -> 设置 showPlayOnlyTransfer=true -> DeviceTransferView(transferMode: .playOnly) -> PeerTransferManager.invitePeerPlayOnly() -> 发送端打包 history.json（SessionRecordManager.packageHistoryFilesOnly） -> 接收端收到后识别 playOnly 模式 -> 解包覆盖本地 history.json（SessionRecordManager.applyHistoryPackage） -> 完成提示文本按模式区分（TransferReceiverModifier 根据 receivedTransferMode 切换文案）。
+
+关键设计：
+- TransferInvitationContext 携带 mode 字段，随邀请信令传递给接收端，接收端在 didReceiveInvitationFromPeer 中设置 receivedTransferMode
+- 发送端始终传输所有记录（不跳过重复），由接收端处理去重
+- 发送端 playOnly 模式下仅打包 .json 文件（不传输图片/音频，体积显著减小）
+- 接收端 didFinishReceivingResourceWithName 中按模式分流：full 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
+- 接收方通过 receiverExistingSessionIDs 在接受邀请时保存本地已有 sessionID，供传输完成后 applyHistoryPackage 使用（pendingInvitation 在接受后即被清除）
+- cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，避免状态残留影响后续传输
+
+涉及文件：PeerTransferManager.swift（TransferMode / mode 字段 / invitePeerPlayOnly / sendPlayHistory / 模式分支）、SessionRecordManager.swift（packageHistoryFilesOnly / applyHistoryPackage）、SessionRecordListView.swift（菜单入口）、DeviceTransferView.swift（transferMode 参数）、TransferReceiverModifier.swift（按模式切换 UI 文案）。
+
+新增设备间数据同步场景应优先复用 PeerTransferManager 传输通道，通过扩展 TransferMode 或新增上下文字段区分，避免另起独立的 MCP 连接。

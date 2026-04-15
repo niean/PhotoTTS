@@ -79,6 +79,7 @@ struct SessionRecordListView: View {
     // 设备传输
     @State private var showDeviceTransfer = false
     @State private var deviceTransferIDs: [String] = []
+    @State private var showPlayOnlyTransfer = false
 
     // 分组状态（仅管理 Tab 使用）
     @State private var groupMode: GroupMode = .flat
@@ -477,6 +478,16 @@ struct SessionRecordListView: View {
                                     }
                                     .disabled(selectedIDs.isEmpty)
 
+                                    Button(action: {
+                                        if !selectedIDs.isEmpty {
+                                            deviceTransferIDs = Array(selectedIDs)
+                                            showPlayOnlyTransfer = true
+                                        }
+                                    }) {
+                                        Label("传输播放记录", systemImage: "speaker.wave.2")
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+
                                     Divider()
 
                                     Button(role: .destructive, action: {
@@ -538,16 +549,6 @@ struct SessionRecordListView: View {
                             Divider()
                             Button(action: { startExportSelectionMode() }) {
                                 Label("导出", systemImage: "square.and.arrow.up")
-                            }
-                            .disabled(totalCount == 0)
-                            Divider()
-                            Button(action: {
-                                let allMeta = SessionRecordManager.shared.getAllSessionMetadata()
-                                let allIDs = allMeta.filter { !$0.isDefault }.map { $0.id }
-                                deviceTransferIDs = allIDs
-                                showDeviceTransfer = true
-                            }) {
-                                Label("传输", systemImage: "antenna.radiowaves.left.and.right")
                             }
                             .disabled(totalCount == 0)
                             Divider()
@@ -667,6 +668,9 @@ struct SessionRecordListView: View {
         }
         .navigationDestination(isPresented: $showDeviceTransfer) {
             DeviceTransferView(sessionIDs: deviceTransferIDs)
+        }
+        .navigationDestination(isPresented: $showPlayOnlyTransfer) {
+            DeviceTransferView(sessionIDs: deviceTransferIDs, transferMode: .playOnly)
         }
         .onChange(of: showDeviceTransfer) { _, newValue in
             if !newValue && isSelectionMode {

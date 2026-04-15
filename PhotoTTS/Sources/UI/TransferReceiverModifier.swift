@@ -18,6 +18,8 @@ struct TransferReceiverModifier: ViewModifier {
                 existingIDs: invitation.existingIDs
             )
             transferManager.pendingDecisionToSend = decision
+            // 接收方保存本地已存在的 sessionID，供传输完成后使用
+            transferManager.setReceiverExistingSessionIDs(invitation.existingIDs)
             // 接收方设置去重统计，供进度 overlay 展示
             transferManager.setReceiverDedupInfo(
                 totalCount: invitation.context.sessionCount,
@@ -41,25 +43,15 @@ struct TransferReceiverModifier: ViewModifier {
                 }
             }
             // 邀请确认 alert
-            .alert("传输", isPresented: Binding(
+            .alert(transferManager.receivedTransferMode == .playOnly ? "传输播放记录" : "传输", isPresented: Binding(
                 get: { transferManager.pendingInvitation != nil && isActive },
                 set: { if !$0 {
                     transferManager.pendingInvitation?.handler(false)
                     transferManager.pendingInvitation = nil
                 }}
             )) {
-                // 有重复时：显示「跳过重复」和「全部接收」
-                if let invitation = transferManager.pendingInvitation, !invitation.existingIDs.isEmpty {
-                    Button("跳过重复") {
-                        acceptInvitation(skipDuplicates: true)
-                    }
-                    Button("全部接收") {
-                        acceptInvitation(skipDuplicates: false)
-                    }
-                } else {
-                    Button("接收") {
-                        acceptInvitation(skipDuplicates: false)
-                    }
+                Button("接收") {
+                    acceptInvitation(skipDuplicates: false)
                 }
                 Button("取消", role: .cancel) {
                     transferManager.pendingInvitation?.handler(false)
@@ -70,9 +62,9 @@ struct TransferReceiverModifier: ViewModifier {
                     let total = invitation.context.sessionCount
                     let existing = invitation.existingIDs.count
                     if existing > 0 {
-                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条记录，其中 \(existing) 条已存在")
+                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条\(invitation.context.mode == .playOnly ? "播放" : "")记录，其中 \(existing) 条已存在（播放记录将覆盖）")
                     } else {
-                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条记录")
+                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条\(invitation.context.mode == .playOnly ? "播放" : "")记录")
                     }
                 }
             }
@@ -90,7 +82,7 @@ struct TransferReceiverModifier: ViewModifier {
                                 .font(Constants.Fonts.headline)
                                 .foregroundColor(.white)
                         } else {
-                            Text("正在接收 \(transferManager.actualSendCount) 条记录... \(Int(transferManager.transferProgress * 100))%")
+                            Text("正在接收 \(transferManager.actualSendCount) 条\(transferManager.receivedTransferMode == .playOnly ? "播放" : "")记录... \(Int(transferManager.transferProgress * 100))%")
                                 .font(Constants.Fonts.headline)
                                 .foregroundColor(.white)
                         }
@@ -128,7 +120,7 @@ struct TransferReceiverModifier: ViewModifier {
                 Button("确定") {}
             } message: {
                 if case .completed(let imported, let skipped) = transferManager.transferState {
-                    Text("已接收 \(imported) 条记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
+                    Text("已接收 \(imported) 条\(transferManager.receivedTransferMode == .playOnly ? "播放" : "")记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
                 }
             }
             // 接收失败 alert

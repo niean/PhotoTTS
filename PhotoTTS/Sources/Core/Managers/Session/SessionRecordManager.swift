@@ -2128,7 +2128,82 @@ public struct EndPictQueueInfo {
         let allIDs = allMetadata.map { $0.id }
         return exportSelectedSessions(allIDs, to: destinationURL, isAllSelected: true)
     }
-    
+
+    // MARK: - 打包播放历史（仅 history.json）
+
+    /// 将指定 session 的 history.json 打包为 .ptarchive（仅供 PeerTransferManager 使用）
+    func packageHistoryFilesOnly(_ sessionIDs: [String], to tempDir: URL) throws -> URL? {
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        var packagedCount = 0
+        for sessionId in sessionIDs {
+            let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+            let historyURL = sessionDir.appendingPathComponent(Self.historyFileName)
+            guard fileManager.fileExists(atPath: historyURL.path) else { continue }
+
+            // 在 tempDir 下创建 {sessionId}/history.json
+            let destDir = tempDir.appendingPathComponent(sessionId, isDirectory: true)
+            try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+            let destURL = destDir.appendingPathComponent(Self.historyFileName)
+            try fileManager.copyItem(at: historyURL, to: destURL)
+            packagedCount += 1
+        }
+
+        guard packagedCount > 0 else { return nil }
+
+        // 复用 PeerTransferManager 的归档基础设施
+        return try PeerTransferManager.shared.archiveDirectory(source: tempDir)
+    }
+
+    /// 接收方：解压 history.json 包并覆盖本地对应 session 的历史记录
+    func applyHistoryPackage(from archiveURL: URL, existingSessionIDs: Set<String>) -> (received: Int, skipped: Int) {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
+
+        do {
+            // 解压 .ptarchive
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            try PeerTransferManager.shared.unarchiveFile(source: archiveURL, destination: tempDir)
+
+            var received = 0
+            var skipped = 0
+
+            // 遍历解压出的子目录（每个 sessionId 一个目录）
+            if let contents = try? fileManager.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: [.isDirectoryKey]) {
+                for item in contents {
+                    let resourceValues = try? item.resourceValues(forKeys: [.isDirectoryKey])
+                    guard resourceValues?.isDirectory == true else { continue }
+
+                    let sessionId = item.lastPathComponent
+                    guard existingSessionIDs.contains(sessionId) else {
+                        skipped += 1
+                        continue
+                    }
+
+                    let historyURL = item.appendingPathComponent(Self.historyFileName)
+                    guard fileManager.fileExists(atPath: historyURL.path),
+                          let data = try? Data(contentsOf: historyURL),
+                          let history = try? historyDecoder.decode(SessionHistory.self, from: data) else {
+                        skipped += 1
+                        continue
+                    }
+
+                    // 覆盖本地 history.json
+                    saveSessionHistory(sessionId: sessionId, history: history)
+                    received += 1
+                }
+            }
+
+            try? fileManager.removeItem(at: tempDir)
+            return (received, skipped)
+
+        } catch {
+            os.Logger.sessionRecord.error("应用历史记录包失败: \(error.localizedDescription)")
+            try? fileManager.removeItem(at: tempDir)
+            return (0, 0)
+        }
+    }
+
     // MARK: - 导入会话记录
     
     /// 根据所选目录自动识别并导入：若为导出包(含 export_manifest.json) 则全量导入，若为单个会话目录(含 record.json) 则仅导入该条
@@ -2197,9 +2272,17 @@ public struct EndPictQueueInfo {
                     continue
                 }
                 
-                // ID 重复则跳过，不导入
+                // ID 重复：跳过会话记录本体，但覆盖播放历史
                 if existingIDs.contains(sessionInfo.id) {
                     logger.info("跳过会话记录（ID重复）: \(sessionInfo.name)")
+                    // 覆盖本地 history.json（播放记录）
+                    let sourceHistoryURL = sourceSessionDir.appendingPathComponent(Self.historyFileName)
+                    if fileManager.fileExists(atPath: sourceHistoryURL.path),
+                       let data = try? Data(contentsOf: sourceHistoryURL),
+                       let history = try? historyDecoder.decode(SessionHistory.self, from: data) {
+                        saveSessionHistory(sessionId: sessionInfo.id, history: history)
+                        logger.info("已覆盖播放记录（ID重复）: \(sessionInfo.name)")
+                    }
                     duplicateCount += 1
                     continue
                 }
