@@ -12,6 +12,7 @@ struct MakeView: View {
     @State private var showingAlert = false
     @State private var alertMessage = ""
     @State private var isProcessing = false
+    @State private var isReMaking = false
     @State private var processingProgress: Float = 0.0
     @State private var currentOperation = ""
     @State private var ocrResult = ""
@@ -316,6 +317,7 @@ struct MakeView: View {
         // 清理处理状态
         error = nil
         isProcessing = false
+        isReMaking = false
         processingProgress = 0.0
         currentOperation = ""
         
@@ -444,6 +446,7 @@ struct MakeView: View {
 
                 // 设置"再次制作"进度展示
                 self.isProcessing = true
+                self.isReMaking = true
                 self.currentOperation = "再次制作"
                 self.processingOverlayDismissed = false
 
@@ -473,6 +476,7 @@ struct MakeView: View {
             currentImageIndex: currentImageIndex,
             isProcessing: isProcessing,
             isLoadingRecord: isLoadingRecord,
+            isReMaking: isReMaking,
             processingProgress: processingProgress,
             currentOperation: currentOperation,
             ocrResult: ocrResult,
@@ -591,163 +595,61 @@ struct MakeView: View {
     // MARK: - 顶部导航视图
     private var customNavigationBar: some View {
         Group {
-            if isLoadingRecord {
-                CustomNavigationBar(title: "制作中")
-            } else if isProcessing {
-                CustomNavigationBar(title: "制作中", trailing: {
-                    HStack(spacing: 16) {
-                        Menu {
-                            Button {
-                                processingOverlayDismissed = false
-                                clearDataAndState()
-                                processImages(startingFrom: .ocr)
-                            } label: {
-                                Label("OCR", systemImage: "text.viewfinder")
-                            }
-                            .disabled(selectedImages.isEmpty)
-                            Button {
-                                processingOverlayDismissed = false
-                                clearLLMAndTTSData()
-                                processImages(startingFrom: .llm)
-                            } label: {
-                                Label("LLM", systemImage: "sparkles")
-                            }
-                            .disabled(selectedImages.isEmpty || ocrResult.isEmpty)
-                            Button {
-                                processingOverlayDismissed = false
-                                clearTTSData()
-                                processImages(startingFrom: .tts)
-                            } label: {
-                                Label("TTS", systemImage: "waveform")
-                            }
-                            .disabled(selectedImages.isEmpty || ocrResult.isEmpty)
-                            Divider()
-                            Button {
-                                if canSaveSession() {
-                                    if processingProgress >= 1.0 {
-                                        // 整体100% 直接保存并跳转编辑页（与正常制作完成流程对齐）
-                                        saveCurrentSession(name: "", avatarImageIndex: 0)
-                                    } else {
-                                        showSaveSessionDialog = true
-                                    }
-                                }
-                            } label: {
-                                Label("保存", systemImage: "bookmark.fill")
-                            }
-                            .disabled(!canSaveSession())
-                            Divider()
-                            Button { clearAllState() } label: {
-                                Label("清空", systemImage: "trash.fill")
-                            }
-                        } label: {
-                            Image(systemName: "plus.circle")
-                                .font(Constants.Fonts.listAddIcon)
-                                .foregroundColor(.blue)
-                                .background(Color.clear)
-                        }
-                        // 制作完成状态（整体100%）不展示取消按钮
-                        if processingProgress < 1.0 {
-                            Button {
-                                cancelBackgroundTask()
-                                // 取消后退出进度展示，清空制作数据（clearDataAndState 不清除图片），回到图片预览状态
-                                clearDataAndState()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(Constants.Fonts.makeImageRemoveIcon)
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                })
-            } else if let err = error, !processingOverlayDismissed {
-                // 制作失败后显示完整更多按钮，根据错误类型显示标题
-                CustomNavigationBar(title: errorTitle(for: err), trailing: {
-                    Menu {
-                        Button {
-                            processingOverlayDismissed = false
-                            clearDataAndState()
-                            processImages(startingFrom: .ocr)
-                        } label: {
-                            Label("OCR", systemImage: "text.viewfinder")
-                        }
-                        .disabled(isProcessing || selectedImages.isEmpty)
-                        Button {
-                            processingOverlayDismissed = false
-                            clearLLMAndTTSData()
-                            processImages(startingFrom: .llm)
-                        } label: {
-                            Label("LLM", systemImage: "sparkles")
-                        }
-                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
-                        Button {
-                            processingOverlayDismissed = false
-                            clearTTSData()
-                            processImages(startingFrom: .tts)
-                        } label: {
-                            Label("TTS", systemImage: "waveform")
-                        }
-                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
-                        Divider()
-                        Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
-                            Label("保存", systemImage: "bookmark.fill")
-                        }
-                        .disabled(!canSaveSession())
-                        Divider()
-                        Button { clearAllState() } label: {
-                            Label("清空", systemImage: "trash.fill")
-                        }
+            CustomNavigationBar(title: navigationBarTitle, trailing: {
+                Menu {
+                    Button {
+                        processingOverlayDismissed = false
+                        clearDataAndState()
+                        processImages(startingFrom: .ocr)
                     } label: {
-                        Image(systemName: "plus.circle")
-                            .font(Constants.Fonts.listAddIcon)
-                            .foregroundColor(.blue)
-                            .background(Color.clear)
+                        Label("OCR", systemImage: "text.viewfinder")
                     }
-                })
-            } else {
-                CustomNavigationBar(title: recordPageNavigationTitle, trailing: {
-                    Menu {
-                        Button {
-                            processingOverlayDismissed = false
-                            clearDataAndState()
-                            processImages(startingFrom: .ocr)
-                        } label: {
-                            Label("OCR", systemImage: "text.viewfinder")
-                        }
-                        .disabled(isProcessing || selectedImages.isEmpty)
-                        Button {
-                            processingOverlayDismissed = false
-                            clearLLMAndTTSData()
-                            processImages(startingFrom: .llm)
-                        } label: {
-                            Label("LLM", systemImage: "sparkles")
-                        }
-                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
-                        Button {
-                            processingOverlayDismissed = false
-                            clearTTSData()
-                            processImages(startingFrom: .tts)
-                        } label: {
-                            Label("TTS", systemImage: "waveform")
-                        }
-                        .disabled(isProcessing || selectedImages.isEmpty || ocrResult.isEmpty)
-                        Divider()
-                        Button { if canSaveSession() { showSaveSessionDialog = true } } label: {
-                            Label("保存", systemImage: "bookmark.fill")
-                        }
-                        .disabled(!canSaveSession())
-                        Divider()
-                        Button { clearAllState() } label: {
-                            Label("清空", systemImage: "trash.fill")
-                        }
+                    .disabled(!isReMaking && (isProcessing || selectedImages.isEmpty))
+                    Button {
+                        processingOverlayDismissed = false
+                        clearLLMAndTTSData()
+                        processImages(startingFrom: .llm)
                     } label: {
-                        Image(systemName: "plus.circle")
-                            .font(Constants.Fonts.listAddIcon)
-                            .foregroundColor(.blue)
-                            .background(Color.clear)
+                        Label("LLM", systemImage: "sparkles")
                     }
-                })
-            }
+                    .disabled(!isReMaking && (isProcessing || selectedImages.isEmpty || ocrResult.isEmpty))
+                    Button {
+                        processingOverlayDismissed = false
+                        clearTTSData()
+                        processImages(startingFrom: .tts)
+                    } label: {
+                        Label("TTS", systemImage: "waveform")
+                    }
+                    .disabled(!isReMaking && (isProcessing || selectedImages.isEmpty || ocrResult.isEmpty))
+                    Divider()
+                    Button {
+                        saveCurrentSession(name: "", avatarImageIndex: 0)
+                    } label: {
+                        Label("保存", systemImage: "bookmark.fill")
+                    }
+                    .disabled(!canSaveSession())
+                    Divider()
+                    Button { 
+                        cancelBackgroundTask()
+                        clearAllState() 
+                    } label: {
+                        Label("清空", systemImage: "trash.fill")
+                    }
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(Constants.Fonts.listAddIcon)
+                        .foregroundColor(.blue)
+                        .background(Color.clear)
+                }
+            })
         }
+    }
+
+    private var navigationBarTitle: String {
+        if let err = error, !processingOverlayDismissed {
+            return errorTitle(for: err)
+        }
+        return recordPageNavigationTitle
     }
 
     // 数据和状态清理(不包括图片)
@@ -1096,6 +998,7 @@ struct PhotoProcessingView: View {
     let currentImageIndex: Int
     let isProcessing: Bool
     let isLoadingRecord: Bool
+    let isReMaking: Bool
     let processingProgress: Float
     let currentOperation: String
     let ocrResult: String
