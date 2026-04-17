@@ -16,6 +16,7 @@
 | DEBT008 | 编码约定-PlayView.swift第746行控制条自动隐藏间隔`1.5`秒硬编码；第937-939/1058-1059行padding数值硬编码，未归入Constants.swift | low | plan-260324-progress-drag-while-playing | 2026-03-24 | resolved |
 | DEBT012 | 编码约定-CustomCameraView.swift约30+处UI布局魔法值（圆角/边框/字号/间距等）硬编码，未集中到Constants.swift | low | plan-260329-camera-thumbnail | 2026-03-29 | open |
 | DEBT013 | 编码约定-ImageToSpeechProcessingError.errorDescription包含底层error.localizedDescription可能泄露技术细节给用户；缺少technicalDescription属性；ErrorView直接展示error.localizedDescription | medium | plan-260414-manage-load-only | 2026-04-14 | open |
+| DEBT014 | 测试债-ReadingReportStats签名变更（continuousDays移除/新增listeningDays等4字段，formattedNear30DaysDuration重命名为formattedNearPeriodDuration）时未同步更新ReadingReportManagerTests；本次为让测试target编译通过已最小化修复（补齐参数、改用新方法名、继承等价断言），但部分测试仅验证格式串未验证语义一致性，需后续审视listeningDays vs 原continuousDays语义对齐 | low | plan-260417-parallel-make-ocr-serial | 2026-04-17 | resolved |
 
 ---
 

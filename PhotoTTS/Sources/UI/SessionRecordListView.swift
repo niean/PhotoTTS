@@ -543,6 +543,20 @@ struct SessionRecordListView: View {
                             }
                         }, trailing: {
                         Menu {
+                            // 发起新制作任务（多任务并发，上限 Constants.BackgroundMake.maxConcurrentTasks）
+                            Button(action: {
+                                appState.openCameraOnNextRecordAppear = true
+                                appState.selectedTab = 1
+                            }) {
+                                Label("拍照制作", systemImage: "camera")
+                            }
+                            Button(action: {
+                                appState.openPhotoPickerOnNextRecordAppear = true
+                                appState.selectedTab = 1
+                            }) {
+                                Label("选图制作", systemImage: "photo.on.rectangle")
+                            }
+                            Divider()
                             Button(action: { showImportPicker = true }) {
                                 Label("导入", systemImage: "square.and.arrow.down")
                             }
@@ -720,9 +734,9 @@ struct SessionRecordListView: View {
     // 创建会话记录行视图（拆分类型检查）
     private func makeSessionRecordRow(for metadata: SessionRecordMetadata) -> some View {
         let makeProgress: Float? = {
+            // 多任务并发下按 sessionId 精准定位任务进度
             guard metadata.isMaking,
-                  let task = bgMakeManager.currentTask,
-                  task.id == metadata.id,
+                  let task = bgMakeManager.task(for: metadata.id),
                   !task.isCompleted else { return nil }
             return task.progress
         }()

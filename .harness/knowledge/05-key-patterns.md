@@ -1,4 +1,4 @@
-<!-- SUMMARY: 12个关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/后台制作/默认会话保护/iPad适配/错误分层/防息屏/日志双写 -->
+<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -71,15 +71,21 @@ AppState.fullScreenKind 控制，CustomZStack 根层渲染：fullScreenKind != .
 
 新增全屏场景加 FullScreenPageKind case + FullScreenPageContainer switch 处理。PlayView 例外（通过 fullScreenCover 弹出）。
 
-## 模式七：后台制作（Background Make）
+## 模式七：多任务后台制作 + OCR 跨任务串行闸门
 
-MakeView.processImages() 调 BackgroundMakeManager.shared.startMaking(images:) 返回 sessionId。startMaking 创建草稿会话（图片落盘、makeStatus=making、名称"YY.MM.DD 未命名"），创建 MakeTask（持有独立 Coordinator）启动。
+BackgroundMakeManager 以 `tasks: [String: MakeTask]` 字典按 sessionId 索引多个并发任务，上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 3）。`hasCapacity` 判定是否可再启动；`activeTaskCount` 只统计 `!isCompleted` 任务（完成/失败不占额）。`task(for:)` 按 id 精准定位（含已完成供 UI 消费结果），`activeTask(for:)` 仅返回未完成任务，`removeTask/cancelTask` 按 id 原子清理。
 
-MakeView 通过 @State observingTaskId 跟踪，.onReceive(bgMakeManager.objectWillChange) 同步进度/结果。完成后后台 updateSessionWithResults 更新 record.json/音频/makeStatus=completed，随后 addMakeEvent 写入制作历史事件（直接调用，绕过 recordSave 的名称过滤；loadEntries 聚合时按当前名称过滤）。失败时保留草稿并标记 makeStatus=incomplete（通过 updateDraftMakeStatus），不删除草稿；取消时仍删除草稿。
+启动流程：MakeView.processImages() 调 `startMaking(images:startingFrom:...reuseSessionId:)` 返回 sessionId。startMaking 先校验 `reuseSessionId` 指向的任务是否仍活跃（是则拒绝重入）、再校验 `hasCapacity`，通过后创建 MakeTask（持有独立 Coordinator，`ownerTaskId=sessionId`）写入 tasks 字典；重 I/O（草稿保存 + jpegData 转换 + Coordinator 启动）移到 `DispatchQueue.global(qos: .userInitiated)`，主线程立即返回。
 
-重连：切回 Tab1 通过 appState.makeTaskIdToReconnect 或自动检测，调 reconnectToBackgroundTask()。列表中 isMaking 记录显示"制作中"标签，isIncomplete 记录显示"未完成"标签。incomplete 记录允许查看/编辑/重新制作/删除，禁止播放；首页不展示 incomplete 记录（getSessionMetadataPage excludeIncomplete 参数）。
+OCR 跨任务串行：独立 `actor OCRGlobalSerialGate`（Core/Handlers/Image/OCRGlobalSerialGate.swift）持有 FIFO 队列。`ImageToSpeechCoordinator.performConcurrentOCR` 首行 `await OCRGlobalSerialGate.shared.acquire(taskId: ownerTaskId)`，`defer { Task { await release(taskId:) } }` 保证抛错/取消路径释放。单任务内仍按 `ocr_concurrent_count` 分批并发；跨任务 OCR 阶段整体互斥，满足 OCR API 并发配额限制。LLM/TTS 不获取闸门，跨任务自由并行。
 
-约束：只允许 1 个后台制作任务（制作页只允许 1 个制作项），已有活跃任务时 startMaking 返回 nil。
+前台绑定：MakeView 通过 `@State observingTaskId` 绑定当前前台任务，`.onReceive(bgMakeManager.objectWillChange)` 同步进度/结果。新发起任务后 `observingTaskId = sessionId` 立即覆写；从管理页点"制作"按钮切前台，经 `appState.makeTaskIdToReconnect` 或 `sessionIdToLoadIntoMake` 路径触发 `reconnectToBackgroundTask()`。任意时刻制作页仅观察 1 个前台任务，其它任务在后台继续运行，通过管理页记录卡"制作中 XX%"展示（`task(for: metadata.id).progress` 按 id 精准匹配）。
+
+入口：管理页（SessionRecordListView）顶导右上角"+"菜单提供"拍照制作/选图制作"作为新任务入口，通过 `appState.openCameraOnNextRecordAppear` / `openPhotoPickerOnNextRecordAppear` 切到制作 Tab 并弹起相机/选图；首页已无制作入口。
+
+完成/失败持久化：完成后后台 `updateSessionWithResults` 更新 record.json/音频/makeStatus=completed，随后 addMakeEvent 写入制作历史事件（直接调用，绕过 recordSave 的名称过滤；loadEntries 聚合时按当前名称过滤）。失败时保留草稿并标记 `makeStatus=incomplete`（通过 updateDraftMakeStatus），不删除草稿；取消时删除草稿。
+
+列表展示：列表中 isMaking 记录显示"制作中"标签，isIncomplete 记录显示"未完成"标签。incomplete 记录允许查看/编辑/重新制作/删除，禁止播放；首页不展示 incomplete 记录（getSessionMetadataPage excludeIncomplete 参数）。
 
 再次制作：管理 Tab 点击"制作"按钮调 loadRecordIntoMake(sessionId:)，从 SessionRecord 还原全量状态（图片/OCR/LLM/TTS 音频/IntermediateResults），设置 isProcessing=true + currentOperation="再次制作" + processingProgress=实际完成进度，不调用 onImagesChanged()、不自动触发制作。用户通过更多菜单选择 OCR/LLM/TTS 环节手动触发。进度计算：有音频1.0/仅OCR+LLM0.7/仅OCR0.5/无OCR0.0。
 

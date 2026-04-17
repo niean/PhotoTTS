@@ -1,4 +1,4 @@
-<!-- SUMMARY: 术语表：32个核心术语定义(AppState/SessionRecord/Coordinator/PlayView等) -->
+<!-- SUMMARY: 术语表：35个核心术语定义(AppState/SessionRecord/Coordinator/PlayView/BackgroundMakeManager/OCRGlobalSerialGate等) -->
 # 术语表
 
 - AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、sessionRecordToPlay（Siri 触发）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage 等
@@ -31,3 +31,6 @@
 - PeerTransferManager：E2E设备传输管理器（封装MultipeerConnectivity），支持WiFi/蓝牙自动切换，管理设备发现、连接、数据传输全流程
 - TransferInvitationContext：E2E传输邀请上下文（Codable），字段：sessionCount/totalSize/deviceName/sessionIDs，邀请时携带记录ID列表用于接收方去重判断
 - TransferConflictDecision：E2E传输冲突决策（Codable），字段：skipDuplicates/existingIDs，接收方选择跳过或覆盖重复记录后发送给发送方
+- BackgroundMakeManager：后台制作管理器（单例），以 `tasks: [String: MakeTask]` 字典管理并发任务，按 sessionId 索引；上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 3）；暴露 `hasCapacity/activeTaskCount/hasAnyActiveTask` 供 UI/调度判断；`task(for:)`/`activeTask(for:)` 按 id 精准定位；`startMaking` 超限或 reuseSessionId 指向活跃任务时返回 nil
+- MakeTask：单个后台制作任务，ObservableObject + Identifiable，持有独立 ImageToSpeechCoordinator（构造时传入 ownerTaskId=sessionId 供 OCR 闸门识别归属）；发布 progress/operationMessage/isCompleted/isSuccess/error/audioResponse/ocrText/audioData/intermediateResults 等
+- OCRGlobalSerialGate：OCR 跨任务串行闸门（actor 单例，位于 Core/Handlers/Image/OCRGlobalSerialGate.swift）。提供 FIFO 队列：`acquire(taskId:)` 若无持有者立即返回，否则经 CheckedContinuation 挂起；`release(taskId:)` 仅持有者能释放，非持有者调用被忽略；`currentHolder`/`waitingCount` 供诊断。ImageToSpeechCoordinator.performConcurrentOCR 首行 acquire、defer 中 Task async release，确保抛错/取消路径闸门释放，让下一个任务的 OCR 批次可进入

@@ -673,14 +673,21 @@ struct MakeView: View {
     }
 
     /// 图片列表发生变化时调用，清空 OCR/音频等衍生状态（增删改顺序都会触发）
-    /// 当有新图片且无活跃后台任务时，自动触发后台制作
+    /// 当有新图片且后台还有并发容量时，自动触发后台制作（上限由 Constants.BackgroundMake.maxConcurrentTasks 控制）
     private func onImagesChanged() {
         clearDataAndState()
-        // 自动触发后台制作：有图片且无活跃后台任务时启动
-        if !selectedImages.isEmpty && !bgMakeManager.hasActiveTask {
-            os.Logger.makeView.info("onImagesChanged: 触发 processImages，图片数=\(selectedImages.count)")
+        // 自动触发后台制作：有图片且后台还有并发容量时启动
+        if !selectedImages.isEmpty && bgMakeManager.hasCapacity {
+            os.Logger.makeView.info("onImagesChanged: 触发 processImages，图片数=\(selectedImages.count)，activeCount=\(bgMakeManager.activeTaskCount)")
             processingOverlayDismissed = false
             processImages(startingFrom: .ocr)
+        } else if !selectedImages.isEmpty {
+            os.Logger.makeView.warning("onImagesChanged: 已达并发上限，跳过自动启动；activeCount=\(bgMakeManager.activeTaskCount)")
+            error = NSError(
+                domain: Constants.ErrorInfo.domain,
+                code: Constants.ErrorInfo.defaultCode,
+                userInfo: [NSLocalizedDescriptionKey: "已达到同时制作上限（\(Constants.BackgroundMake.maxConcurrentTasks) 个），请等待其它任务完成后再试"]
+            )
         }
     }
 
@@ -808,8 +815,11 @@ struct MakeView: View {
             os.Logger.makeView.info("processImages: startMaking 返回成功，sessionId=\(sessionId)")
         } else {
             isProcessing = false
-            error = NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: "启动制作失败，请重试"])
-            os.Logger.makeView.error("processImages: startMaking 返回失败")
+            let message = bgMakeManager.hasCapacity
+                ? "启动制作失败，请重试"
+                : "已达到同时制作上限（\(Constants.BackgroundMake.maxConcurrentTasks) 个），请等待其它任务完成后再试"
+            error = NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: message])
+            os.Logger.makeView.error("processImages: startMaking 返回失败，原因：\(message)")
         }
     }
 

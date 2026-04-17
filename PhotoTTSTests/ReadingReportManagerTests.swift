@@ -3,6 +3,31 @@ import XCTest
 
 final class ReadingReportManagerTests: XCTestCase {
 
+    // MARK: - Helpers
+
+    /// 构造测试用 ReadingReportStats，填充新增必填字段为默认空值
+    /// 既存测试原以 `continuousDays` 签名构造；该字段已移除，现以 `listeningDays` 等价语义填充
+    private func makeStats(
+        period: ReportPeriod = .weekly,
+        totalDuration: TimeInterval,
+        bookCount: Int = 0,
+        topBooks: [TopBookItem] = [],
+        listeningDays: Int = 0,
+        near30DaysDuration: TimeInterval = 0
+    ) -> ReadingReportStats {
+        ReadingReportStats(
+            period: period,
+            totalDuration: totalDuration,
+            bookCount: bookCount,
+            topBooks: topBooks,
+            listeningDays: listeningDays,
+            near30DaysDuration: near30DaysDuration,
+            recentListening: [],
+            dailyBookCounts: [],
+            hourlyBookCounts: []
+        )
+    }
+
     // MARK: - ReportPeriod Tests
 
     func testReportPeriodDays() {
@@ -31,51 +56,24 @@ final class ReadingReportManagerTests: XCTestCase {
     // MARK: - ReadingReportStats Tests
 
     func testFormattedDurationMinutesOnly() {
-        let stats = ReadingReportStats(
-            period: .weekly,
-            totalDuration: 1800,
-            bookCount: 5,
-            topBooks: [],
-            continuousDays: 3,
-            near30DaysDuration: 3600
-        )
+        let stats = makeStats(totalDuration: 1800, bookCount: 5, listeningDays: 3, near30DaysDuration: 3600)
         XCTAssertEqual(stats.formattedDuration, "30m")
     }
 
     func testFormattedDurationHoursAndMinutes() {
-        let stats = ReadingReportStats(
-            period: .weekly,
-            totalDuration: 5520,
-            bookCount: 5,
-            topBooks: [],
-            continuousDays: 3,
-            near30DaysDuration: 3600
-        )
+        let stats = makeStats(totalDuration: 5520, bookCount: 5, listeningDays: 3, near30DaysDuration: 3600)
         XCTAssertEqual(stats.formattedDuration, "1h 32m")
     }
 
-    func testFormattedNear30DaysDuration() {
-        let stats = ReadingReportStats(
-            period: .weekly,
-            totalDuration: 1800,
-            bookCount: 5,
-            topBooks: [],
-            continuousDays: 3,
-            near30DaysDuration: 19920
-        )
-        XCTAssertEqual(stats.formattedNear30DaysDuration, "近30天累计 5小时32分")
+    func testFormattedNearPeriodDurationHoursAndMinutes() {
+        // weekly 周期对应 "近7天累计 ..."；字段重命名为 formattedNearPeriodDuration
+        let stats = makeStats(period: .monthly, totalDuration: 1800, bookCount: 5, listeningDays: 3, near30DaysDuration: 19920)
+        XCTAssertEqual(stats.formattedNearPeriodDuration, "近30天累计 5小时32分")
     }
 
-    func testFormattedNear30DaysDurationMinutesOnly() {
-        let stats = ReadingReportStats(
-            period: .weekly,
-            totalDuration: 1800,
-            bookCount: 5,
-            topBooks: [],
-            continuousDays: 3,
-            near30DaysDuration: 1800
-        )
-        XCTAssertEqual(stats.formattedNear30DaysDuration, "近30天累计 30分钟")
+    func testFormattedNearPeriodDurationMinutesOnly() {
+        let stats = makeStats(period: .monthly, totalDuration: 1800, bookCount: 5, listeningDays: 3, near30DaysDuration: 1800)
+        XCTAssertEqual(stats.formattedNearPeriodDuration, "近30天累计 30分钟")
     }
 
     // MARK: - ReadingReportManager Integration Tests
@@ -84,7 +82,7 @@ final class ReadingReportManagerTests: XCTestCase {
         let stats = ReadingReportManager.shared.calculateStats(period: .weekly)
         XCTAssertGreaterThanOrEqual(stats.totalDuration, 0)
         XCTAssertGreaterThanOrEqual(stats.bookCount, 0)
-        XCTAssertGreaterThanOrEqual(stats.continuousDays, 0)
+        XCTAssertGreaterThanOrEqual(stats.listeningDays, 0)
         XCTAssertLessThanOrEqual(stats.topBooks.count, 3)
     }
 }

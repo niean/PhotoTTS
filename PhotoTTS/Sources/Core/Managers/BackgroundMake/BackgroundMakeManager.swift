@@ -90,7 +90,8 @@ class MakeTask: ObservableObject, Identifiable {
         self.imageCount = imageCount
         self.coordinator = ImageToSpeechCoordinator(
             networkService: NetworkService(),
-            settingsManager: SettingsManager.shared
+            settingsManager: SettingsManager.shared,
+            ownerTaskId: sessionId
         )
     }
 
@@ -254,23 +255,42 @@ class MakeTask: ObservableObject, Identifiable {
 }
 
 // MARK: - 后台制作管理器
-/// 后台制作管理器，只允许1个后台制作任务
+/// 后台制作管理器，支持多任务并发（上限 Constants.BackgroundMake.maxConcurrentTasks）
+/// - OCR 阶段跨任务整体互斥（通过 OCRGlobalSerialGate），单任务内仍按 ocr_concurrent_count 并发
+/// - LLM/TTS 阶段无串行约束，跨任务自由并行
 class BackgroundMakeManager: ObservableObject {
 
     // MARK: - 单例
     static let shared = BackgroundMakeManager()
 
     // MARK: - 属性
-    /// 当前任务（只允许1个）
-    @Published var currentTask: MakeTask? = nil
+    /// 所有任务（含已完成，供 UI 在完成/失败后消费结果），按 sessionId 索引
+    @Published var tasks: [String: MakeTask] = [:]
 
     private let logger = os.Logger.backgroundMake
 
     private init() {}
 
+    // MARK: - 容量查询
+
+    /// 当前未完成（!isCompleted）的任务数量
+    var activeTaskCount: Int {
+        tasks.values.filter { !$0.isCompleted }.count
+    }
+
+    /// 是否还有容量启动新任务
+    var hasCapacity: Bool {
+        activeTaskCount < Constants.BackgroundMake.maxConcurrentTasks
+    }
+
+    /// 是否存在任意未完成任务
+    var hasAnyActiveTask: Bool {
+        activeTaskCount > 0
+    }
+
     // MARK: - 启动制作
 
-    /// 启动后台制作任务（只允许1个，已有活跃任务时拒绝）
+    /// 启动后台制作任务（容量不足或指定复用 ID 对应任务仍活跃时拒绝）
     /// 主线程仅做快速操作（创建 task），重 I/O（草稿保存 + jpegData）在后台线程执行
     /// - Parameters:
     ///   - images: 已降采样的图片数组
@@ -305,9 +325,15 @@ class BackgroundMakeManager: ObservableObject {
         llmHighlights: String?,
         reuseSessionId: String? = nil
     ) -> String? {
-        // 只允许1个后台制作任务
-        if let existing = currentTask, !existing.isCompleted {
-            logger.warning("已有活跃的后台制作任务: sessionId=\(existing.id)，拒绝启动新任务")
+        // 若复用 ID 对应任务仍活跃，视为重入，拒绝
+        if let rid = reuseSessionId, let existing = tasks[rid], !existing.isCompleted {
+            logger.warning("任务已在进行中: sessionId=\(rid)，拒绝重新启动")
+            return nil
+        }
+
+        // 容量检查
+        guard hasCapacity else {
+            logger.warning("已达并发上限 \(Constants.BackgroundMake.maxConcurrentTasks)，拒绝启动；activeCount=\(self.activeTaskCount)")
             return nil
         }
 
@@ -320,9 +346,9 @@ class BackgroundMakeManager: ObservableObject {
 
         // 创建任务并立即返回，不阻塞主线程
         let task = MakeTask(sessionId: sessionId, imageCount: images.count)
-        currentTask = task
+        tasks[sessionId] = task
         task.markStarted()
-        logger.info("后台制作任务启动: sessionId=\(sessionId), 图片数=\(images.count)")
+        logger.info("后台制作任务启动: sessionId=\(sessionId), 图片数=\(images.count), activeCount=\(self.activeTaskCount)")
 
         // 重 I/O 移到后台线程：草稿保存 + jpegData 转换 + 启动 Coordinator
         DispatchQueue.global(qos: .userInitiated).async { [weak self, weak task] in
@@ -475,36 +501,35 @@ class BackgroundMakeManager: ObservableObject {
 
     // MARK: - 查询任务
 
-    /// 获取指定 sessionId 的任务（匹配当前任务时返回）
+    /// 获取指定 sessionId 的任务（含已完成，供 UI 消费结果）
     func task(for sessionId: String) -> MakeTask? {
-        guard let task = currentTask, task.id == sessionId else { return nil }
-        return task
+        return tasks[sessionId]
     }
 
-    /// 是否有活跃（未完成）任务
-    var hasActiveTask: Bool {
-        guard let task = currentTask else { return false }
-        return !task.isCompleted
+    /// 获取指定 sessionId 的未完成任务（仅活跃任务）
+    func activeTask(for sessionId: String) -> MakeTask? {
+        guard let task = tasks[sessionId], !task.isCompleted else { return nil }
+        return task
     }
 
     // MARK: - 清理任务
 
-    /// 移除已完成的任务（MakeView 消费结果后调用）
+    /// 移除已消费的任务（MakeView 消费结果后调用）
     func removeTask(sessionId: String) {
-        guard currentTask?.id == sessionId else { return }
-        currentTask = nil
-        logger.info("移除后台制作任务: sessionId=\(sessionId)")
+        guard tasks[sessionId] != nil else { return }
+        tasks.removeValue(forKey: sessionId)
+        logger.info("移除后台制作任务: sessionId=\(sessionId), activeCount=\(self.activeTaskCount)")
     }
 
-    /// 取消当前任务
+    /// 取消指定任务（删除草稿并移除）
     func cancelTask(sessionId: String) {
-        guard let task = currentTask, task.id == sessionId else { return }
+        guard let task = tasks[sessionId] else { return }
         task.cancel()
         // 删除草稿会话
         DispatchQueue.global(qos: .utility).async {
             _ = SessionRecordManager.shared.deleteSession(id: sessionId)
         }
-        currentTask = nil
-        logger.info("取消后台制作任务: sessionId=\(sessionId)")
+        tasks.removeValue(forKey: sessionId)
+        logger.info("取消后台制作任务: sessionId=\(sessionId), activeCount=\(self.activeTaskCount)")
     }
 }

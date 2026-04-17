@@ -186,11 +186,16 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
     private var isProcessing = false
     /// 当前处理任务，用于支持取消操作
     private var currentTask: DispatchWorkItem?
-    
+    /// 所属任务标识（用于 OCR 跨任务串行闸门），默认随机 UUID 兼容非后台场景
+    private let ownerTaskId: String
+
     // MARK: - 初始化
-    init(networkService: NetworkServiceProtocol, settingsManager: SettingsManager = .shared) {
+    init(networkService: NetworkServiceProtocol,
+         settingsManager: SettingsManager = .shared,
+         ownerTaskId: String = UUID().uuidString) {
         self.networkService = networkService
         self.settingsManager = settingsManager
+        self.ownerTaskId = ownerTaskId
         self.ocrService = OCRServiceFactory.createOCRService()
         self.llmService = LLMServiceFactory.createLLMService()
 
@@ -917,11 +922,20 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         guard let ocrService = ocrService else {
             throw ImageToSpeechProcessingError.ocrFailed(NetworkError.serverError)
         }
-        
+
+        // OCR 跨任务串行闸门：同一时刻仅 1 个任务持有，确保满足 OCR API 并发配额限制
+        // 持有周期 = OCR 阶段全程，抛错/取消时通过 defer 保证释放
+        let gateTaskId = ownerTaskId
+        await OCRGlobalSerialGate.shared.acquire(taskId: gateTaskId)
+        defer {
+            // defer 是同步上下文，release 为 async，外包 Task 异步释放
+            Task { await OCRGlobalSerialGate.shared.release(taskId: gateTaskId) }
+        }
+
         let concurrentCount = getOCRConcurrentCount()
         let totalImages = images.count
-        
-        logInfo("开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)")
+
+        logInfo("开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)，taskId: \(gateTaskId)")
         
         // 分批处理图片，每批的并发数不超过配置的并发数
         let batchSize = concurrentCount

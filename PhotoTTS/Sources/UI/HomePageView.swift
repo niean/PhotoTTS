@@ -246,9 +246,9 @@ struct HomePageView: View {
     // MARK: - Helpers
 
     private func makeProgress(for metadata: SessionRecordMetadata) -> Float? {
+        // 多任务并发下按 sessionId 精准定位任务进度
         guard metadata.isMaking,
-              let task = bgMakeManager.currentTask,
-              task.id == metadata.id,
+              let task = bgMakeManager.task(for: metadata.id),
               !task.isCompleted else { return nil }
         return task.progress
     }

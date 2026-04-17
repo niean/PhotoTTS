@@ -44,8 +44,9 @@
 
 ## OCR 与 TTS
 
-- ImageToSpeechCoordinator：PhotoTTS/Sources/Core/Coordinators/ImageToSpeechCoordinator.swift
+- ImageToSpeechCoordinator：PhotoTTS/Sources/Core/Coordinators/ImageToSpeechCoordinator.swift（构造带 ownerTaskId 参数，OCR 阶段通过 OCRGlobalSerialGate 串行化）
 - OCRService/OCRServiceFactory（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/Image/OCRService.swift
+- OCRGlobalSerialGate（actor，跨任务 OCR 串行闸门）：PhotoTTS/Sources/Core/Handlers/Image/OCRGlobalSerialGate.swift
 - TTSServiceProtocol/TTSService（火山）/AliqwenTTSService（阿里千问）/TTSServiceFactory（多 Provider：huoshan/aliqwen）：PhotoTTS/Sources/Core/Handlers/Audio/TTSService.swift
 - LLMServiceProtocol/LLMServiceFactory/DoubaoLLMService/OpenAILLMService（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/LLM/LLMService.swift
 - NetworkService：PhotoTTS/Sources/Core/Managers/Network/NetworkService.swift
@@ -83,6 +84,6 @@
 
 ## 测试
 
-- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests/ReadingReportManagerTests
+- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests/ReadingReportManagerTests/OCRGlobalSerialGateTests/BackgroundMakeManagerTests
 - 功能测试（PhotoTTSTests/FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）、TestAliqwenTTS（阿里千问 TTS 真实 API 测试）
 - UI 测试（PhotoTTSUITests/）：启动验证/性能/截图

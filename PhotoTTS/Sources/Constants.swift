@@ -368,6 +368,12 @@ extension Constants {
     // MARK: - 默认会话名称
     static let defaultSessionName = "未命名会话"
     
+    // MARK: - 后台制作
+    struct BackgroundMake {
+        /// 后台制作并发任务上限（受 OCR API 配额与设备资源约束）
+        static let maxConcurrentTasks: Int = 3
+    }
+
     // MARK: - 内置默认会话
     struct DefaultSession {
         /// 内置默认会话的 ID
