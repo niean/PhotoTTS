@@ -160,7 +160,8 @@ class SessionRecordManager {
             if !record.audioSegments.isEmpty {
                 for (index, segment) in record.audioSegments.enumerated() {
                     guard let audioData = segment.audioData else { continue }
-                    let audioURL = sessionDir.appendingPathComponent("audio_\(index).\(segment.format)")
+                    let fileIndex = segment.sequenceNumber > 0 ? segment.sequenceNumber : (index + 1)
+                    let audioURL = sessionDir.appendingPathComponent("audio_\(fileIndex).\(segment.format)")
                     try audioData.write(to: audioURL)
                     var mutableAudioURL = audioURL
                     var audioResourceValues = URLResourceValues()
@@ -488,10 +489,15 @@ class SessionRecordManager {
     private func loadAudioSegments(sessionDir: URL, record: SessionRecord) -> [TTSAudioSegment] {
         guard !record.audioSegments.isEmpty else { return [] }
         return record.audioSegments.enumerated().map { index, segment in
-            let audioURL = sessionDir.appendingPathComponent("audio_\(index).\(segment.format)")
-            let audioData = (try? Data(contentsOf: audioURL)) ?? segment.audioData
+            let primaryFileIndex = segment.sequenceNumber > 0 ? segment.sequenceNumber : (index + 1)
+            let primaryAudioURL = sessionDir.appendingPathComponent("audio_\(primaryFileIndex).\(segment.format)")
+            let legacyAudioURL = sessionDir.appendingPathComponent("audio_\(index).\(segment.format)")
+            let audioData = (try? Data(contentsOf: primaryAudioURL))
+                ?? (try? Data(contentsOf: legacyAudioURL))
+                ?? segment.audioData
             return TTSAudioSegment(
                 id: segment.id,
+                sequenceNumber: segment.sequenceNumber,
                 text: segment.text,
                 format: segment.format,
                 duration: segment.duration,
@@ -2775,4 +2781,3 @@ struct ExportSessionInfo: Codable {
         case id, name, createdAt, size, folderName
     }
 }
-

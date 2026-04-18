@@ -82,6 +82,40 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertNotNil(manager.tasks[keepId], "other task should remain")
     }
 
+    /// 从 LLM/TTS 阶段重跑时，应保留已完成阶段的中间结果和耗时，供状态页展示和最终持久化复用
+    func testMakeTaskCanSeedExistingStageSnapshotForRemake() {
+        let task = MakeTask(sessionId: "seed-existing-results", imageCount: 2)
+        var intermediate = IntermediateResults()
+        intermediate.ocrTexts = ["第一页", "第二页"]
+        intermediate.validImageCount = 2
+        intermediate.totalImageCount = 2
+        intermediate.ocrCompletedCount = 2
+        intermediate.ocrCharCount = 6
+        intermediate.ocrDuration = 1.25
+        intermediate.llmStoryName = "故事名"
+        intermediate.llmHighlights = "故事要点"
+        intermediate.llmCharCount = 7
+        intermediate.llmDuration = 0.85
+        intermediate.llmStatus = .completed
+
+        task.seedExistingResults(
+            intermediateResults: intermediate,
+            ocrText: intermediate.ocrTexts.joined(separator: Constants.ocrTextSeparator),
+            ocrTextSegments: intermediate.ocrTexts,
+            ocrDuration: intermediate.ocrDuration,
+            llmDuration: intermediate.llmDuration,
+            ttsDuration: 0
+        )
+
+        XCTAssertEqual(task.ocrTextSegments, ["第一页", "第二页"])
+        XCTAssertEqual(task.ocrText, "第一页\(Constants.ocrTextSeparator)第二页")
+        XCTAssertEqual(task.ocrDuration, 1.25, accuracy: 0.001)
+        XCTAssertEqual(task.llmDuration, 0.85, accuracy: 0.001)
+        XCTAssertEqual(task.intermediateResults?.llmStoryName, "故事名")
+        XCTAssertEqual(task.intermediateResults?.llmHighlights, "故事要点")
+        XCTAssertEqual(task.intermediateResults?.ocrTexts, ["第一页", "第二页"])
+    }
+
     /// 并发上限常量符合 spec 约定（3）
     func testConcurrencyLimitConstant() {
         XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 3, "spec contract: maxConcurrentTasks == 3")

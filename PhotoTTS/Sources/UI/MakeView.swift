@@ -324,6 +324,7 @@ struct MakeView: View {
         
         // 清理计时器
         ocrDuration = 0.0
+        llmDuration = 0.0
         ttsDuration = 0.0
         ocrStartTime = nil
         ttsStartTime = nil
@@ -671,6 +672,7 @@ struct MakeView: View {
         processingProgress = 0.0
         currentOperation = ""
         ocrDuration = 0.0
+        llmDuration = 0.0
         ttsDuration = 0.0
         ocrStartTime = nil
         ttsStartTime = nil
@@ -817,6 +819,10 @@ struct MakeView: View {
         let ocrCombinedTextForTTS: String? = (startStage == .tts) ? ocrResult : nil
         let llmStoryNameForTTS: String? = (startStage == .tts) ? intermediateResults?.llmStoryName : nil
         let llmHighlightsForTTS: String? = (startStage == .tts) ? intermediateResults?.llmHighlights : nil
+        let existingIntermediateResults: IntermediateResults? = (startStage == .llm || startStage == .tts) ? intermediateResults : nil
+        let existingOCRDuration: TimeInterval = (startStage == .llm || startStage == .tts) ? ocrDuration : 0
+        let existingLLMDuration: TimeInterval = startStage == .tts ? llmDuration : 0
+        let existingTTSDuration: TimeInterval = 0
 
         if let sessionId = bgMakeManager.startMaking(
             images: selectedImages,
@@ -825,6 +831,10 @@ struct MakeView: View {
             ocrCombinedText: ocrCombinedTextForTTS,
             llmStoryName: llmStoryNameForTTS,
             llmHighlights: llmHighlightsForTTS,
+            existingIntermediateResults: existingIntermediateResults,
+            existingOCRDuration: existingOCRDuration,
+            existingLLMDuration: existingLLMDuration,
+            existingTTSDuration: existingTTSDuration,
             reuseSessionId: failedSessionId ?? observingTaskId
         ) {
             observingTaskId = sessionId

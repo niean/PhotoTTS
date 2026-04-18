@@ -5,6 +5,15 @@ import AVFoundation
 
 /// 数据模型与基础组件测试
 final class PhotoTTSAppTests: XCTestCase {
+    private var createdSessionIDs: [String] = []
+
+    override func tearDown() {
+        for sessionID in createdSessionIDs {
+            _ = SessionRecordManager.shared.deleteSession(id: sessionID)
+        }
+        createdSessionIDs.removeAll()
+        super.tearDown()
+    }
     
     // MARK: - VoiceSettings 测试
     
@@ -253,6 +262,148 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(segments[0].imageStartIndex, 0)
         XCTAssertEqual(segments[0].imageEndIndex, 1)
         XCTAssertEqual(segments[0].audioData, audioData)
+    }
+
+    func testSaveAndLoadSegmentedAudioPreservesSequenceNumbers() {
+        let segmentOneData = Data([0x01, 0x02, 0x03])
+        let segmentTwoData = Data([0x04, 0x05, 0x06])
+        let firstSegment = TTSAudioSegment(
+            sequenceNumber: 1,
+            text: "第一页",
+            format: "mp3",
+            duration: 1.2,
+            imageStartIndex: 0,
+            imageEndIndex: 0,
+            textStartOffset: 0,
+            textEndOffset: 2,
+            audioData: segmentOneData
+        )
+        let secondSegment = TTSAudioSegment(
+            sequenceNumber: 2,
+            text: "第二页",
+            format: "mp3",
+            duration: 1.5,
+            imageStartIndex: 1,
+            imageEndIndex: 1,
+            textStartOffset: 3,
+            textEndOffset: 5,
+            audioData: segmentTwoData
+        )
+
+        let sessionID = "segmented-save-load-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+        let record = SessionRecord(
+            id: sessionID,
+            name: "segmented-save-load",
+            createdAt: Date(),
+            updatedAt: Date(),
+            imageDataList: [],
+            ocrText: "第一页\n第二页",
+            ocrTextSegments: ["第一页", "第二页"],
+            audioDataBase64: "",
+            audioFormat: "mp3",
+            audioSegments: [firstSegment, secondSegment],
+            audioDuration: 2.7,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 2,
+            totalImageCount: 2,
+            textLength: 6,
+            audioSize: segmentOneData.count + segmentTwoData.count,
+            voiceSettings: nil,
+            avatarImageIndex: 0,
+            storageSize: 0
+        )
+
+        let saveResult = SessionRecordManager.shared.saveSession(record)
+        XCTAssertTrue(saveResult.success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionDir.appendingPathComponent("audio_1.mp3").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionDir.appendingPathComponent("audio_2.mp3").path))
+
+        let loadedRecord = SessionRecordManager.shared.loadSession(id: sessionID)
+        XCTAssertEqual(loadedRecord?.audioSegments.map(\.sequenceNumber), [1, 2])
+        XCTAssertEqual(loadedRecord?.audioSegments.compactMap(\.audioData), [segmentOneData, segmentTwoData])
+    }
+
+    func testImportOneSessionPreservesSegmentedAudioSequenceNumbers() throws {
+        let segmentOneData = Data([0x0A, 0x0B])
+        let segmentTwoData = Data([0x0C, 0x0D, 0x0E])
+        let sessionID = "segmented-import-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "segmented-import",
+            createdAt: Date(),
+            updatedAt: Date(),
+            imageDataList: [],
+            ocrText: "甲乙",
+            ocrTextSegments: ["甲", "乙"],
+            audioDataBase64: "",
+            audioFormat: "mp3",
+            audioSegments: [
+                TTSAudioSegment(
+                    sequenceNumber: 1,
+                    text: "甲",
+                    format: "mp3",
+                    duration: 0.8,
+                    imageStartIndex: 0,
+                    imageEndIndex: 0,
+                    textStartOffset: 0,
+                    textEndOffset: 0,
+                    audioData: segmentOneData
+                ),
+                TTSAudioSegment(
+                    sequenceNumber: 2,
+                    text: "乙",
+                    format: "mp3",
+                    duration: 1.0,
+                    imageStartIndex: 1,
+                    imageEndIndex: 1,
+                    textStartOffset: 1,
+                    textEndOffset: 1,
+                    audioData: segmentTwoData
+                )
+            ],
+            audioDuration: 1.8,
+            ocrDuration: 0,
+            ttsDuration: 0,
+            validImageCount: 2,
+            totalImageCount: 2,
+            textLength: 2,
+            audioSize: segmentOneData.count + segmentTwoData.count,
+            voiceSettings: nil,
+            avatarImageIndex: 0,
+            storageSize: 0
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory.appendingPathComponent("segmented_export_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        _ = SessionRecordManager.shared.deleteSession(id: sessionID)
+        createdSessionIDs.removeAll(where: { $0 == sessionID })
+
+        let exportedDirs = try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+        let exportedSessionDir = try XCTUnwrap(exportedDirs.first(where: {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }))
+
+        let importResult = SessionRecordManager.shared.importOneSession(from: exportedSessionDir)
+        XCTAssertTrue(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 1)
+
+        createdSessionIDs.append(sessionID)
+        let importedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
+        XCTAssertEqual(importedRecord.audioSegments.map(\.sequenceNumber), [1, 2])
+        XCTAssertEqual(importedRecord.audioSegments.compactMap(\.audioData), [segmentOneData, segmentTwoData])
     }
     
     // MARK: - Constants 测试

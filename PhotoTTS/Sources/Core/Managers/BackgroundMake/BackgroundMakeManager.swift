@@ -100,6 +100,23 @@ class MakeTask: ObservableObject, Identifiable {
         )
     }
 
+    /// 为从 LLM/TTS 继续制作的任务注入已有阶段快照，避免状态页和持久化丢失前序结果
+    func seedExistingResults(
+        intermediateResults: IntermediateResults?,
+        ocrText: String,
+        ocrTextSegments: [String],
+        ocrDuration: TimeInterval,
+        llmDuration: TimeInterval,
+        ttsDuration: TimeInterval
+    ) {
+        self.intermediateResults = intermediateResults
+        self.ocrText = ocrText
+        self.ocrTextSegments = ocrTextSegments
+        self.ocrDuration = ocrDuration
+        self.llmDuration = llmDuration
+        self.ttsDuration = ttsDuration
+    }
+
     /// 更新进度（由 BackgroundMakeManager 在 progressHandler 中调用）
     func updateProgress(_ processingProgress: ProcessingProgress) {
         let normalized = max(0.0, min(1.0, processingProgress.percentage / 100.0))
@@ -348,6 +365,10 @@ class BackgroundMakeManager: ObservableObject {
         ocrCombinedText: String?,
         llmStoryName: String?,
         llmHighlights: String?,
+        existingIntermediateResults: IntermediateResults? = nil,
+        existingOCRDuration: TimeInterval = 0,
+        existingLLMDuration: TimeInterval = 0,
+        existingTTSDuration: TimeInterval = 0,
         reuseSessionId: String? = nil
     ) -> String? {
         // 若复用 ID 对应任务仍活跃，视为重入，拒绝
@@ -371,6 +392,14 @@ class BackgroundMakeManager: ObservableObject {
 
         // 创建任务并立即返回，不阻塞主线程
         let task = MakeTask(sessionId: sessionId, imageCount: images.count)
+        task.seedExistingResults(
+            intermediateResults: existingIntermediateResults,
+            ocrText: ocrCombinedText ?? "",
+            ocrTextSegments: ocrTexts ?? [],
+            ocrDuration: existingOCRDuration,
+            llmDuration: existingLLMDuration,
+            ttsDuration: existingTTSDuration
+        )
         tasks[sessionId] = task
         task.markStarted()
         logger.info("后台制作任务启动: sessionId=\(sessionId), 图片数=\(images.count), activeCount=\(self.activeTaskCount)")
