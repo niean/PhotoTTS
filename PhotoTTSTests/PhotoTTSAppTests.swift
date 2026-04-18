@@ -84,12 +84,23 @@ final class PhotoTTSAppTests: XCTestCase {
     
     func testAudioResponseTTSInit() {
         let audioData = Data(repeating: 0xFF, count: 100)
+        let audioSegment = TTSAudioSegment(
+            text: "hello",
+            format: "mp3",
+            duration: 1.5,
+            imageStartIndex: 0,
+            imageEndIndex: 0,
+            textStartOffset: 0,
+            textEndOffset: 4,
+            audioData: audioData
+        )
         let response = AudioResponse(
             audioData: audioData,
             format: "mp3",
             duration: 3.0,
             validImageCount: 2,
-            recognizedTexts: ["hello", "world"]
+            recognizedTexts: ["hello", "world"],
+            audioSegments: [audioSegment]
         )
         
         XCTAssertFalse(response.id.isEmpty)
@@ -98,6 +109,7 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(response.duration, 3.0)
         XCTAssertEqual(response.validImageCount, 2)
         XCTAssertEqual(response.recognizedTexts, ["hello", "world"])
+        XCTAssertEqual(response.audioSegments?.count, 1)
         XCTAssertEqual(response.language, "zh")
     }
     
@@ -114,6 +126,7 @@ final class PhotoTTSAppTests: XCTestCase {
             ocrTextSegments: ["hello", "world"],
             audioDataBase64: "",
             audioFormat: "mp3",
+            audioSegments: [],
             audioDuration: 10.0,
             ocrDuration: 1.0,
             ttsDuration: 2.0,
@@ -150,6 +163,7 @@ final class PhotoTTSAppTests: XCTestCase {
             ocrTextSegments: [],
             audioDataBase64: "",
             audioFormat: "mp3",
+            audioSegments: [],
             audioDuration: 0,
             ocrDuration: 0,
             ttsDuration: 0,
@@ -172,6 +186,7 @@ final class PhotoTTSAppTests: XCTestCase {
             ocrTextSegments: [],
             audioDataBase64: "",
             audioFormat: "mp3",
+            audioSegments: [],
             audioDuration: 0,
             ocrDuration: 0,
             ttsDuration: 0,
@@ -187,6 +202,57 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(record1.id, "id-1")
         XCTAssertEqual(record2.id, "id-2")
         XCTAssertNotEqual(record1.id, record2.id)
+    }
+
+    func testTTSAudioSegmentCodableDropsInlineAudioData() throws {
+        let segment = TTSAudioSegment(
+            text: "hello",
+            format: "mp3",
+            duration: 1.0,
+            imageStartIndex: 0,
+            imageEndIndex: 0,
+            textStartOffset: 0,
+            textEndOffset: 4,
+            audioData: Data([0x01, 0x02])
+        )
+
+        let data = try JSONEncoder().encode(segment)
+        let decoded = try JSONDecoder().decode(TTSAudioSegment.self, from: data)
+
+        XCTAssertEqual(decoded.text, "hello")
+        XCTAssertNil(decoded.audioData)
+    }
+
+    func testSessionRecordGetAudioSegmentsFallsBackToLegacySingleAudio() {
+        let audioData = Data([0x01, 0x02, 0x03])
+        let record = SessionRecord(
+            id: UUID().uuidString,
+            name: "legacy-record",
+            createdAt: Date(),
+            updatedAt: Date(),
+            imageDataList: [],
+            ocrText: "hello world",
+            ocrTextSegments: ["hello", "world"],
+            audioDataBase64: audioData.base64EncodedString(),
+            audioFormat: "mp3",
+            audioSegments: [],
+            audioDuration: 5.0,
+            ocrDuration: 0,
+            ttsDuration: 0,
+            validImageCount: 2,
+            totalImageCount: 2,
+            textLength: 11,
+            audioSize: audioData.count,
+            voiceSettings: nil,
+            avatarImageIndex: 0,
+            storageSize: 0
+        )
+
+        let segments = record.getAudioSegments()
+        XCTAssertEqual(segments.count, 1)
+        XCTAssertEqual(segments[0].imageStartIndex, 0)
+        XCTAssertEqual(segments[0].imageEndIndex, 1)
+        XCTAssertEqual(segments[0].audioData, audioData)
     }
     
     // MARK: - Constants 测试

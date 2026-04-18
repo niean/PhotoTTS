@@ -71,6 +71,8 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     let audioDataBase64: String
     /// 音频格式（如 mp3）
     let audioFormat: String
+    /// 音频分段（多段 TTS 记录）；旧记录为空数组
+    let audioSegments: [TTSAudioSegment]
     /// 音频时长（秒）
     let audioDuration: TimeInterval
     
@@ -129,6 +131,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         ocrTextSegments: [String],
         audioData: Data,
         audioFormat: String,
+        audioSegments: [TTSAudioSegment] = [],
         audioDuration: TimeInterval,
         ocrDuration: TimeInterval,
         llmDuration: TimeInterval = 0,
@@ -158,6 +161,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.ocrTextSegments = ocrTextSegments
         self.audioDataBase64 = audioData.base64EncodedString()
         self.audioFormat = audioFormat
+        self.audioSegments = audioSegments
         self.audioDuration = audioDuration
 
         self.ocrDuration = ocrDuration
@@ -187,7 +191,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     }
     
     /// 按成员复制
-    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioDuration: TimeInterval, ocrDuration: TimeInterval, llmDuration: TimeInterval = 0, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft, coverImagePath: String? = nil) {
+    internal init(id: String, name: String, createdAt: Date, updatedAt: Date, imageDataList: [String], ocrText: String, ocrTextSegments: [String], audioDataBase64: String, audioFormat: String, audioSegments: [TTSAudioSegment] = [], audioDuration: TimeInterval, ocrDuration: TimeInterval, llmDuration: TimeInterval = 0, ttsDuration: TimeInterval, validImageCount: Int, totalImageCount: Int, textLength: Int, audioSize: Int, voiceSettings: VoiceSettings?, avatarImageIndex: Int, storageSize: Int64, makeStatus: MakeStatus? = nil, storyHighlights: String? = nil, hasVirtualPage: Bool = false, animationStyle: AnimationStyle = .rightToLeft, coverImagePath: String? = nil) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -197,6 +201,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.ocrTextSegments = ocrTextSegments
         self.audioDataBase64 = audioDataBase64
         self.audioFormat = audioFormat
+        self.audioSegments = audioSegments
         self.audioDuration = audioDuration
         self.ocrDuration = ocrDuration
         self.llmDuration = llmDuration
@@ -230,6 +235,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         try container.encode(ocrTextSegments, forKey: .ocrTextSegments)
         try container.encode(String(), forKey: .audioDataBase64)
         try container.encode(audioFormat, forKey: .audioFormat)
+        try container.encode(audioSegments, forKey: .audioSegments)
         try container.encode(audioDuration, forKey: .audioDuration)
         try container.encode(ocrDuration, forKey: .ocrDuration)
         try container.encode(llmDuration, forKey: .llmDuration)
@@ -258,6 +264,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         case ocrTextSegments
         case audioDataBase64
         case audioFormat
+        case audioSegments
         case audioDuration
         case ocrDuration
         case llmDuration
@@ -288,6 +295,7 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         ocrTextSegments = try container.decode([String].self, forKey: .ocrTextSegments)
         audioDataBase64 = try container.decodeIfPresent(String.self, forKey: .audioDataBase64) ?? ""
         audioFormat = try container.decode(String.self, forKey: .audioFormat)
+        audioSegments = try container.decodeIfPresent([TTSAudioSegment].self, forKey: .audioSegments) ?? []
         audioDuration = try container.decode(TimeInterval.self, forKey: .audioDuration)
         ocrDuration = try container.decode(TimeInterval.self, forKey: .ocrDuration)
         llmDuration = try container.decodeIfPresent(TimeInterval.self, forKey: .llmDuration) ?? 0
@@ -309,17 +317,17 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     
     /// 返回带新 storageSize 的副本（用于保存后写回 record.json）
     func withStorageSize(_ size: Int64) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: coverImagePath)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: updatedAt, imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioSegments: audioSegments, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: size, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: coverImagePath)
     }
 
     /// 返回带新 coverImagePath 的副本（用于保存后写回 record.json）
     func withCoverImagePath(_ path: String?) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: path)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioSegments: audioSegments, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: makeStatus, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: path)
     }
 
     /// 返回带新 makeStatus 的副本（用于重试时更新状态）
     func withMakeStatus(_ status: MakeStatus?) -> SessionRecord {
-        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: status, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: coverImagePath)
+        SessionRecord(id: id, name: name, createdAt: createdAt, updatedAt: Date(), imageDataList: imageDataList, ocrText: ocrText, ocrTextSegments: ocrTextSegments, audioDataBase64: audioDataBase64, audioFormat: audioFormat, audioSegments: audioSegments, audioDuration: audioDuration, ocrDuration: ocrDuration, llmDuration: llmDuration, ttsDuration: ttsDuration, validImageCount: validImageCount, totalImageCount: totalImageCount, textLength: textLength, audioSize: audioSize, voiceSettings: voiceSettings, avatarImageIndex: avatarImageIndex, storageSize: storageSize, makeStatus: status, storyHighlights: storyHighlights, hasVirtualPage: hasVirtualPage, animationStyle: animationStyle, coverImagePath: coverImagePath)
     }
     
     // MARK: - 辅助方法
@@ -377,9 +385,30 @@ struct SessionRecord: Codable, Identifiable, Hashable {
     /// 获取音频数据
     func getAudioData() -> Data? {
         guard !audioDataBase64.isEmpty, let data = Data(base64Encoded: audioDataBase64) else {
-            return nil
+            return audioSegments.first?.audioData
         }
         return data
+    }
+
+    /// 获取多段音频数据；旧记录回退为单段数组
+    func getAudioSegments() -> [TTSAudioSegment] {
+        if !audioSegments.isEmpty {
+            return audioSegments
+        }
+        guard let data = getAudioData() else { return [] }
+        let endOffset = max(0, ocrText.count - 1)
+        return [
+            TTSAudioSegment(
+                text: ocrText,
+                format: audioFormat,
+                duration: audioDuration,
+                imageStartIndex: 0,
+                imageEndIndex: max(0, ocrTextSegments.count - 1),
+                textStartOffset: 0,
+                textEndOffset: endOffset,
+                audioData: data
+            )
+        ]
     }
     
     /// 获取总处理耗时
@@ -581,4 +610,3 @@ struct SessionRecordMetadata: Codable, Identifiable, Hashable {
         return lhs.id == rhs.id && lhs.name == rhs.name && lhs.avatarImageIndex == rhs.avatarImageIndex
     }
 }
-

@@ -69,9 +69,14 @@ struct StageResults {
     let ttsStatus: TTSStageStatus?    // TTS阶段状态
     let ttsAudioSize: Int?            // TTS音频大小
     let ttsAudioDuration: TimeInterval?  // TTS音频时长
+    let ttsSegmentCount: Int?         // TTS总分段数
+    let ttsCompletedSegmentCount: Int? // TTS已完成分段数
+    let ttsCurrentSegmentNumber: Int? // 当前更新的分段编号
+    let ttsCurrentSegmentImageStartIndex: Int? // 当前分段起始图片索引
+    let ttsCurrentSegmentImageEndIndex: Int? // 当前分段结束图片索引
 
     // 便利 init：TTS 参数默认 nil，兼容现有调用点
-    init(ocrTexts: [String]? = nil, validImageCount: Int? = nil, llmStoryName: String? = nil, llmHighlights: String? = nil, totalImageCount: Int? = nil, ocrCompletedCount: Int? = nil, ocrCharCount: Int? = nil, ocrDuration: TimeInterval? = nil, llmCharCount: Int? = nil, llmDuration: TimeInterval? = nil, llmStatus: LLMStageStatus? = nil, ttsCharCount: Int? = nil, ttsDuration: TimeInterval? = nil, ttsStatus: TTSStageStatus? = nil, ttsAudioSize: Int? = nil, ttsAudioDuration: TimeInterval? = nil) {
+    init(ocrTexts: [String]? = nil, validImageCount: Int? = nil, llmStoryName: String? = nil, llmHighlights: String? = nil, totalImageCount: Int? = nil, ocrCompletedCount: Int? = nil, ocrCharCount: Int? = nil, ocrDuration: TimeInterval? = nil, llmCharCount: Int? = nil, llmDuration: TimeInterval? = nil, llmStatus: LLMStageStatus? = nil, ttsCharCount: Int? = nil, ttsDuration: TimeInterval? = nil, ttsStatus: TTSStageStatus? = nil, ttsAudioSize: Int? = nil, ttsAudioDuration: TimeInterval? = nil, ttsSegmentCount: Int? = nil, ttsCompletedSegmentCount: Int? = nil, ttsCurrentSegmentNumber: Int? = nil, ttsCurrentSegmentImageStartIndex: Int? = nil, ttsCurrentSegmentImageEndIndex: Int? = nil) {
         self.ocrTexts = ocrTexts
         self.validImageCount = validImageCount
         self.llmStoryName = llmStoryName
@@ -88,6 +93,11 @@ struct StageResults {
         self.ttsStatus = ttsStatus
         self.ttsAudioSize = ttsAudioSize
         self.ttsAudioDuration = ttsAudioDuration
+        self.ttsSegmentCount = ttsSegmentCount
+        self.ttsCompletedSegmentCount = ttsCompletedSegmentCount
+        self.ttsCurrentSegmentNumber = ttsCurrentSegmentNumber
+        self.ttsCurrentSegmentImageStartIndex = ttsCurrentSegmentImageStartIndex
+        self.ttsCurrentSegmentImageEndIndex = ttsCurrentSegmentImageEndIndex
     }
 }
 
@@ -172,6 +182,15 @@ enum ImageToSpeechProcessingError: Error, LocalizedError {
 /// 图片转语音协调器，负责协调OCR和TTS两个阶段的处理流程
 /// 管理处理状态、进度跟踪、错误处理和任务取消
 class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObject {
+
+    struct PlannedTTSSegment: Equatable {
+        let sequenceNumber: Int
+        let text: String
+        let imageStartIndex: Int
+        let imageEndIndex: Int
+        let textStartOffset: Int
+        let textEndOffset: Int
+    }
     
     // MARK: - 属性
     /// 网络服务，用于调用TTS API
@@ -435,7 +454,15 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 }
 
                 // 使用同步方式调用TTS
-                let audioResponse = try await convertTextToSpeechAsync(finalText)
+                let audioResponse = try await synthesizeSegmentedSpeech(
+                    finalText: finalText,
+                    finalSegments: finalSegments,
+                    validImageCount: validImageCount,
+                    storyName: llmResult?.storyName,
+                    storyHighlights: storyHighlights,
+                    hasVirtualPage: hasVirtualPage,
+                    progressHandler: progressHandler
+                )
 
                 // 报告TTS完成
                 let ttsCharCount = finalText.count
@@ -459,24 +486,6 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 }
 
                 // 创建包含拼接后文字的完整响应
-                let finalResponse = AudioResponse(
-                    id: audioResponse.id,
-                    audioURL: audioResponse.audioURL,
-                    text: finalText,
-                    language: audioResponse.language,
-                    duration: audioResponse.duration,
-                    format: audioResponse.format,
-                    quality: audioResponse.quality,
-                    timestamp: audioResponse.timestamp,
-                    voiceSettings: audioResponse.voiceSettings,
-                    audioData: audioResponse.audioData,
-                    validImageCount: validImageCount,
-                    recognizedTexts: finalSegments,
-                    storyName: llmResult?.storyName,
-                    storyHighlights: storyHighlights,
-                    hasVirtualPage: hasVirtualPage
-                )
-
                 await MainActor.run {
                     self.isProcessing = false
                     progressHandler(ProcessingProgress(
@@ -486,7 +495,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                         message: "批量处理完成",
                         percentage: 100.0
                     ))
-                    completion(.success(finalResponse))
+                    completion(.success(audioResponse))
                 }
 
             } catch {
@@ -579,7 +588,15 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                         ))
                     }
 
-                    let audioResponse = try await self.convertTextToSpeechAsync(finalText)
+                    let audioResponse = try await self.synthesizeSegmentedSpeech(
+                        finalText: finalText,
+                        finalSegments: finalSegments,
+                        validImageCount: validImageCount,
+                        storyName: llmStoryName,
+                        storyHighlights: llmHighlights,
+                        hasVirtualPage: hasVirtualPage,
+                        progressHandler: progressHandler
+                    )
 
                     let ttsCharCount = finalText.count
                     let ttsAudioSize = audioResponse.audioData?.count
@@ -601,24 +618,6 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                         ))
                     }
 
-                    let finalResponse = AudioResponse(
-                        id: audioResponse.id,
-                        audioURL: audioResponse.audioURL,
-                        text: finalText,
-                        language: audioResponse.language,
-                        duration: audioResponse.duration,
-                        format: audioResponse.format,
-                        quality: audioResponse.quality,
-                        timestamp: audioResponse.timestamp,
-                        voiceSettings: audioResponse.voiceSettings,
-                        audioData: audioResponse.audioData,
-                        validImageCount: validImageCount,
-                        recognizedTexts: finalSegments,
-                        storyName: llmStoryName,
-                        storyHighlights: llmHighlights,
-                        hasVirtualPage: hasVirtualPage
-                    )
-
                     await MainActor.run {
                         self.isProcessing = false
                         progressHandler(ProcessingProgress(
@@ -628,7 +627,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             message: "批量处理完成",
                             percentage: 100.0
                         ))
-                        completion(.success(finalResponse))
+                        completion(.success(audioResponse))
                     }
                 } catch {
                     await MainActor.run {
@@ -793,7 +792,15 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 ))
             }
 
-            let audioResponse = try await convertTextToSpeechAsync(finalText)
+            let audioResponse = try await synthesizeSegmentedSpeech(
+                finalText: finalText,
+                finalSegments: finalSegments,
+                validImageCount: validImageCount,
+                storyName: llmResult?.storyName,
+                storyHighlights: storyHighlights,
+                hasVirtualPage: hasVirtualPage,
+                progressHandler: progressHandler
+            )
 
             let ttsCharCount = finalText.count
             let ttsAudioSize = audioResponse.audioData?.count
@@ -812,31 +819,13 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                 ))
             }
 
-            let finalResponse = AudioResponse(
-                id: audioResponse.id,
-                audioURL: audioResponse.audioURL,
-                text: finalText,
-                language: audioResponse.language,
-                duration: audioResponse.duration,
-                format: audioResponse.format,
-                quality: audioResponse.quality,
-                timestamp: audioResponse.timestamp,
-                voiceSettings: audioResponse.voiceSettings,
-                audioData: audioResponse.audioData,
-                validImageCount: validImageCount,
-                recognizedTexts: finalSegments,
-                storyName: llmResult?.storyName,
-                storyHighlights: storyHighlights,
-                hasVirtualPage: hasVirtualPage
-            )
-
             await MainActor.run {
                 self.isProcessing = false
                 progressHandler(ProcessingProgress(
                     stage: .completed, currentStep: 100, totalSteps: 100,
                     message: "批量处理完成", percentage: 100.0
                 ))
-                completion(.success(finalResponse))
+                completion(.success(audioResponse))
             }
         } catch {
             await MainActor.run {
@@ -887,16 +876,245 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
 
         combinedText = combinedText.replacingOccurrences(of: AppConstants.ocrEmptyResultIndicator, with: "")
 
-        // 检查文本是否超限
-        let maxLength = getTTSMaxLength()
-        if combinedText.count > maxLength {
-            logError("OCR拼接文字超限：长度 \(combinedText.count)，限制 \(maxLength)")
-            throw ImageToSpeechProcessingError.ttsFailed(NetworkError.textTooLong)
+        let validImageCount = results.count - emptyResultCount - failedResultCount
+        logInfo("OCR拼接完成：总长度 \(combinedText.count)，空图片 \(emptyResultCount) 张，失败 \(failedResultCount) 张，有效图片 \(validImageCount) 张")
+        return (combinedText, validImageCount)
+    }
+
+    func buildTTSSegments(from recognizedTexts: [String], characterLimit: Int = Constants.TTS.segmentCharacterLimit) -> [PlannedTTSSegment] {
+        guard !recognizedTexts.isEmpty else { return [] }
+
+        var planned: [PlannedTTSSegment] = []
+        var currentTexts: [String] = []
+        var currentStartIndex = 0
+        var currentCharCount = 0
+        var currentTextStartOffset = 0
+        var globalOffset = 0
+
+        func flush(endImageIndex: Int, endOffset: Int) {
+            guard !currentTexts.isEmpty else { return }
+            planned.append(
+                PlannedTTSSegment(
+                    sequenceNumber: planned.count + 1,
+                    text: currentTexts.joined(separator: AppConstants.ocrTextSeparator),
+                    imageStartIndex: currentStartIndex,
+                    imageEndIndex: endImageIndex,
+                    textStartOffset: currentTextStartOffset,
+                    textEndOffset: endOffset
+                )
+            )
+            currentTexts = []
+            currentCharCount = 0
         }
 
-        let validImageCount = results.count - emptyResultCount - failedResultCount
-        logInfo("OCR拼接完成：总长度 \(combinedText.count)，限制 \(maxLength)，空图片 \(emptyResultCount) 张，失败 \(failedResultCount) 张，有效图片 \(validImageCount) 张")
-        return (combinedText, validImageCount)
+        for (index, text) in recognizedTexts.enumerated() {
+            let separator = currentTexts.isEmpty ? 0 : AppConstants.ocrTextSeparator.count
+            let candidateCount = currentCharCount + separator + text.count
+            let itemStartOffset = globalOffset
+            let itemEndOffset = globalOffset + max(0, text.count - 1)
+
+            if !currentTexts.isEmpty && candidateCount > characterLimit {
+                let previousEndOffset = currentTextStartOffset + max(0, currentCharCount - 1)
+                flush(endImageIndex: index - 1, endOffset: previousEndOffset)
+                currentStartIndex = index
+                currentTextStartOffset = itemStartOffset
+            } else if currentTexts.isEmpty {
+                currentStartIndex = index
+                currentTextStartOffset = itemStartOffset
+            }
+
+            currentTexts.append(text)
+            currentCharCount = currentTexts.joined(separator: AppConstants.ocrTextSeparator).count
+
+            if currentCharCount > characterLimit && currentTexts.count == 1 {
+                flush(endImageIndex: index, endOffset: itemEndOffset)
+                currentStartIndex = index + 1
+                currentTextStartOffset = globalOffset + text.count + AppConstants.ocrTextSeparator.count
+            }
+
+            globalOffset += text.count
+            if index < recognizedTexts.count - 1 {
+                globalOffset += AppConstants.ocrTextSeparator.count
+            }
+        }
+
+        if !currentTexts.isEmpty {
+            flush(
+                endImageIndex: recognizedTexts.count - 1,
+                endOffset: max(currentTextStartOffset, globalOffset - 1)
+            )
+        }
+
+        return planned
+    }
+
+    private func synthesizeSegmentedSpeech(
+        finalText: String,
+        finalSegments: [String],
+        validImageCount: Int,
+        storyName: String?,
+        storyHighlights: String?,
+        hasVirtualPage: Bool,
+        progressHandler: @escaping (ProcessingProgress) -> Void
+    ) async throws -> AudioResponse {
+        let plannedSegments = buildTTSSegments(from: finalSegments)
+        if plannedSegments.isEmpty {
+            let audioResponse = try await convertTextToSpeechAsync(finalText)
+            return AudioResponse(
+                id: audioResponse.id,
+                audioURL: audioResponse.audioURL,
+                text: finalText,
+                language: audioResponse.language,
+                duration: audioResponse.duration,
+                format: audioResponse.format,
+                quality: audioResponse.quality,
+                timestamp: audioResponse.timestamp,
+                voiceSettings: audioResponse.voiceSettings,
+                audioData: audioResponse.audioData,
+                validImageCount: validImageCount,
+                recognizedTexts: finalSegments,
+                audioSegments: nil,
+                storyName: storyName,
+                storyHighlights: storyHighlights,
+                hasVirtualPage: hasVirtualPage
+            )
+        }
+
+        struct SegmentSynthesisResult {
+            let planned: PlannedTTSSegment
+            let response: AudioResponse
+            let elapsed: TimeInterval
+        }
+
+        var collectedSegments: [TTSAudioSegment] = []
+        var totalAudioData = Data()
+        var totalDuration: TimeInterval = 0
+        var responseFormat = "mp3"
+        var responseQuality = "high"
+        var responseLanguage = "zh"
+        var responseTimestamp = Date()
+        var responseVoiceSettings: VoiceSettings?
+        let totalSegmentCount = plannedSegments.count
+        var completedSegmentCount = 0
+
+        await MainActor.run {
+            progressHandler(ProcessingProgress(
+                stage: .tts,
+                currentStep: 70,
+                totalSteps: 100,
+                message: "TTS合成进度: 音频分段 0/\(totalSegmentCount)",
+                percentage: 70.0,
+                stageResults: StageResults(
+                    ttsStatus: .inProgress,
+                    ttsSegmentCount: totalSegmentCount,
+                    ttsCompletedSegmentCount: 0
+                )
+            ))
+        }
+
+        for batch in plannedSegments.chunked(into: Constants.TTS.segmentConcurrentLimit) {
+            let batchResults = try await withThrowingTaskGroup(of: SegmentSynthesisResult.self) { group in
+                for planned in batch {
+                    group.addTask {
+                        let startTime = Date()
+                        self.logInfo("TTS分段开始: 第\(planned.sequenceNumber)/\(totalSegmentCount)段, 图片=\(planned.imageStartIndex + 1)-\(planned.imageEndIndex + 1), 字数=\(planned.text.count)")
+                        do {
+                            let response = try await self.convertTextToSpeechAsync(planned.text)
+                            let elapsed = Date().timeIntervalSince(startTime)
+                            self.logInfo("TTS分段完成: 第\(planned.sequenceNumber)/\(totalSegmentCount)段, 图片=\(planned.imageStartIndex + 1)-\(planned.imageEndIndex + 1), 耗时=\(String(format: "%.2f", elapsed))s")
+                            return SegmentSynthesisResult(planned: planned, response: response, elapsed: elapsed)
+                        } catch {
+                            let elapsed = Date().timeIntervalSince(startTime)
+                            self.logError("TTS分段失败: 第\(planned.sequenceNumber)/\(totalSegmentCount)段, 图片=\(planned.imageStartIndex + 1)-\(planned.imageEndIndex + 1), 耗时=\(String(format: "%.2f", elapsed))s, 错误=\(error.localizedDescription)")
+                            throw error
+                        }
+                    }
+                }
+
+                var results: [SegmentSynthesisResult] = []
+                for try await result in group {
+                    results.append(result)
+                }
+                return results
+            }
+
+            for result in batchResults.sorted(by: { $0.planned.sequenceNumber < $1.planned.sequenceNumber }) {
+                let planned = result.planned
+                let response = result.response
+                responseFormat = response.format
+                responseQuality = response.quality
+                responseLanguage = response.language
+                responseTimestamp = response.timestamp
+                responseVoiceSettings = response.voiceSettings
+                if let audioData = response.audioData {
+                    totalAudioData.append(audioData)
+                }
+                totalDuration += response.duration
+                completedSegmentCount += 1
+                collectedSegments.append(
+                    TTSAudioSegment(
+                        id: response.id,
+                        sequenceNumber: planned.sequenceNumber,
+                        text: planned.text,
+                        format: response.format,
+                        duration: response.duration,
+                        imageStartIndex: planned.imageStartIndex,
+                        imageEndIndex: planned.imageEndIndex,
+                        textStartOffset: planned.textStartOffset,
+                        textEndOffset: planned.textEndOffset,
+                        audioData: response.audioData
+                    )
+                )
+
+                let progress = 70.0 + (Double(completedSegmentCount) / Double(totalSegmentCount) * 30.0)
+                let completedCountSnapshot = completedSegmentCount
+                let totalAudioSizeSnapshot = totalAudioData.count
+                let totalDurationSnapshot = totalDuration
+                let plannedSequenceNumber = planned.sequenceNumber
+                let plannedImageStartIndex = planned.imageStartIndex
+                let plannedImageEndIndex = planned.imageEndIndex
+                await MainActor.run {
+                    progressHandler(ProcessingProgress(
+                        stage: .tts,
+                        currentStep: Int(progress),
+                        totalSteps: 100,
+                        message: "TTS合成进度: 音频分段 \(completedCountSnapshot)/\(totalSegmentCount)",
+                        percentage: progress,
+                        stageResults: StageResults(
+                            ttsCharCount: finalText.count,
+                            ttsDuration: result.elapsed,
+                            ttsStatus: completedCountSnapshot == totalSegmentCount ? .completed : .inProgress,
+                            ttsAudioSize: totalAudioSizeSnapshot,
+                            ttsAudioDuration: totalDurationSnapshot,
+                            ttsSegmentCount: totalSegmentCount,
+                            ttsCompletedSegmentCount: completedCountSnapshot,
+                            ttsCurrentSegmentNumber: plannedSequenceNumber,
+                            ttsCurrentSegmentImageStartIndex: plannedImageStartIndex,
+                            ttsCurrentSegmentImageEndIndex: plannedImageEndIndex
+                        )
+                    ))
+                }
+            }
+        }
+
+        return AudioResponse(
+            id: UUID().uuidString,
+            audioURL: "",
+            text: finalText,
+            language: responseLanguage,
+            duration: totalDuration,
+            format: responseFormat,
+            quality: responseQuality,
+            timestamp: responseTimestamp,
+            voiceSettings: responseVoiceSettings,
+            audioData: totalAudioData.isEmpty ? nil : totalAudioData,
+            validImageCount: validImageCount,
+            recognizedTexts: finalSegments,
+            audioSegments: collectedSegments,
+            storyName: storyName,
+            storyHighlights: storyHighlights,
+            hasVirtualPage: hasVirtualPage
+        )
     }
     
     // MARK: - 私有方法

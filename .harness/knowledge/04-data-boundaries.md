@@ -3,7 +3,7 @@
 
 ## 会话记录
 
-SessionRecord（PhotoTTS/Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 ./21-glossary.md。record.json 不存实际音频和图片二进制。
+SessionRecord（PhotoTTS/Sources/Models/SessionRecord.swift）：Codable/Identifiable/Hashable。字段见 ./21-glossary.md。record.json 不存图片二进制；单段音频兼容字段 `audioDataBase64` 仍保留，多段 TTS 使用 `audioSegments` 元数据描述并由独立音频文件重组。
 
 MakeStatus（同文件）：enum { making, completed, incomplete }，SessionRecord/Metadata 的 makeStatus 均 Optional，nil 表示 completed（向下兼容）。Metadata.isMaking/isIncomplete 计算属性供 UI 判断。incomplete 表示制作失败但草稿保留（可查看/编辑/重新制作，不可播放）。
 
@@ -26,7 +26,8 @@ Documents/Sessions/{id}/
   record.json     -- 全量字段，imageDataList=[] audioDataBase64=""
   history.json    -- 制作/播放历史（SessionHistory），随导入导出
   images/image_0.jpg ... -- JPEG 最大 2048px
-  audio.mp3       -- 独立音频
+  audio.mp3       -- 旧记录独立音频（兼容）
+  audio_1.mp3 ... -- 多段 TTS 音频文件（按 sequenceNumber 1-N 命名）
   avatar.jpg      -- 头像缩略图 最大 96pt
   README.txt
 
@@ -37,7 +38,14 @@ Documents/EndPicts/
     z-{timestamp}.jpg ...
 ```
 
-加载由 SessionRecordManager.loadSession 从文件重组。
+加载由 SessionRecordManager.loadSession 从文件重组。多段记录优先读取 `audio_{sequenceNumber}.{format}` 并恢复 `TTSAudioSegment.audioData`；旧记录无 `audioSegments` 时回退到 `audio.<format>` + `audioDataBase64`。
+
+## TTS 分段音频模型
+
+- TTSAudioSegment（PhotoTTS/Sources/Models/APIResponse.swift）：Codable/Identifiable，字段包含 `id`、`sequenceNumber`、`format`、`duration`、`text`、`imageRange`、`textRange`、`audioData`
+- `sequenceNumber` 采用 1-N 稳定编号，持久化键名为 `sequence_number`，旧数据缺失时解码默认值为 1
+- AudioResponse / SessionRecord 的 `duration` 为整条朗读总时长；分段时长存于各 `TTSAudioSegment.duration`
+- AudioResponse / SessionRecord 的 `audioSegments` 为空时，调用方必须回退到旧单音频路径
 
 用户上传要点图片存储在 Documents/EndPicts/ 目录，与 Bundle 内系统内置图片合并后随机选取。上传时降采样至 2048px，播放时按 1024pt 加载。
 

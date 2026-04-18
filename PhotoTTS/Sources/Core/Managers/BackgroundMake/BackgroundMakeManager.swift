@@ -42,6 +42,11 @@ struct IntermediateResults {
     var ttsStatus: TTSStageStatus = .notStarted  // TTS阶段状态
     var ttsAudioSize: Int = 0            // TTS音频大小（字节）
     var ttsAudioDuration: TimeInterval = 0  // TTS音频时长（秒）
+    var ttsSegmentCount: Int = 0         // TTS总分段数
+    var ttsCompletedSegmentCount: Int = 0 // TTS已完成分段数
+    var ttsCurrentSegmentNumber: Int = 0 // 当前分段编号
+    var ttsCurrentSegmentImageStartIndex: Int = 0 // 当前分段起始图片索引
+    var ttsCurrentSegmentImageEndIndex: Int = 0 // 当前分段结束图片索引
 }
 
 // MARK: - 后台制作任务
@@ -182,6 +187,21 @@ class MakeTask: ObservableObject, Identifiable {
             if let ttsAudioDuration = stageResults.ttsAudioDuration {
                 self.intermediateResults?.ttsAudioDuration = ttsAudioDuration
             }
+            if let ttsSegmentCount = stageResults.ttsSegmentCount {
+                self.intermediateResults?.ttsSegmentCount = ttsSegmentCount
+            }
+            if let ttsCompletedSegmentCount = stageResults.ttsCompletedSegmentCount {
+                self.intermediateResults?.ttsCompletedSegmentCount = ttsCompletedSegmentCount
+            }
+            if let ttsCurrentSegmentNumber = stageResults.ttsCurrentSegmentNumber {
+                self.intermediateResults?.ttsCurrentSegmentNumber = ttsCurrentSegmentNumber
+            }
+            if let ttsCurrentSegmentImageStartIndex = stageResults.ttsCurrentSegmentImageStartIndex {
+                self.intermediateResults?.ttsCurrentSegmentImageStartIndex = ttsCurrentSegmentImageStartIndex
+            }
+            if let ttsCurrentSegmentImageEndIndex = stageResults.ttsCurrentSegmentImageEndIndex {
+                self.intermediateResults?.ttsCurrentSegmentImageEndIndex = ttsCurrentSegmentImageEndIndex
+            }
         }
 
         // 耗时同步放在 stageResults 守卫外部，确保即使 stageResults 为 nil 也能同步
@@ -230,6 +250,11 @@ class MakeTask: ObservableObject, Identifiable {
         self.intermediateResults?.ttsCharCount = response.text.count
         self.intermediateResults?.ttsAudioSize = response.audioData?.count ?? 0
         self.intermediateResults?.ttsAudioDuration = response.duration
+        self.intermediateResults?.ttsSegmentCount = response.audioSegments?.count ?? 1
+        self.intermediateResults?.ttsCompletedSegmentCount = response.audioSegments?.count ?? 1
+        self.intermediateResults?.ttsCurrentSegmentNumber = response.audioSegments?.last?.sequenceNumber ?? (response.audioSegments == nil ? 1 : 0)
+        self.intermediateResults?.ttsCurrentSegmentImageStartIndex = response.audioSegments?.last?.imageStartIndex ?? 0
+        self.intermediateResults?.ttsCurrentSegmentImageEndIndex = response.audioSegments?.last?.imageEndIndex ?? max(0, (response.recognizedTexts?.count ?? 1) - 1)
 
         self.progress = 1.0
         self.operationMessage = "处理完成"

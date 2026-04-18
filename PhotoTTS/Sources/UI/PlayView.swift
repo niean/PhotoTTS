@@ -19,6 +19,46 @@ private enum DragMode {
     case swipePage
 }
 
+struct PlaybackTimelineLocation: Equatable {
+    let segmentIndex: Int
+    let localTime: TimeInterval
+}
+
+struct PlaybackTimeline: Equatable {
+    let segmentStartTimes: [TimeInterval]
+    let totalDuration: TimeInterval
+
+    init(segmentDurations: [TimeInterval]) {
+        var starts: [TimeInterval] = []
+        var cursor: TimeInterval = 0
+        for duration in segmentDurations {
+            starts.append(cursor)
+            cursor += duration
+        }
+        self.segmentStartTimes = starts
+        self.totalDuration = cursor
+    }
+
+    func locate(globalTime: TimeInterval, segmentDurations: [TimeInterval]) -> PlaybackTimelineLocation {
+        guard !segmentDurations.isEmpty else {
+            return PlaybackTimelineLocation(segmentIndex: 0, localTime: 0)
+        }
+        let clamped = max(0, min(globalTime, totalDuration))
+        for (index, start) in segmentStartTimes.enumerated().reversed() {
+            if clamped >= start {
+                let local = min(clamped - start, segmentDurations[index])
+                return PlaybackTimelineLocation(segmentIndex: index, localTime: local)
+            }
+        }
+        return PlaybackTimelineLocation(segmentIndex: 0, localTime: clamped)
+    }
+
+    func globalTime(forSegmentIndex index: Int, localTime: TimeInterval) -> TimeInterval {
+        guard index >= 0, index < segmentStartTimes.count else { return localTime }
+        return segmentStartTimes[index] + localTime
+    }
+}
+
 // MARK: - 播放器
 
 /// 竖屏播放器：图片保持拍摄原始方向，全屏展示。
@@ -45,6 +85,9 @@ struct PlayView: View {
     @State private var playbackTimer: Timer?
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioPlayerDelegate: AudioPlayerDelegate?
+    @State private var currentAudioSegmentIndex: Int = 0
+    @State private var playbackTimeline: PlaybackTimeline?
+    @State private var playbackAudioSegments: [TTSAudioSegment] = []
     @State private var textSegmentRanges: [(start: Int, end: Int)] = []
     /// 制作页传入的预加载图片（已废弃，改用 preloadedImageDataList 按需解码）
     @State private var preloadedImages: [UIImage]? = nil
@@ -97,8 +140,11 @@ struct PlayView: View {
         return textSegmentRanges.map { Double($0.start) / Double(total) }
     }
 
-    private var currentAudioTime: TimeInterval { audioPlayer?.currentTime ?? 0 }
-    private var totalAudioDuration: TimeInterval { audioPlayer?.duration ?? 0 }
+    private var currentAudioTime: TimeInterval {
+        guard let timeline = playbackTimeline else { return audioPlayer?.currentTime ?? 0 }
+        return timeline.globalTime(forSegmentIndex: currentAudioSegmentIndex, localTime: audioPlayer?.currentTime ?? 0)
+    }
+    private var totalAudioDuration: TimeInterval { playbackTimeline?.totalDuration ?? audioPlayer?.duration ?? 0 }
 
     /// 图片索引上限：有要点图片时为 totalImageCount（要点图片索引），否则为 totalImageCount - 1
     private var maxImageIndex: Int {
@@ -145,6 +191,7 @@ struct PlayView: View {
                 preloadedImages = nil
                 preloadedImageDataList = pre.imageDataList.isEmpty ? nil : pre.imageDataList
                 textSegmentRanges = computeTextSegmentRanges(pre.ocrTextSegments)
+                configurePlaybackSegments(for: pre)
                 animationStyle = pre.animationStyle
                 isLoading = false
                 // 要点图片由 PlayerImageView 按需加载，无需在此处理
@@ -463,6 +510,7 @@ struct PlayView: View {
             DispatchQueue.main.async {
                 record = loaded
                 textSegmentRanges = computeTextSegmentRanges(loaded.ocrTextSegments)
+                configurePlaybackSegments(for: loaded)
                 animationStyle = loaded.animationStyle
                 isLoading = false
                 if loaded.getAudioData() != nil {
@@ -513,13 +561,23 @@ struct PlayView: View {
 
     // MARK: - 播放控制
 
+    private func configurePlaybackSegments(for record: SessionRecord) {
+        playbackAudioSegments = record.getAudioSegments()
+        let durations = playbackAudioSegments.map(\.duration)
+        playbackTimeline = durations.isEmpty ? nil : PlaybackTimeline(segmentDurations: durations)
+        currentAudioSegmentIndex = 0
+    }
+
     private func startPlayback() {
-        guard let record = record, let audioData = record.getAudioData() else { return }
+        if playbackAudioSegments.isEmpty, let record {
+            configurePlaybackSegments(for: record)
+        }
+        guard let firstSegment = playbackAudioSegments.first, let audioData = firstSegment.audioData else { return }
         configureAudioSession()
         do {
             let player = try AVAudioPlayer(data: audioData)
             let delegate = AudioPlayerDelegate {
-                DispatchQueue.main.async { onPlaybackFinished() }
+                DispatchQueue.main.async { handleSegmentPlaybackFinished() }
             }
             player.delegate = delegate
             player.enableRate = true  // 启用变速播放
@@ -527,6 +585,7 @@ struct PlayView: View {
             player.rate = playbackSpeed.rate  // 设置当前倍速
             audioPlayer = player
             audioPlayerDelegate = delegate
+            currentAudioSegmentIndex = 0
             isPlaying = true
             playbackProgress = 0
             startPlaybackTimer()
@@ -540,11 +599,58 @@ struct PlayView: View {
     private func startPlaybackTimer() {
         playbackTimer?.invalidate()
         playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            guard let player = audioPlayer, player.duration > 0 else { return }
-            let progress = player.currentTime / player.duration
+            guard let player = audioPlayer else { return }
+            let progress: Double
+            if let timeline = playbackTimeline, timeline.totalDuration > 0 {
+                let globalTime = timeline.globalTime(forSegmentIndex: currentAudioSegmentIndex, localTime: player.currentTime)
+                progress = globalTime / timeline.totalDuration
+            } else {
+                guard player.duration > 0 else { return }
+                progress = player.currentTime / player.duration
+            }
             playbackProgress = progress
             updateCurrentImageIndex(progress)
         }
+    }
+
+    private func switchToAudioSegment(index: Int, localTime: TimeInterval, autoPlay: Bool) {
+        guard index >= 0, index < playbackAudioSegments.count,
+              let audioData = playbackAudioSegments[index].audioData else { return }
+        do {
+            let player = try AVAudioPlayer(data: audioData)
+            let delegate = AudioPlayerDelegate {
+                DispatchQueue.main.async { handleSegmentPlaybackFinished() }
+            }
+            player.delegate = delegate
+            player.enableRate = true
+            player.prepareToPlay()
+            player.rate = playbackSpeed.rate
+            player.currentTime = min(max(0, localTime), player.duration)
+            audioPlayer = player
+            audioPlayerDelegate = delegate
+            currentAudioSegmentIndex = index
+            if autoPlay {
+                player.play()
+                isPlaying = true
+                UIApplication.shared.isIdleTimerDisabled = true
+            }
+            startPlaybackTimer()
+        } catch {
+            os.Logger.audioPlayer.error("PlayView 切换分段播放器失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleSegmentPlaybackFinished() {
+        if currentAudioSegmentIndex + 1 < playbackAudioSegments.count {
+            switchToAudioSegment(index: currentAudioSegmentIndex + 1, localTime: 0, autoPlay: true)
+            if let timeline = playbackTimeline, timeline.totalDuration > 0 {
+                let globalTime = timeline.globalTime(forSegmentIndex: currentAudioSegmentIndex, localTime: 0)
+                playbackProgress = globalTime / timeline.totalDuration
+                updateCurrentImageIndex(playbackProgress)
+            }
+            return
+        }
+        onPlaybackFinished()
     }
 
     private func updateCurrentImageIndex(_ progress: Double) {
@@ -663,6 +769,7 @@ struct PlayView: View {
                     preloadedImages = nil
                     preloadedImageDataList = nil
                     textSegmentRanges = computeTextSegmentRanges(nextRecord.ocrTextSegments)
+                    configurePlaybackSegments(for: nextRecord)
                     animationStyle = nextRecord.animationStyle
                     currentImageIndex = 0
                     playbackProgress = 0.0
@@ -695,10 +802,17 @@ struct PlayView: View {
 
     /// 跳转到指定进度比例，更新音频位置和图片
     private func seekToRatio(_ ratio: Double) {
-        guard let player = audioPlayer, player.duration > 0 else { return }
         let clampedRatio = max(0, min(1, ratio))
-        player.currentTime = clampedRatio * player.duration
         playbackProgress = clampedRatio
+        if let timeline = playbackTimeline, !playbackAudioSegments.isEmpty {
+            let targetTime = clampedRatio * timeline.totalDuration
+            let durations = playbackAudioSegments.map(\.duration)
+            let location = timeline.locate(globalTime: targetTime, segmentDurations: durations)
+            let shouldAutoPlay = isPlaying
+            switchToAudioSegment(index: location.segmentIndex, localTime: location.localTime, autoPlay: shouldAutoPlay)
+        } else if let player = audioPlayer, player.duration > 0 {
+            player.currentTime = clampedRatio * player.duration
+        }
         updateCurrentImageIndex(clampedRatio)
     }
 

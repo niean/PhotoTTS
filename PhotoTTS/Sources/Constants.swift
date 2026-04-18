@@ -32,6 +32,14 @@ typealias AppConstants = Constants
 // MARK: - 扩展Constants
 extension Constants {
 
+    // MARK: - TTS
+    struct TTS {
+        /// 默认分段阈值；超过后按图片文本聚合为多个 TTS 请求
+        static let segmentCharacterLimit = 2000
+        /// 分段 TTS 固定并发度
+        static let segmentConcurrentLimit = 5
+    }
+
     // MARK: - 设备缩放
     struct DeviceScale {
         /// iPad 相对于 iPhone 的页面尺寸缩放比例

@@ -258,6 +258,7 @@ struct MakeView: View {
                 ocrTextSegments: self.ocrTextSegments,
                 audioData: audioData,
                 audioFormat: audioFormat,
+                audioSegments: audioResponse.audioSegments ?? [],
                 audioDuration: audioResponse.duration,
                 ocrDuration: self.ocrDuration,
                 llmDuration: self.llmDuration,
@@ -396,6 +397,7 @@ struct MakeView: View {
                 audioData: data,
                 validImageCount: record.validImageCount,
                 recognizedTexts: record.ocrTextSegments,
+                audioSegments: record.audioSegments,
                 storyName: record.name,
                 storyHighlights: record.storyHighlights,
                 hasVirtualPage: record.hasVirtualPage
@@ -422,6 +424,11 @@ struct MakeView: View {
         intermediate.ttsCharCount = record.textLength
         intermediate.ttsAudioSize = record.audioSize
         intermediate.ttsAudioDuration = record.audioDuration
+        intermediate.ttsSegmentCount = max(0, record.audioSegments.count)
+        intermediate.ttsCompletedSegmentCount = max(record.audioSegments.count > 0 ? record.audioSegments.count : (audioData != nil ? 1 : 0), 0)
+        intermediate.ttsCurrentSegmentNumber = record.audioSegments.last?.sequenceNumber ?? (audioData != nil ? 1 : 0)
+        intermediate.ttsCurrentSegmentImageStartIndex = record.audioSegments.last?.imageStartIndex ?? 0
+        intermediate.ttsCurrentSegmentImageEndIndex = record.audioSegments.last?.imageEndIndex ?? max(0, record.ocrTextSegments.count - 1)
         if audioData != nil {
             intermediate.ttsStatus = .completed
         } else {
@@ -755,6 +762,11 @@ struct MakeView: View {
         intermediateResults?.ttsStatus = .notStarted
         intermediateResults?.ttsAudioSize = 0
         intermediateResults?.ttsAudioDuration = 0
+        intermediateResults?.ttsSegmentCount = 0
+        intermediateResults?.ttsCompletedSegmentCount = 0
+        intermediateResults?.ttsCurrentSegmentNumber = 0
+        intermediateResults?.ttsCurrentSegmentImageStartIndex = 0
+        intermediateResults?.ttsCurrentSegmentImageEndIndex = 0
     }
 
     /// 清空 TTS 数据（保留 OCR+LLM）
@@ -769,6 +781,11 @@ struct MakeView: View {
         intermediateResults?.ttsStatus = .notStarted
         intermediateResults?.ttsAudioSize = 0
         intermediateResults?.ttsAudioDuration = 0
+        intermediateResults?.ttsSegmentCount = 0
+        intermediateResults?.ttsCompletedSegmentCount = 0
+        intermediateResults?.ttsCurrentSegmentNumber = 0
+        intermediateResults?.ttsCurrentSegmentImageStartIndex = 0
+        intermediateResults?.ttsCurrentSegmentImageEndIndex = 0
     }
 
     /// 启动后台制作任务（从指定阶段）
@@ -1498,6 +1515,18 @@ struct IntermediateResultsView: View {
                                 .foregroundColor(.secondary)
                         }
 
+                        if results.ttsSegmentCount > 0 {
+                            Text("分段: \(results.ttsCompletedSegmentCount)/\(results.ttsSegmentCount)")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if results.ttsCurrentSegmentNumber > 0 {
+                            Text("当前段: 第\(results.ttsCurrentSegmentNumber)段（图片\(results.ttsCurrentSegmentImageStartIndex + 1)-\(results.ttsCurrentSegmentImageEndIndex + 1)）")
+                                .font(Constants.Fonts.body)
+                                .foregroundColor(.secondary)
+                        }
+
                         if results.ttsAudioSize > 0 {
                             Text("大小: \(formatAudioSize(results.ttsAudioSize))")
                                 .font(Constants.Fonts.body)
@@ -1570,14 +1599,18 @@ struct IntermediateResultsView: View {
         case .completed:
             let charCount = results.ttsCharCount
             let duration = results.ttsDuration
+            let segmentText = results.ttsSegmentCount > 0 ? "，\(results.ttsSegmentCount)段" : ""
             if duration > 0 {
-                return "TTS语音合成（\(charCount)字，\(Int(duration))秒）"
+                return "TTS语音合成（\(charCount)字\(segmentText)，\(Int(duration))秒）"
             } else {
-                return "TTS语音合成（\(charCount)字）"
+                return "TTS语音合成（\(charCount)字\(segmentText)）"
             }
         case .failed:
             return "TTS语音合成（失败）"
         case .inProgress:
+            if results.ttsSegmentCount > 0 {
+                return "TTS语音合成（音频分段\(results.ttsCompletedSegmentCount)/\(results.ttsSegmentCount)，并发制作中...）"
+            }
             return "TTS语音合成（合成中...）"
         case .notStarted:
             return "TTS语音合成"

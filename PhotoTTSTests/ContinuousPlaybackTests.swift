@@ -3,6 +3,21 @@ import XCTest
 
 final class ContinuousPlaybackTests: XCTestCase {
 
+    func testPlaybackTimelineLocatesSegmentAndOffset() {
+        let timeline = PlaybackTimeline(segmentDurations: [10, 15, 8])
+        let location = timeline.locate(globalTime: 12, segmentDurations: [10, 15, 8])
+
+        XCTAssertEqual(location.segmentIndex, 1)
+        XCTAssertEqual(location.localTime, 2, accuracy: 0.001)
+    }
+
+    func testPlaybackTimelineReturnsGlobalTime() {
+        let timeline = PlaybackTimeline(segmentDurations: [10, 15, 8])
+        let globalTime = timeline.globalTime(forSegmentIndex: 2, localTime: 3)
+
+        XCTAssertEqual(globalTime, 28, accuracy: 0.001)
+    }
+
     /// 测试：从指定记录开始，收集名称前缀同日期的后续记录
     func testBuildSameDateQueue_normalCase() {
         // 名称前缀日期相同（26.03.26），但 createdAt 可能不同

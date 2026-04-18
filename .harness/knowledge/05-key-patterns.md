@@ -21,6 +21,9 @@ SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openC
 ### 图片切换
 三种方式：(1) 播放中音频进度自动驱动（updateCurrentImageIndex 基于 textSegmentRanges）；(2) 拖动进度条跳转（seekToRatio snap 到最近分割点，维持原播放状态）；(3) 暂停后滑动手势（DragGesture on 底层 Color，方向受 animationStyle 管控）。
 
+### 多段音频连续播放
+PlayView 通过 `PlaybackTimeline` 将多个 `TTSAudioSegment.duration` 抽象成统一全局时间轴，再把全局时间映射为“当前段索引 + 段内时间”。段结束时自动切到下一段继续播放，进度条、自动翻页、暂停后手势翻页都始终基于全局时间工作，因此用户感知仍是一条连续朗读。旧记录 `audioSegments` 为空时回退到单 `AVAudioPlayer` 路径。
+
 ### 控制层
 PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left：播放/暂停 + 进度条（PlayerProgressBar）。用户横屏 top-right：退出 + "播完本集"开关（autoStopEnabled，默认开启）。
 
@@ -78,6 +81,8 @@ BackgroundMakeManager 以 `tasks: [String: MakeTask]` 字典按 sessionId 索引
 启动流程：MakeView.processImages() 调 `startMaking(images:startingFrom:...reuseSessionId:)` 返回 sessionId。startMaking 先校验 `reuseSessionId` 指向的任务是否仍活跃（是则拒绝重入）、再校验 `hasCapacity`，通过后创建 MakeTask（持有独立 Coordinator，`ownerTaskId=sessionId`）写入 tasks 字典；重 I/O（草稿保存 + jpegData 转换 + Coordinator 启动）移到 `DispatchQueue.global(qos: .userInitiated)`，主线程立即返回。
 
 OCR 跨任务串行：独立 `actor OCRGlobalSerialGate`（Core/Handlers/Image/OCRGlobalSerialGate.swift）持有 FIFO 队列。`ImageToSpeechCoordinator.performConcurrentOCR` 首行 `await OCRGlobalSerialGate.shared.acquire(taskId: ownerTaskId)`，`defer { Task { await release(taskId:) } }` 保证抛错/取消路径释放。单任务内仍按 `ocr_concurrent_count` 分批并发；跨任务 OCR 阶段整体互斥，满足 OCR API 并发配额限制。LLM/TTS 不获取闸门，跨任务自由并行。
+
+TTS 分段制作：`ImageToSpeechCoordinator.buildTTSSegments` 以单张图片文本为最小原子，按 `Constants.TTS.segmentCharacterLimit` 聚合多个 OCR 段，并为每段分配稳定 `sequenceNumber`。`synthesizeSegmentedSpeech` 再按 `Constants.TTS.segmentConcurrentLimit`=5 分批并发调用 TTS；日志必须包含段编号、图片范围、字符数、耗时和成功/失败状态。进度通过 `StageResults.ttsSegmentCount/ttsCompletedSegmentCount/ttsCurrentSegmentNumber/...` 透传到 `BackgroundMakeManager.IntermediateResults`，MakeView 展示“音频分段 X/Y”和当前图片范围。
 
 前台绑定：MakeView 通过 `@State observingTaskId` 绑定当前前台任务，`.onReceive(bgMakeManager.objectWillChange)` 同步进度/结果。新发起任务后 `observingTaskId = sessionId` 立即覆写；从管理页点"制作"按钮切前台，经 `appState.makeTaskIdToReconnect` 或 `sessionIdToLoadIntoMake` 路径触发 `reconnectToBackgroundTask()`。其中，管理页对活跃 `isMaking` 记录的左滑按钮为"前台"，写入 `makeTaskIdToReconnect`；未完成但非活跃记录仍走"制作"按钮，写入 `sessionIdToLoadIntoMake`。任意时刻制作页仅观察 1 个前台任务，其它任务在后台继续运行，通过管理页记录卡"制作中 XX%"展示（`task(for: metadata.id).progress` 按 id 精准匹配）。
 

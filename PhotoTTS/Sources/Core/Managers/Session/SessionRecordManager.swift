@@ -157,10 +157,20 @@ class SessionRecordManager {
             }
             
             // 保存音频文件
-            if let audioData = record.getAudioData() {
+            if !record.audioSegments.isEmpty {
+                for (index, segment) in record.audioSegments.enumerated() {
+                    guard let audioData = segment.audioData else { continue }
+                    let audioURL = sessionDir.appendingPathComponent("audio_\(index).\(segment.format)")
+                    try audioData.write(to: audioURL)
+                    var mutableAudioURL = audioURL
+                    var audioResourceValues = URLResourceValues()
+                    audioResourceValues.isExcludedFromBackup = false
+                    try? mutableAudioURL.setResourceValues(audioResourceValues)
+                }
+            } else if let audioData = record.getAudioData() {
                 let audioURL = sessionDir.appendingPathComponent("audio.\(record.audioFormat)")
                 try audioData.write(to: audioURL)
-                
+
                 // 设置音频文件属性
                 var mutableAudioURL = audioURL
                 var audioResourceValues = URLResourceValues()
@@ -414,8 +424,9 @@ class SessionRecordManager {
             let record = try JSONDecoder().decode(SessionRecord.self, from: data)
             
             // 加载音频
+            let loadedSegments = loadAudioSegments(sessionDir: sessionDir, record: record)
             let audioURL = sessionDir.appendingPathComponent("audio.\(record.audioFormat)")
-            let audioData: Data = (try? Data(contentsOf: audioURL)) ?? record.getAudioData() ?? Data()
+            let audioData: Data = (try? Data(contentsOf: audioURL)) ?? loadedSegments.first?.audioData ?? record.getAudioData() ?? Data()
 
             // 不预加载图片，避免大会话占用内存被系统杀进程；播放/查看时按需通过 loadImage(sessionId:index:) 加载
             let resultRecord = SessionRecord(
@@ -428,6 +439,7 @@ class SessionRecordManager {
                 ocrTextSegments: record.ocrTextSegments,
                 audioDataBase64: audioData.base64EncodedString(),
                 audioFormat: record.audioFormat,
+                audioSegments: loadedSegments,
                 audioDuration: record.audioDuration,
                 ocrDuration: record.ocrDuration,
                 llmDuration: record.llmDuration,
@@ -442,7 +454,8 @@ class SessionRecordManager {
                 makeStatus: record.makeStatus,
                 storyHighlights: record.storyHighlights,
                 hasVirtualPage: record.hasVirtualPage,
-                animationStyle: record.animationStyle
+                animationStyle: record.animationStyle,
+                coverImagePath: record.coverImagePath
             )
             
             logger.info("加载会话记录成功: \(record.name)")
@@ -469,6 +482,25 @@ class SessionRecordManager {
         let idx = index
         DispatchQueue.global(qos: .utility).async {
             _ = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: effectiveMaxD)
+        }
+    }
+
+    private func loadAudioSegments(sessionDir: URL, record: SessionRecord) -> [TTSAudioSegment] {
+        guard !record.audioSegments.isEmpty else { return [] }
+        return record.audioSegments.enumerated().map { index, segment in
+            let audioURL = sessionDir.appendingPathComponent("audio_\(index).\(segment.format)")
+            let audioData = (try? Data(contentsOf: audioURL)) ?? segment.audioData
+            return TTSAudioSegment(
+                id: segment.id,
+                text: segment.text,
+                format: segment.format,
+                duration: segment.duration,
+                imageStartIndex: segment.imageStartIndex,
+                imageEndIndex: segment.imageEndIndex,
+                textStartOffset: segment.textStartOffset,
+                textEndOffset: segment.textEndOffset,
+                audioData: audioData
+            )
         }
     }
     
@@ -2743,5 +2775,4 @@ struct ExportSessionInfo: Codable {
         case id, name, createdAt, size, folderName
     }
 }
-
 
