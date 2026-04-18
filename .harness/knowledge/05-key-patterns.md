@@ -79,7 +79,9 @@ BackgroundMakeManager 以 `tasks: [String: MakeTask]` 字典按 sessionId 索引
 
 OCR 跨任务串行：独立 `actor OCRGlobalSerialGate`（Core/Handlers/Image/OCRGlobalSerialGate.swift）持有 FIFO 队列。`ImageToSpeechCoordinator.performConcurrentOCR` 首行 `await OCRGlobalSerialGate.shared.acquire(taskId: ownerTaskId)`，`defer { Task { await release(taskId:) } }` 保证抛错/取消路径释放。单任务内仍按 `ocr_concurrent_count` 分批并发；跨任务 OCR 阶段整体互斥，满足 OCR API 并发配额限制。LLM/TTS 不获取闸门，跨任务自由并行。
 
-前台绑定：MakeView 通过 `@State observingTaskId` 绑定当前前台任务，`.onReceive(bgMakeManager.objectWillChange)` 同步进度/结果。新发起任务后 `observingTaskId = sessionId` 立即覆写；从管理页点"制作"按钮切前台，经 `appState.makeTaskIdToReconnect` 或 `sessionIdToLoadIntoMake` 路径触发 `reconnectToBackgroundTask()`。任意时刻制作页仅观察 1 个前台任务，其它任务在后台继续运行，通过管理页记录卡"制作中 XX%"展示（`task(for: metadata.id).progress` 按 id 精准匹配）。
+前台绑定：MakeView 通过 `@State observingTaskId` 绑定当前前台任务，`.onReceive(bgMakeManager.objectWillChange)` 同步进度/结果。新发起任务后 `observingTaskId = sessionId` 立即覆写；从管理页点"制作"按钮切前台，经 `appState.makeTaskIdToReconnect` 或 `sessionIdToLoadIntoMake` 路径触发 `reconnectToBackgroundTask()`。其中，管理页对活跃 `isMaking` 记录的左滑按钮为"前台"，写入 `makeTaskIdToReconnect`；未完成但非活跃记录仍走"制作"按钮，写入 `sessionIdToLoadIntoMake`。任意时刻制作页仅观察 1 个前台任务，其它任务在后台继续运行，通过管理页记录卡"制作中 XX%"展示（`task(for: metadata.id).progress` 按 id 精准匹配）。
+
+前台隔离：重连后台任务时，MakeView 会先清理 `failedSessionId`、错误态、OCR/TTS 结果和中间结果等前台态，再按当前 `sessionId` 从草稿记录恢复图片并同步进度。页面上的取消、继续制作、重试等操作都只以当前 `observingTaskId` 为目标，不应影响其它后台任务。
 
 入口：管理页（SessionRecordListView）顶导右上角"+"菜单提供"拍照制作/选图制作"作为新任务入口，通过 `appState.openCameraOnNextRecordAppear` / `openPhotoPickerOnNextRecordAppear` 切到制作 Tab 并弹起相机/选图；首页已无制作入口。
 

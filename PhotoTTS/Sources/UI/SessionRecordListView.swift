@@ -786,12 +786,18 @@ struct SessionRecordListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if allowSwipeActions {
                 if isMaking {
-                    // 制作中记录显示删除和查看按钮
+                    // 制作中记录显示删除、前台和查看按钮
                     Button("删除") {
                         sessionToDelete = metadata
                         showDeleteConfirmation = true
                     }
                     .tint(.red)
+
+                    Button("前台") {
+                        onLoadToMake?(metadata.id)
+                    }
+                    .tint(.orange)
+                    .disabled(mode != .manage || onLoadToMake == nil)
 
                     Button("查看") {
                         viewSessionDetail(metadata.id)

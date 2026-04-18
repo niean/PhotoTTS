@@ -316,7 +316,11 @@ struct MainTabView: View {
                     appState: appState,
                     onLoadSession: { _ in },
                     onLoadToMake: { id in
-                        appState.sessionIdToLoadIntoMake = id
+                        if BackgroundMakeManager.shared.activeTask(for: id) != nil {
+                            appState.makeTaskIdToReconnect = id
+                        } else {
+                            appState.sessionIdToLoadIntoMake = id
+                        }
                         appState.selectedTab = 1
                     },
                     mode: .manage,
@@ -440,5 +444,4 @@ struct FullScreenCameraOverlay: View {
         }
     }
 }
-
 

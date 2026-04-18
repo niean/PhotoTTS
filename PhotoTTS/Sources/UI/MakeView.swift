@@ -911,24 +911,62 @@ struct MakeView: View {
             return
         }
 
+        isLoadingRecord = true
         observingTaskId = sessionId
+        failedSessionId = nil
+        loadedSourceSessionId = nil
+        processingOverlayDismissed = false
+        error = nil
+        ocrResult = ""
+        ocrTextSegments = []
+        textSegmentRanges = []
+        audioData = nil
+        audioResponse = nil
+        intermediateResults = nil
+        isReMaking = false
 
-        if task.isCompleted {
-            // 任务已完成，直接同步结果
-            syncBackgroundTaskState()
-        } else {
-            // 任务进行中，同步当前进度
-            isProcessing = true
-            processingProgress = task.progress
-            currentOperation = task.operationMessage
-            ocrDuration = task.ocrDuration
-            llmDuration = task.llmDuration
-            ttsDuration = task.ttsDuration
-            error = nil
-            ocrResult = ""
-            audioData = nil
+        let scale = max(1, UIScreen.main.scale)
+        let maxDimension = Constants.ImageDisplay.saveImageMaxPixel / scale
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let record = SessionRecordManager.shared.loadSession(id: sessionId)
+            let totalImageCount = record?.totalImageCount ?? 0
+            var images: [UIImage] = []
+            images.reserveCapacity(totalImageCount)
+
+            if totalImageCount > 0 {
+                for index in 0..<totalImageCount {
+                    if let image = SessionRecordManager.shared.loadImage(
+                        sessionId: sessionId,
+                        index: index,
+                        maxDimension: maxDimension
+                    ) {
+                        images.append(image)
+                    }
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.isLoadingRecord = false
+                self.selectedImages = images
+                self.currentImageIndex = 0
+
+                if task.isCompleted {
+                    // 任务已完成，直接同步结果
+                    self.syncBackgroundTaskState()
+                } else {
+                    // 任务进行中，同步当前进度
+                    self.isProcessing = true
+                    self.processingProgress = task.progress
+                    self.currentOperation = task.operationMessage
+                    self.ocrDuration = task.ocrDuration
+                    self.llmDuration = task.llmDuration
+                    self.ttsDuration = task.ttsDuration
+                    self.intermediateResults = task.intermediateResults
+                }
+                os.Logger.makeView.info("已重连后台任务: sessionId=\(sessionId), 图片=\(images.count)")
+            }
         }
-        os.Logger.makeView.info("已重连后台任务: sessionId=\(sessionId)")
     }
 
     // MARK: - 批量处理相关函数
