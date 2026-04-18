@@ -59,6 +59,25 @@ struct PlaybackTimeline: Equatable {
     }
 }
 
+struct PlaybackSessionTracker {
+    private(set) var currentToken = UUID()
+
+    @discardableResult
+    mutating func beginNewSession() -> UUID {
+        let token = UUID()
+        currentToken = token
+        return token
+    }
+
+    mutating func invalidate() {
+        currentToken = UUID()
+    }
+
+    func isCurrent(_ token: UUID) -> Bool {
+        currentToken == token
+    }
+}
+
 // MARK: - 播放器
 
 /// 竖屏播放器：图片保持拍摄原始方向，全屏展示。
@@ -85,6 +104,7 @@ struct PlayView: View {
     @State private var playbackTimer: Timer?
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioPlayerDelegate: AudioPlayerDelegate?
+    @State private var playbackSessionTracker = PlaybackSessionTracker()
     @State private var currentAudioSegmentIndex: Int = 0
     @State private var playbackTimeline: PlaybackTimeline?
     @State private var playbackAudioSegments: [TTSAudioSegment] = []
@@ -576,13 +596,15 @@ struct PlayView: View {
         configureAudioSession()
         do {
             let player = try AVAudioPlayer(data: audioData)
+            let sessionToken = playbackSessionTracker.beginNewSession()
             let delegate = AudioPlayerDelegate {
-                DispatchQueue.main.async { handleSegmentPlaybackFinished() }
+                DispatchQueue.main.async { handleSegmentPlaybackFinished(for: sessionToken) }
             }
             player.delegate = delegate
             player.enableRate = true  // 启用变速播放
             guard player.prepareToPlay(), player.play() else { return }
             player.rate = playbackSpeed.rate  // 设置当前倍速
+            stopCurrentAudioPlayer()
             audioPlayer = player
             audioPlayerDelegate = delegate
             currentAudioSegmentIndex = 0
@@ -618,29 +640,42 @@ struct PlayView: View {
               let audioData = playbackAudioSegments[index].audioData else { return }
         do {
             let player = try AVAudioPlayer(data: audioData)
+            let sessionToken = playbackSessionTracker.beginNewSession()
             let delegate = AudioPlayerDelegate {
-                DispatchQueue.main.async { handleSegmentPlaybackFinished() }
+                DispatchQueue.main.async { handleSegmentPlaybackFinished(for: sessionToken) }
             }
             player.delegate = delegate
             player.enableRate = true
-            player.prepareToPlay()
+            guard player.prepareToPlay() else { return }
             player.rate = playbackSpeed.rate
             player.currentTime = min(max(0, localTime), player.duration)
+            stopCurrentAudioPlayer()
             audioPlayer = player
             audioPlayerDelegate = delegate
             currentAudioSegmentIndex = index
             if autoPlay {
-                player.play()
-                isPlaying = true
-                UIApplication.shared.isIdleTimerDisabled = true
+                let didStart = player.play()
+                isPlaying = didStart
+                UIApplication.shared.isIdleTimerDisabled = didStart
+                if didStart {
+                    startPlaybackTimer()
+                } else {
+                    playbackTimer?.invalidate()
+                    playbackTimer = nil
+                }
+            } else {
+                isPlaying = false
+                UIApplication.shared.isIdleTimerDisabled = false
+                playbackTimer?.invalidate()
+                playbackTimer = nil
             }
-            startPlaybackTimer()
         } catch {
             os.Logger.audioPlayer.error("PlayView 切换分段播放器失败: \(error.localizedDescription)")
         }
     }
 
-    private func handleSegmentPlaybackFinished() {
+    private func handleSegmentPlaybackFinished(for sessionToken: UUID) {
+        guard playbackSessionTracker.isCurrent(sessionToken) else { return }
         if currentAudioSegmentIndex + 1 < playbackAudioSegments.count {
             switchToAudioSegment(index: currentAudioSegmentIndex + 1, localTime: 0, autoPlay: true)
             if let timeline = playbackTimeline, timeline.totalDuration > 0 {
@@ -696,6 +731,8 @@ struct PlayView: View {
         player.pause()
         isPlaying = false
         playbackTimer?.invalidate()
+        playbackTimer = nil
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     private func onPlaybackFinished() {
@@ -784,12 +821,20 @@ struct PlayView: View {
     }
 
     private func stopAudio() {
+        playbackSessionTracker.invalidate()
         playbackTimer?.invalidate()
         playbackTimer = nil
+        stopCurrentAudioPlayer()
+        isPlaying = false
+        UIApplication.shared.isIdleTimerDisabled = false
+        clearRemoteTransportControls()
+    }
+
+    private func stopCurrentAudioPlayer() {
+        audioPlayer?.delegate = nil
         audioPlayer?.stop()
         audioPlayer = nil
         audioPlayerDelegate = nil
-        clearRemoteTransportControls()
     }
 
     private func stopAndDismiss() {

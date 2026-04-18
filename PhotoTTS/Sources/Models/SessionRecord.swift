@@ -162,7 +162,12 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.audioDataBase64 = audioData.base64EncodedString()
         self.audioFormat = audioFormat
         self.audioSegments = audioSegments
-        self.audioDuration = audioDuration
+        if audioSegments.isEmpty {
+            self.audioDuration = audioDuration
+        } else {
+            let totalSegmentDuration = audioSegments.reduce(0) { $0 + $1.duration }
+            self.audioDuration = totalSegmentDuration > 0 ? totalSegmentDuration : audioDuration
+        }
 
         self.ocrDuration = ocrDuration
         self.llmDuration = llmDuration
@@ -170,7 +175,11 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         self.validImageCount = validImageCount
         self.totalImageCount = images.count
         self.textLength = ocrText.count
-        self.audioSize = audioData.count
+        if audioSegments.isEmpty {
+            self.audioSize = audioData.count
+        } else {
+            self.audioSize = audioSegments.compactMap(\.audioData).reduce(0) { $0 + $1.count }
+        }
         
         self.voiceSettings = voiceSettings
         self.avatarImageIndex = min(max(0, avatarImageIndex), images.count > 0 ? images.count - 1 : 0)

@@ -471,8 +471,9 @@ struct SessionRecordUnifiedView: View {
                     .font(Constants.Fonts.headline)
                     .foregroundColor(.primary)
                 InfoRow(label: "格式", value: record.audioFormat.uppercased())
-                InfoRow(label: "时长", value: formatDuration(record.audioDuration))
-                InfoRow(label: "大小", value: formatStorageSize(Int64(record.audioSize)))
+                InfoRow(label: "时长", value: formatAudioDuration(record))
+                InfoRow(label: "音频段数", value: formatAudioSegmentCount(record))
+                InfoRow(label: "大小", value: formatAudioSize(record))
             }
             .padding()
             .background(Color(.systemGray5))
@@ -632,6 +633,33 @@ struct SessionRecordUnifiedView: View {
         f.allowedUnits = [.useKB, .useMB, .useGB]
         f.countStyle = .file
         return f.string(fromByteCount: bytes)
+    }
+
+    private func formatAudioSegmentCount(_ record: SessionRecord) -> String {
+        let segments = record.getAudioSegments()
+        return "\(segments.count)段"
+    }
+
+    private func formatAudioDuration(_ record: SessionRecord) -> String {
+        let segments = record.getAudioSegments()
+        if !segments.isEmpty {
+            let totalDuration = segments.reduce(0) { $0 + $1.duration }
+            if totalDuration > 0 {
+                return formatDuration(totalDuration)
+            }
+        }
+        return formatDuration(record.audioDuration)
+    }
+
+    private func formatAudioSize(_ record: SessionRecord) -> String {
+        let segments = record.getAudioSegments()
+        if !segments.isEmpty {
+            let totalSize = segments.compactMap(\.audioData).reduce(0) { $0 + $1.count }
+            if totalSize > 0 {
+                return formatStorageSize(Int64(totalSize))
+            }
+        }
+        return formatStorageSize(Int64(record.audioSize))
     }
 }
 

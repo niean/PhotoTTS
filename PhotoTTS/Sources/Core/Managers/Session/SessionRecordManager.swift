@@ -1359,6 +1359,7 @@ public struct EndPictQueueInfo {
                     updatedAt: record.updatedAt, imageDataList: record.imageDataList,
                     ocrText: record.ocrText, ocrTextSegments: record.ocrTextSegments,
                     audioDataBase64: record.audioDataBase64, audioFormat: record.audioFormat,
+                    audioSegments: record.audioSegments,
                     audioDuration: record.audioDuration, ocrDuration: record.ocrDuration,
                     llmDuration: record.llmDuration, ttsDuration: record.ttsDuration,
                     validImageCount: record.validImageCount, totalImageCount: record.totalImageCount,
@@ -1429,6 +1430,7 @@ public struct EndPictQueueInfo {
                     updatedAt: Date(), imageDataList: record.imageDataList,
                     ocrText: ocrCombinedText, ocrTextSegments: ocrTexts,
                     audioDataBase64: record.audioDataBase64, audioFormat: record.audioFormat,
+                    audioSegments: record.audioSegments,
                     audioDuration: record.audioDuration, ocrDuration: ocrDuration,
                     llmDuration: llmDuration, ttsDuration: record.ttsDuration,
                     validImageCount: validImageCount, totalImageCount: record.totalImageCount,
@@ -1497,6 +1499,7 @@ public struct EndPictQueueInfo {
                 ocrTextSegments: ocrTextSegments,
                 audioDataBase64: "",
                 audioFormat: audioFormat,
+                audioSegments: audioResponse.audioSegments ?? [],
                 audioDuration: audioResponse.duration,
                 ocrDuration: ocrDuration,
                 llmDuration: llmDuration,
@@ -1515,7 +1518,14 @@ public struct EndPictQueueInfo {
             )
 
             // 保存音频文件
-            if !audioData.isEmpty {
+            if let audioSegments = audioResponse.audioSegments, !audioSegments.isEmpty {
+                for (index, segment) in audioSegments.enumerated() {
+                    guard let segmentAudioData = segment.audioData else { continue }
+                    let fileIndex = segment.sequenceNumber > 0 ? segment.sequenceNumber : (index + 1)
+                    let audioURL = sessionDir.appendingPathComponent("audio_\(fileIndex).\(segment.format)")
+                    try segmentAudioData.write(to: audioURL)
+                }
+            } else if !audioData.isEmpty {
                 let audioURL = sessionDir.appendingPathComponent("audio.\(audioFormat)")
                 try audioData.write(to: audioURL)
             }
@@ -1629,6 +1639,7 @@ public struct EndPictQueueInfo {
             ocrTextSegments: record.ocrTextSegments,
             audioDataBase64: record.getAudioData()?.base64EncodedString() ?? record.audioDataBase64,
             audioFormat: record.audioFormat,
+            audioSegments: record.audioSegments,
             audioDuration: record.audioDuration,
             ocrDuration: record.ocrDuration,
             llmDuration: record.llmDuration,

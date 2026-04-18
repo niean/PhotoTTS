@@ -18,6 +18,22 @@ final class ContinuousPlaybackTests: XCTestCase {
         XCTAssertEqual(globalTime, 28, accuracy: 0.001)
     }
 
+    func testPlaybackSessionTrackerInvalidatesPreviousSession() {
+        var tracker = PlaybackSessionTracker()
+        let firstToken = tracker.currentToken
+
+        XCTAssertTrue(tracker.isCurrent(firstToken))
+
+        let secondToken = tracker.beginNewSession()
+
+        XCTAssertFalse(tracker.isCurrent(firstToken))
+        XCTAssertTrue(tracker.isCurrent(secondToken))
+
+        tracker.invalidate()
+
+        XCTAssertFalse(tracker.isCurrent(secondToken))
+    }
+
     /// 测试：从指定记录开始，收集名称前缀同日期的后续记录
     func testBuildSameDateQueue_normalCase() {
         // 名称前缀日期相同（26.03.26），但 createdAt 可能不同
