@@ -214,10 +214,12 @@ class PeerTransferManager: NSObject, ObservableObject {
         decisionTimeoutTimer?.invalidate()
         decisionTimeoutTimer = nil
         DispatchQueue.main.async {
+            // 先 reject 未处理的邀请，让发送方立即收到反馈
+            self.pendingInvitation?.handler(false)
+            self.pendingInvitation = nil
             self.discoveredPeers = []
             self.transferState = .idle
             self.transferProgress = 0
-            self.pendingInvitation = nil
             self.isSender = false
             self.pendingSendIDs = []
             self.pendingSendPeer = nil
@@ -227,6 +229,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.skippedDuplicateCount = 0
             self.receivedTransferMode = .full
             self.receiverExistingSessionIDs = []
+            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 
@@ -464,6 +467,9 @@ class PeerTransferManager: NSObject, ObservableObject {
         teardownSession()
 
         DispatchQueue.main.async {
+            // 先 reject 未处理的邀请
+            self.pendingInvitation?.handler(false)
+            self.pendingInvitation = nil
             self.transferState = .idle
             self.transferProgress = 0
             self.isSender = false
@@ -478,6 +484,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.decisionTimeoutTimer = nil
             self.receivedTransferMode = .full
             self.receiverExistingSessionIDs = []
+            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 
@@ -869,7 +876,6 @@ extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
         var invitationContext = TransferInvitationContext(sessionCount: 0, totalSize: 0, deviceName: peerID.displayName, sessionIDs: [])
         if let context, let decoded = try? JSONDecoder().decode(TransferInvitationContext.self, from: context) {
             invitationContext = decoded
-            self.receivedTransferMode = decoded.mode
         }
 
         // 检查本地已存在哪些重复 session
@@ -878,6 +884,25 @@ extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
         let duplicateIDs = invitationContext.sessionIDs.filter { localIDs.contains($0) }
 
         DispatchQueue.main.async {
+            // 上次传输已完成/失败时，刷新 session 以确保同一 MCPeerID 能重新连接
+            switch self.transferState {
+            case .completed, .failed:
+                os.Logger.peerTransfer.info("新邀请到达，清理上次传输状态")
+                self.pendingInvitation?.handler(false)
+                self.teardownSession()
+                self.createSession()
+                self.transferState = .idle
+                self.transferProgress = 0
+                self.isSender = false
+                self.actualSendCount = 0
+                self.skippedDuplicateCount = 0
+                self.receiverExistingSessionIDs = []
+            default:
+                break
+            }
+
+            self.receivedTransferMode = invitationContext.mode
+
             self.pendingInvitation = TransferInvitation(
                 peerID: peerID,
                 context: invitationContext,

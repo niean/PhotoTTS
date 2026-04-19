@@ -41,6 +41,10 @@ struct DeviceTransferView: View {
         .onDisappear {
             if transferManager.transferState != .transferring {
                 transferManager.reset()
+                // 延迟重启广播，确保设备可被附近设备发现（reset 会停止广播）
+                DispatchQueue.main.asyncAfter(deadline: .now() + Constants.PeerTransfer.stateResetDelay) {
+                    transferManager.startAdvertising()
+                }
             }
         }
         .alert("接收传输", isPresented: Binding<Bool>(

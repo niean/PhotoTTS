@@ -175,7 +175,9 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 - 发送端 playOnly 模式下仅打包 .json 文件（不传输图片/音频，体积显著减小）
 - 接收端 didFinishReceivingResourceWithName 中按模式分流：full 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
 - 接收方通过 receiverExistingSessionIDs 在接受邀请时保存本地已有 sessionID，供传输完成后 applyHistoryPackage 使用（pendingInvitation 在接受后即被清除）
-- cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，避免状态残留影响后续传输
+- cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，先 reject 未处理的 pendingInvitation 再置 nil（避免发送方等待超时），同时重置 isIdleTimerDisabled
+- 接收方 didReceiveInvitationFromPeer 中检测 transferState 为 .completed/.failed 时，自动清理 stale 状态（teardownSession + createSession + 状态重置），确保同一 MCPeerID 可重新连接
+- DeviceTransferView.onDisappear 中 reset() 后延迟重启 startAdvertising()，确保设备可被附近设备发现
 
 涉及文件：PeerTransferManager.swift（TransferMode / mode 字段 / invitePeerPlayOnly / sendPlayHistory / 模式分支）、SessionRecordManager.swift（packageHistoryFilesOnly / applyHistoryPackage）、SessionRecordListView.swift（菜单入口）、DeviceTransferView.swift（transferMode 参数）、TransferReceiverModifier.swift（按模式切换 UI 文案）。
 
