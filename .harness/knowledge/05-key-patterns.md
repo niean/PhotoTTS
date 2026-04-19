@@ -171,7 +171,8 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 
 关键设计：
 - TransferInvitationContext 携带 mode 字段，随邀请信令传递给接收端，接收端在 didReceiveInvitationFromPeer 中设置 receivedTransferMode
-- 发送端始终传输所有记录（不跳过重复），由接收端处理去重
+- full 模式发送端自动去重：接收方通过 TransferConflictDecision 回传 existingIDs，发送方在 didReceive data 回调中过滤后仅打包不存在的记录；全部重复时直接完成不传输；决策超时（10s）回退全量传输
+- playOnly 模式发送端始终传输所有记录（不跳过重复），由接收端覆盖本地历史
 - 发送端 playOnly 模式下仅打包 .json 文件（不传输图片/音频，体积显著减小）
 - 接收端 didFinishReceivingResourceWithName 中按模式分流：full 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
 - 接收方通过 receiverExistingSessionIDs 在接受邀请时保存本地已有 sessionID，供传输完成后 applyHistoryPackage 使用（pendingInvitation 在接受后即被清除）

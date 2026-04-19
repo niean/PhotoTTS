@@ -10,11 +10,11 @@ struct TransferReceiverModifier: ViewModifier {
 
     @ObservedObject private var transferManager = PeerTransferManager.shared
 
-    /// 接受邀请并设置去重决策
-    private func acceptInvitation(skipDuplicates: Bool) {
+    /// 接受邀请并设置去重决策（全量模式始终跳过重复）
+    private func acceptInvitation() {
         if let invitation = transferManager.pendingInvitation {
             let decision = TransferConflictDecision(
-                skipDuplicates: skipDuplicates,
+                skipDuplicates: true,
                 existingIDs: invitation.existingIDs
             )
             transferManager.pendingDecisionToSend = decision
@@ -23,7 +23,7 @@ struct TransferReceiverModifier: ViewModifier {
             // 接收方设置去重统计，供进度 overlay 展示
             transferManager.setReceiverDedupInfo(
                 totalCount: invitation.context.sessionCount,
-                skipDuplicates: skipDuplicates,
+                skipDuplicates: true,
                 duplicateCount: invitation.existingIDs.count
             )
             invitation.handler(true)
@@ -50,21 +50,35 @@ struct TransferReceiverModifier: ViewModifier {
                     transferManager.pendingInvitation = nil
                 }}
             )) {
-                Button("接收") {
-                    acceptInvitation(skipDuplicates: false)
-                }
-                Button("取消", role: .cancel) {
-                    transferManager.pendingInvitation?.handler(false)
-                    transferManager.pendingInvitation = nil
+                if let invitation = transferManager.pendingInvitation {
+                    let allDuplicate = invitation.existingIDs.count == invitation.context.sessionCount
+                        && invitation.context.mode == .full
+                    if allDuplicate {
+                        Button("确定") {
+                            transferManager.pendingInvitation?.handler(false)
+                            transferManager.pendingInvitation = nil
+                        }
+                    } else {
+                        Button("接收") {
+                            acceptInvitation()
+                        }
+                        Button("取消", role: .cancel) {
+                            transferManager.pendingInvitation?.handler(false)
+                            transferManager.pendingInvitation = nil
+                        }
+                    }
                 }
             } message: {
                 if let invitation = transferManager.pendingInvitation {
                     let total = invitation.context.sessionCount
                     let existing = invitation.existingIDs.count
-                    if existing > 0 {
-                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条\(invitation.context.mode == .playOnly ? "播放" : "")记录，其中 \(existing) 条已存在（播放记录将覆盖）")
+                    let modeLabel = invitation.context.mode == .playOnly ? "播放" : ""
+                    if invitation.context.mode == .full && existing == total {
+                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条记录，全部已存在无需传输")
+                    } else if invitation.context.mode == .full && existing > 0 {
+                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条记录，其中 \(existing) 条已存在将自动跳过，实际传输 \(total - existing) 条")
                     } else {
-                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条\(invitation.context.mode == .playOnly ? "播放" : "")记录")
+                        Text("\(invitation.context.deviceName) 请求发送 \(total) 条\(modeLabel)记录")
                     }
                 }
             }

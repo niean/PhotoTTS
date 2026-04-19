@@ -52,22 +52,34 @@ struct DeviceTransferView: View {
             set: { if !$0 { transferManager.pendingInvitation?.handler(false); transferManager.pendingInvitation = nil } }
         )) {
             if let invitation = transferManager.pendingInvitation {
-                Button("接收") {
-                    handleInvitationDecision(invitation: invitation, skipDuplicates: false)
-                }
-                Button("拒绝", role: .cancel) {
-                    invitation.handler(false)
-                    transferManager.pendingInvitation = nil
+                let allDuplicate = invitation.existingIDs.count == invitation.context.sessionCount
+                    && invitation.context.mode == .full
+                if allDuplicate {
+                    Button("确定") {
+                        invitation.handler(false)
+                        transferManager.pendingInvitation = nil
+                    }
+                } else {
+                    Button("接收") {
+                        handleInvitationDecision(invitation: invitation)
+                    }
+                    Button("拒绝", role: .cancel) {
+                        invitation.handler(false)
+                        transferManager.pendingInvitation = nil
+                    }
                 }
             }
         } message: {
             if let invitation = transferManager.pendingInvitation {
                 let total = invitation.context.sessionCount
                 let existing = invitation.existingIDs.count
-                if existing > 0 {
-                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条已存在（播放记录将覆盖）")
+                let modeLabel = invitation.context.mode == .playOnly ? "播放" : ""
+                if invitation.context.mode == .full && existing == total {
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，全部已存在无需传输")
+                } else if invitation.context.mode == .full && existing > 0 {
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条已存在将自动跳过，实际传输 \(total - existing) 条")
                 } else {
-                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录。")
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条\(modeLabel)记录")
                 }
             }
         }
@@ -78,9 +90,9 @@ struct DeviceTransferView: View {
         dismiss()
     }
 
-    private func handleInvitationDecision(invitation: TransferInvitation, skipDuplicates: Bool) {
+    private func handleInvitationDecision(invitation: TransferInvitation) {
         let decision = TransferConflictDecision(
-            skipDuplicates: skipDuplicates,
+            skipDuplicates: true,
             existingIDs: invitation.existingIDs
         )
         // 存储决策，连接建立后发送给发送方
@@ -202,11 +214,19 @@ struct DeviceTransferView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(Constants.Fonts.emptyStateIcon)
                 .foregroundColor(.green)
-            Text("传输完成")
-                .font(Constants.Fonts.headline)
-            Text("已发送 \(count) 条\(transferMode == .playOnly ? "播放" : "")记录" + (skipped > 0 ? "，跳过 \(skipped) 条重复" : ""))
-                .font(Constants.Fonts.body)
-                .foregroundColor(.secondary)
+            if count == 0 && skipped > 0 {
+                Text("无需传输")
+                    .font(Constants.Fonts.headline)
+                Text("所选 \(skipped) 条记录在对方设备已存在")
+                    .font(Constants.Fonts.body)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("传输完成")
+                    .font(Constants.Fonts.headline)
+                Text("已发送 \(count) 条\(transferMode == .playOnly ? "播放" : "")记录" + (skipped > 0 ? "，跳过 \(skipped) 条已存在" : ""))
+                    .font(Constants.Fonts.body)
+                    .foregroundColor(.secondary)
+            }
 
             Button("返回") { dismiss() }
                 .font(Constants.Fonts.body)

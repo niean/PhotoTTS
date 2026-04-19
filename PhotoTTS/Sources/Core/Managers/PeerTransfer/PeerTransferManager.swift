@@ -304,12 +304,17 @@ class PeerTransferManager: NSObject, ObservableObject {
 
         beginBackgroundTask()
 
-        // 全量模式：始终传输所有记录（接收方对重复记录仅覆盖播放历史）
-        pendingDecision = nil
+        // 全量模式：使用 pendingDecision 统计去重信息
+        let skippedCount: Int
+        if let decision = pendingDecision {
+            skippedCount = decision.existingIDs.count
+        } else {
+            skippedCount = 0
+        }
 
         DispatchQueue.main.async {
             self.actualSendCount = ids.count
-            self.skippedDuplicateCount = 0
+            self.skippedDuplicateCount = skippedCount
         }
 
         DispatchQueue.main.async {
@@ -346,8 +351,8 @@ class PeerTransferManager: NSObject, ObservableObject {
                             os.Logger.peerTransfer.error("传输失败: \(error.localizedDescription)")
                             self?.transferState = .failed("传输失败，请重试")
                         } else {
-                            os.Logger.peerTransfer.info("传输完成: \(ids.count) 条")
-                            self?.transferState = .completed(imported: ids.count, skipped: 0)
+                            os.Logger.peerTransfer.info("传输完成: \(ids.count) 条, 跳过: \(skippedCount) 条")
+                            self?.transferState = .completed(imported: ids.count, skipped: skippedCount)
                         }
                     }
                 }
@@ -759,12 +764,31 @@ extension PeerTransferManager: MCSessionDelegate {
                 if let sendPeer = self.pendingSendPeer, sendPeer == peerID, !self.pendingSendIDs.isEmpty {
                     switch self.currentTransferMode {
                     case .full:
-                        self.sendSessions(ids: self.pendingSendIDs, to: peerID)
+                        // 全量模式：过滤接收方已存在的记录
+                        let existingSet = Set(decision.existingIDs)
+                        let filteredIDs = self.pendingSendIDs.filter { !existingSet.contains($0) }
+                        let skippedCount = self.pendingSendIDs.count - filteredIDs.count
+
+                        if filteredIDs.isEmpty {
+                            // 全部重复，直接完成
+                            self.actualSendCount = 0
+                            self.skippedDuplicateCount = self.pendingSendIDs.count
+                            self.transferState = .completed(imported: 0, skipped: self.pendingSendIDs.count)
+                            os.Logger.peerTransfer.info("全部记录已存在，跳过传输: \(skippedCount) 条")
+                            self.pendingSendIDs = []
+                            self.pendingSendPeer = nil
+                            self.teardownSession()
+                        } else {
+                            self.pendingSendIDs = []
+                            self.pendingSendPeer = nil
+                            self.sendSessions(ids: filteredIDs, to: peerID)
+                        }
                     case .playOnly:
-                        self.sendPlayHistory(ids: self.pendingSendIDs, to: peerID)
+                        let ids = self.pendingSendIDs
+                        self.pendingSendIDs = []
+                        self.pendingSendPeer = nil
+                        self.sendPlayHistory(ids: ids, to: peerID)
                     }
-                    self.pendingSendIDs = []
-                    self.pendingSendPeer = nil
                 }
             }
         }
