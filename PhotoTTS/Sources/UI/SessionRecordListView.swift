@@ -692,6 +692,12 @@ struct SessionRecordListView: View {
                 selectedIDs.removeAll()
             }
         }
+        .onChange(of: showPlayOnlyTransfer) { _, newValue in
+            if !newValue && isSelectionMode {
+                isSelectionMode = false
+                selectedIDs.removeAll()
+            }
+        }
         .overlay {
             if isImporting {
                 CustomZStack {
