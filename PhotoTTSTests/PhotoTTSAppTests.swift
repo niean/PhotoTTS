@@ -461,11 +461,63 @@ final class PhotoTTSAppTests: XCTestCase {
         let cameraVC = CustomCameraViewController()
         XCTAssertNotNil(cameraVC, "CustomCameraViewController should be created successfully")
     }
+
+    // MARK: - 首页启动预热测试
+
+    func testPreloadHomeCardCoverCachesFallbackImage() {
+        let sessionID = "home-card-cover-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "26.04.20 启动预热测试",
+            images: [makeImage(color: .red)],
+            ocrText: "测试",
+            ocrTextSegments: ["测试"],
+            audioData: Data(),
+            audioFormat: "mp3",
+            audioDuration: 0,
+            ocrDuration: 0,
+            ttsDuration: 0,
+            validImageCount: 1
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+        XCTAssertNil(SessionRecordManager.shared.loadHomeCardCoverIfCached(sessionId: sessionID))
+
+        let preloadFinished = expectation(description: "home-card-cover-preloaded")
+        SessionRecordManager.shared.preloadHomeCardCover(
+            sessionId: sessionID,
+            avatarImageIndex: 0,
+            totalImageCount: 1
+        )
+
+        DispatchQueue.global().async {
+            for _ in 0..<20 {
+                if SessionRecordManager.shared.loadHomeCardCoverIfCached(sessionId: sessionID) != nil {
+                    preloadFinished.fulfill()
+                    return
+                }
+                usleep(50_000)
+            }
+        }
+
+        wait(for: [preloadFinished], timeout: 2.0)
+        XCTAssertNotNil(SessionRecordManager.shared.loadHomeCardCoverIfCached(sessionId: sessionID))
+    }
     
     // MARK: - SessionRecordMetadata seriesName 测试
 
     private func makeMetadata(name: String, createdAt: Date = Date()) -> SessionRecordMetadata {
         SessionRecordMetadata(id: UUID().uuidString, name: name, createdAt: createdAt, updatedAt: createdAt, totalImageCount: 1, validImageCount: 1, textLength: 100, audioDuration: 60, avatarImageIndex: 0, storageSize: 1024)
+    }
+
+    private func makeImage(color: UIColor, size: CGSize = CGSize(width: 40, height: 40)) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
     }
 
     func testSeriesName_normalFormat() {

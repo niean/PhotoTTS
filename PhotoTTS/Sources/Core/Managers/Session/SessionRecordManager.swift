@@ -1028,6 +1028,16 @@ public struct EndPictQueueInfo {
         c.countLimit = 6
         return c
     }()
+
+    private static let homeCardCoverCache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.countLimit = Constants.HomeCard.coverCacheLimit
+        return c
+    }()
+
+    private func homeCardCoverCacheKey(sessionId: String, maxDimension: CGFloat) -> NSString {
+        "\(sessionId):\(maxDimension)" as NSString
+    }
     
     /// 使用 Image I/O 从文件直接生成缩略图，不生成全尺寸位图，避免内存突增。
     private static func downsampleImageFromFile(url: URL, maxDimension: CGFloat) -> UIImage? {
@@ -1144,6 +1154,53 @@ public struct EndPictQueueInfo {
             return Self.downsampleImageFromFile(url: coverURL, maxDimension: maxDim)
         } else {
             return UIImage(contentsOfFile: coverURL.path)
+        }
+    }
+
+    /// 仅读取首页卡片封面缓存，未命中返回 nil
+    func loadHomeCardCoverIfCached(sessionId: String, maxDimension: CGFloat = Constants.HomeCard.coverAvatarMaxDimension) -> UIImage? {
+        let key = homeCardCoverCacheKey(sessionId: sessionId, maxDimension: maxDimension)
+        return Self.homeCardCoverCache.object(forKey: key)
+    }
+
+    /// 清理指定会话的首页卡片封面缓存
+    func invalidateHomeCardCoverCache(sessionId: String) {
+        let key = homeCardCoverCacheKey(sessionId: sessionId, maxDimension: Constants.HomeCard.coverAvatarMaxDimension)
+        Self.homeCardCoverCache.removeObject(forKey: key)
+    }
+
+    /// 同步加载首页卡片封面：优先 cover.jpg，回退到头像索引，再回退到首图，并写入首页封面缓存
+    func loadHomeCardCover(sessionId: String, avatarImageIndex: Int, totalImageCount: Int, maxDimension: CGFloat = Constants.HomeCard.coverAvatarMaxDimension) -> UIImage? {
+        let key = homeCardCoverCacheKey(sessionId: sessionId, maxDimension: maxDimension)
+        if let cached = Self.homeCardCoverCache.object(forKey: key) {
+            return cached
+        }
+
+        var image = loadCoverImage(sessionId: sessionId, maxDimension: maxDimension)
+        if image == nil, totalImageCount > 0 {
+            let avatarIdx = min(max(0, avatarImageIndex), totalImageCount - 1)
+            image = loadImage(sessionId: sessionId, index: avatarIdx, maxDimension: maxDimension)
+                ?? loadImage(sessionId: sessionId, index: 0, maxDimension: maxDimension)
+        }
+
+        if let image {
+            Self.homeCardCoverCache.setObject(image, forKey: key)
+        }
+        return image
+    }
+
+    /// 后台预热首页卡片封面缓存
+    func preloadHomeCardCover(sessionId: String, avatarImageIndex: Int, totalImageCount: Int, maxDimension: CGFloat = Constants.HomeCard.coverAvatarMaxDimension) {
+        let key = homeCardCoverCacheKey(sessionId: sessionId, maxDimension: maxDimension)
+        if Self.homeCardCoverCache.object(forKey: key) != nil { return }
+
+        DispatchQueue.global(qos: .utility).async {
+            _ = self.loadHomeCardCover(
+                sessionId: sessionId,
+                avatarImageIndex: avatarImageIndex,
+                totalImageCount: totalImageCount,
+                maxDimension: maxDimension
+            )
         }
     }
 
@@ -1688,6 +1745,7 @@ public struct EndPictQueueInfo {
         do {
             try fileManager.removeItem(at: sessionDir)
             invalidateMetadataCache()
+            invalidateHomeCardCoverCache(sessionId: id)
             logger.info("删除会话记录成功: \(sessionName)")
             return true
         } catch {

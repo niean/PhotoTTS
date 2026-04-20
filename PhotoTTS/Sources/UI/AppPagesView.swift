@@ -209,6 +209,7 @@ struct AppLoadingView: View {
     var body: some View {
         AppPageView(appState: appState, pageType: .loading)
             .onAppear {
+                appState.startHomePageStartupPreloadIfNeeded()
                 runLoadingSequence()
             }
     }
@@ -248,4 +249,3 @@ struct AppIntroView: View {
         AppPageView(appState: appState, pageType: .intro, onDismiss: onDismiss)
     }
 }
-

@@ -30,6 +30,13 @@ extension os.Logger {
 // MARK: - AppDelegate
 class AppDelegate: NSObject, UIApplicationDelegate {}
 
+struct HomePageStartupPreloadSnapshot {
+    let items: [SessionRecordMetadata]
+    let totalCount: Int
+    let playStatsMap: [String: PlayStatInfo]
+    let seriesOptions: [String]
+}
+
 // MARK: - 应用状态管理
 class AppState: ObservableObject {
     @Published var loadingProgress: Double = 0.0
@@ -62,7 +69,58 @@ class AppState: ObservableObject {
     @Published var tab0ReselectTrigger: Int = 0
     /// 管理 Tab 重选触发器：same-tab tap 时自增，SessionRecordListView 监听后重置到第1页
     @Published var tab2ReselectTrigger: Int = 0
+    @Published private(set) var homePageStartupPreloadSnapshot: HomePageStartupPreloadSnapshot? = nil
+
+    private var hasStartedHomePageStartupPreload = false
+
     init() {}
+
+    func startHomePageStartupPreloadIfNeeded() {
+        guard !hasStartedHomePageStartupPreload else { return }
+        hasStartedHomePageStartupPreload = true
+
+        let pageSize = Constants.Pagination.pageSize
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = SessionRecordManager.shared.getSessionMetadataPage(
+                page: 1,
+                pageSize: pageSize,
+                completedOnly: true,
+                caller: "启动预加载-首页首屏"
+            )
+            let playStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: result.items.map(\.id))
+            let uncategorized = Constants.GroupDisplay.uncategorizedLabel
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "启动预加载-首页系列")
+                .filter { !$0.isMaking && !$0.isIncomplete }
+            let seriesOptions = Array(Set(allMetadata.map(\.seriesName)).filter { $0 != uncategorized })
+                .sorted { $0.localizedCompare($1) == .orderedAscending }
+
+            for metadata in result.items {
+                SessionRecordManager.shared.preloadHomeCardCover(
+                    sessionId: metadata.id,
+                    avatarImageIndex: metadata.avatarImageIndex,
+                    totalImageCount: metadata.totalImageCount,
+                    maxDimension: Constants.HomeCard.coverAvatarMaxDimension
+                )
+            }
+
+            let snapshot = HomePageStartupPreloadSnapshot(
+                items: result.items,
+                totalCount: result.totalCount,
+                playStatsMap: playStatsMap,
+                seriesOptions: seriesOptions
+            )
+
+            DispatchQueue.main.async {
+                self?.homePageStartupPreloadSnapshot = snapshot
+            }
+        }
+    }
+
+    func consumeHomePageStartupPreloadSnapshot() -> HomePageStartupPreloadSnapshot? {
+        let snapshot = homePageStartupPreloadSnapshot
+        homePageStartupPreloadSnapshot = nil
+        return snapshot
+    }
 }
 
 // MARK: - 应用入口
@@ -444,4 +502,3 @@ struct FullScreenCameraOverlay: View {
         }
     }
 }
-

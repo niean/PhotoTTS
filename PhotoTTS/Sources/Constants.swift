@@ -228,6 +228,8 @@ extension Constants {
         static let titleHorizontalPadding: CGFloat = 10
         /// 封面 avatar 加载最大边长
         static let coverAvatarMaxDimension: CGFloat = 300
+        /// 首页封面缓存上限
+        static let coverCacheLimit: Int = 24
         /// 封面图片最大边长（像素），超过则等比缩小
         static let coverMaxDimension: CGFloat = 1024
         /// 封面图片 JPEG 压缩质量

@@ -190,8 +190,10 @@ struct HomePageView: View {
         }
         .navigationBarHidden(true)
         .onAppear {
-            loadPage()
-            loadSeriesOptions()
+            if !applyStartupPreloadIfAvailable() {
+                loadPage()
+                loadSeriesOptions()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
             loadPage()
@@ -290,6 +292,24 @@ struct HomePageView: View {
                 self.seriesOptions = sortedSeries
             }
         }
+    }
+
+    private func applyStartupPreloadIfAvailable() -> Bool {
+        guard currentPage == 1,
+              searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              selectedSeries == nil,
+              let snapshot = appState.consumeHomePageStartupPreloadSnapshot() else {
+            return false
+        }
+
+        let (sortedItems, todoIds) = applyPlayPlanSort(to: snapshot.items, statsMap: snapshot.playStatsMap)
+        pagedMetadataList = sortedItems
+        todoRecordIds = todoIds
+        totalCount = snapshot.totalCount
+        playStatsMap = snapshot.playStatsMap
+        seriesOptions = snapshot.seriesOptions
+        isLoading = false
+        return true
     }
 
     private func loadPage() {
@@ -527,11 +547,13 @@ private struct SessionRecordCard: View {
         .onAppear { loadAvatarImage() }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.coverImageDidUpdate)) { notification in
             if let updatedId = notification.userInfo?["sessionId"] as? String, updatedId == metadata.id {
+                SessionRecordManager.shared.invalidateHomeCardCoverCache(sessionId: updatedId)
                 loadAvatarImage()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.avatarImageDidUpdate)) { notification in
             if let updatedId = notification.userInfo?["sessionId"] as? String, updatedId == metadata.id {
+                SessionRecordManager.shared.invalidateHomeCardCoverCache(sessionId: updatedId)
                 loadAvatarImage()
             }
         }
@@ -543,14 +565,12 @@ private struct SessionRecordCard: View {
         loadingId = sid
         let maxDim = Constants.HomeCard.coverAvatarMaxDimension
         DispatchQueue.global(qos: .utility).async {
-            // 优先使用封面图片
-            var image = SessionRecordManager.shared.loadCoverImage(sessionId: sid, maxDimension: maxDim)
-            // 封面不存在时降级使用头像图片
-            if image == nil {
-                let avatarIdx = min(max(0, metadata.avatarImageIndex), metadata.totalImageCount - 1)
-                image = SessionRecordManager.shared.loadImage(sessionId: sid, index: avatarIdx, maxDimension: maxDim)
-                    ?? SessionRecordManager.shared.loadImage(sessionId: sid, index: 0, maxDimension: maxDim)
-            }
+            let image = SessionRecordManager.shared.loadHomeCardCover(
+                sessionId: sid,
+                avatarImageIndex: metadata.avatarImageIndex,
+                totalImageCount: metadata.totalImageCount,
+                maxDimension: maxDim
+            )
             DispatchQueue.main.async {
                 if loadingId == sid { avatarImage = image }
             }
