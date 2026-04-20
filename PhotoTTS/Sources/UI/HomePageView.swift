@@ -15,8 +15,9 @@ struct HomePageView: View {
     @State private var sessionToPlayFromHome: PlayFromHomeItem? = nil
     @State private var pagedMetadataList: [SessionRecordMetadata] = []
     @State private var totalCount: Int = 0
-    @State private var currentPage: Int = 1
+    @State private var loadedPageCount: Int = 0
     @State private var isLoading = true
+    @State private var isLoadingMore = false
     @State private var searchText: String = ""
     @State private var playStatsMap: [String: PlayStatInfo] = [:]
     @State private var selectedSeries: String? = nil  // nil 表示不限
@@ -72,7 +73,7 @@ struct HomePageView: View {
         if allPlayed {
             markTodoDateAsProcessed(todoDate)
             // 重新加载页面以更新待办状态
-            loadPage()
+            refreshFirstBatch()
         }
     }
 
@@ -86,14 +87,8 @@ struct HomePageView: View {
         return Array(repeating: GridItem(.flexible(), spacing: scaled(Constants.HomeCard.gridSpacing)), count: count)
     }
 
-    private var totalPages: Int {
-        let pageSize = Constants.Pagination.pageSize
-        guard totalCount > 0 else { return 1 }
-        return (totalCount + pageSize - 1) / pageSize
-    }
-
-    private var showPagination: Bool {
-        totalCount > Constants.Pagination.pageSize
+    private var hasMoreItems: Bool {
+        pagedMetadataList.count < totalCount
     }
 
     var body: some View {
@@ -157,14 +152,18 @@ struct HomePageView: View {
                                                 isTodo: todoRecordIds.contains(metadata.id),
                                                 onTap: { loadAndPlay(metadata.id) }
                                             )
+                                            .onAppear {
+                                                loadNextBatchIfNeeded(currentItem: metadata)
+                                            }
                                         }
                                     }
                                     .padding(.horizontal, scaled(Constants.HomeCard.gridHorizontalPadding))
                                     .padding(.top, scaled(8))
 
-                                    // 分页控件
-                                    if showPagination {
-                                        paginationControl
+                                    if isLoadingMore {
+                                        ProgressView()
+                                            .frame(maxWidth: .infinity, minHeight: scaled(Constants.Pagination.controlHeight))
+                                            .padding(.top, scaled(8))
                                     }
                                 }
                             }
@@ -191,29 +190,26 @@ struct HomePageView: View {
         .navigationBarHidden(true)
         .onAppear {
             if !applyStartupPreloadIfAvailable() {
-                loadPage()
+                refreshFirstBatch()
                 loadSeriesOptions()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
-            loadPage()
+            refreshFirstBatch()
             loadSeriesOptions()
         }
         .onChange(of: appState.tab0ReselectTrigger) {
-            guard currentPage != 1 else { return }
-            currentPage = 1
-            loadPage()
+            guard loadedPageCount > 1 else { return }
+            refreshFirstBatch()
         }
         .onChange(of: searchText) {
             // 清空时自动刷新回原列表
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                currentPage = 1
-                loadPage()
+                refreshFirstBatch()
             }
         }
         .onChange(of: selectedSeries) {
-            currentPage = 1
-            loadPage()
+            refreshFirstBatch()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
             checkAndMarkTodoDateIfNeeded()
@@ -230,18 +226,8 @@ struct HomePageView: View {
             unselectedButtonLabel: "系列",
             unselectedMenuLabel: "不限",
             onSearchSubmit: {
-                currentPage = 1
-                loadPage()
+                refreshFirstBatch()
             }
-        )
-    }
-
-    private var paginationControl: some View {
-        PaginationControl(
-            currentPage: currentPage,
-            totalPages: totalPages,
-            onPrevious: { if currentPage > 1 { currentPage -= 1; loadPage() } },
-            onNext: { if currentPage < totalPages { currentPage += 1; loadPage() } }
         )
     }
 
@@ -295,7 +281,7 @@ struct HomePageView: View {
     }
 
     private func applyStartupPreloadIfAvailable() -> Bool {
-        guard currentPage == 1,
+        guard loadedPageCount == 0,
               searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               selectedSeries == nil,
               let snapshot = appState.consumeHomePageStartupPreloadSnapshot() else {
@@ -308,13 +294,34 @@ struct HomePageView: View {
         totalCount = snapshot.totalCount
         playStatsMap = snapshot.playStatsMap
         seriesOptions = snapshot.seriesOptions
+        loadedPageCount = snapshot.items.isEmpty ? 0 : 1
         isLoading = false
+        isLoadingMore = false
         return true
     }
 
-    private func loadPage() {
-        isLoading = true
-        let page = currentPage
+    private func refreshFirstBatch() {
+        loadBatch(page: 1, append: false)
+    }
+
+    private func loadNextBatchIfNeeded(currentItem: SessionRecordMetadata) {
+        guard currentItem.id == pagedMetadataList.last?.id,
+              hasMoreItems,
+              !isLoading,
+              !isLoadingMore else {
+            return
+        }
+        loadBatch(page: loadedPageCount + 1, append: true)
+    }
+
+    private func loadBatch(page: Int, append: Bool) {
+        if append {
+            isLoadingMore = true
+        } else {
+            isLoading = true
+            isLoadingMore = false
+        }
+
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
         let series = selectedSeries
@@ -326,16 +333,37 @@ struct HomePageView: View {
                 sessionIds: result.items.map(\.id)
             )
             DispatchQueue.main.async {
+                defer {
+                    if append {
+                        self.isLoadingMore = false
+                    } else {
+                        self.isLoading = false
+                    }
+                }
+
+                guard self.searchText == keyword, self.selectedSeries == series else {
+                    return
+                }
+
                 // 应用播放计划排序
                 let (sortedItems, todoIds) = self.applyPlayPlanSort(to: result.items, statsMap: statsMap)
-                self.pagedMetadataList = sortedItems
-                self.todoRecordIds = todoIds
-                self.totalCount = result.totalCount
-                self.playStatsMap = statsMap
-                self.isLoading = false
-                if result.items.isEmpty && result.totalCount > 0 && self.currentPage > 1 {
-                    self.currentPage -= 1
-                    self.loadPage()
+
+                if append {
+                    if sortedItems.isEmpty {
+                        self.totalCount = self.pagedMetadataList.count
+                        return
+                    }
+                    self.pagedMetadataList += sortedItems
+                    self.todoRecordIds.formUnion(todoIds)
+                    self.totalCount = result.totalCount
+                    self.playStatsMap.merge(statsMap) { _, new in new }
+                    self.loadedPageCount = page
+                } else {
+                    self.pagedMetadataList = sortedItems
+                    self.todoRecordIds = todoIds
+                    self.totalCount = result.totalCount
+                    self.playStatsMap = statsMap
+                    self.loadedPageCount = sortedItems.isEmpty ? 0 : page
                 }
             }
         }
