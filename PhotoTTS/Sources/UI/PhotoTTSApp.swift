@@ -35,6 +35,7 @@ struct HomePageStartupPreloadSnapshot {
     let totalCount: Int
     let playStatsMap: [String: PlayStatInfo]
     let seriesOptions: [String]
+    let sortMode: HomeSessionSortMode
 }
 
 // MARK: - 应用状态管理
@@ -81,10 +82,12 @@ class AppState: ObservableObject {
 
         let pageSize = Constants.Pagination.pageSize
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let sortMode: HomeSessionSortMode = .list
             let result = SessionRecordManager.shared.getSessionMetadataPage(
                 page: 1,
                 pageSize: pageSize,
                 completedOnly: true,
+                sortMode: sortMode,
                 caller: "启动预加载-首页首屏"
             )
             let playStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: result.items.map(\.id))
@@ -107,7 +110,8 @@ class AppState: ObservableObject {
                 items: result.items,
                 totalCount: result.totalCount,
                 playStatsMap: playStatsMap,
-                seriesOptions: seriesOptions
+                seriesOptions: seriesOptions,
+                sortMode: sortMode
             )
 
             DispatchQueue.main.async {

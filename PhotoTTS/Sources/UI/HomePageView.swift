@@ -7,8 +7,100 @@ private struct PlayFromHomeItem: Identifiable, Hashable {
     let queueRecordIds: [String]
 }
 
+enum HomePagePlayPlanHelper {
+    static func shouldUsePlanQueue(
+        sortMode: HomeSessionSortMode,
+        playPlanEnabled: Bool,
+        isTodoRecord: Bool
+    ) -> Bool {
+        sortMode == .list && playPlanEnabled && isTodoRecord
+    }
+
+    static func applySort(
+        to items: [SessionRecordMetadata],
+        statsMap: [String: PlayStatInfo],
+        sortMode: HomeSessionSortMode,
+        playPlanEnabled: Bool,
+        isTodayProcessed: Bool,
+        now: Date = Date()
+    ) -> ([SessionRecordMetadata], Set<String>) {
+        guard playPlanEnabled else {
+            return (items, [])
+        }
+
+        guard !isTodayProcessed else {
+            return (items, [])
+        }
+
+        let calendar = Calendar.current
+        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) else {
+            return (items, [])
+        }
+        let thirtyDaysAgoStart = calendar.startOfDay(for: thirtyDaysAgo)
+
+        let unplayedItems = items.filter { metadata in
+            guard statsMap[metadata.id] == nil else { return false }
+            let itemDate = calendar.startOfDay(for: metadata.namePrefixDate)
+            return itemDate >= thirtyDaysAgoStart
+        }
+        guard !unplayedItems.isEmpty else {
+            return (items, [])
+        }
+
+        var groupsByDate: [Date: [SessionRecordMetadata]] = [:]
+        for item in unplayedItems {
+            let date = calendar.startOfDay(for: item.namePrefixDate)
+            groupsByDate[date, default: []].append(item)
+        }
+
+        guard let earliestDate = groupsByDate.keys.min() else {
+            return (items, [])
+        }
+
+        let todoItems = items.filter { item in
+            guard statsMap[item.id] == nil else { return false }
+            let itemDate = calendar.startOfDay(for: item.namePrefixDate)
+            return itemDate == earliestDate
+        }
+
+        let todoIdSet = Set(todoItems.map(\.id))
+        guard sortMode == .list else {
+            return (items, todoIdSet)
+        }
+
+        let otherItems = items.filter { !todoIdSet.contains($0.id) }
+        return (todoItems + otherItems, todoIdSet)
+    }
+}
+
 // MARK: - 首页
 struct HomePageView: View {
+    private enum SortMode: CaseIterable {
+        case list
+        case series
+
+        var iconName: String {
+            switch self {
+            case .list: return "list.bullet"
+            case .series: return "square.grid.2x2"
+            }
+        }
+
+        var next: SortMode {
+            switch self {
+            case .list: return .series
+            case .series: return .list
+            }
+        }
+
+        var sessionSortMode: HomeSessionSortMode {
+            switch self {
+            case .list: return .list
+            case .series: return .series
+            }
+        }
+    }
+
     @ObservedObject var appState: AppState
     @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
 
@@ -23,6 +115,7 @@ struct HomePageView: View {
     @State private var selectedSeries: String? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
     @State private var todoRecordIds: Set<String> = []
+    @State private var sortMode: SortMode = .list
 
     // MARK: - 播放计划每日限制
 
@@ -179,7 +272,20 @@ struct HomePageView: View {
             .padding(.top, scaled(45))
 
             // 顶导
-            TopAndLeftSideNavigationBar(title: "首页")
+            TopAndLeftSideNavigationBar(
+                title: "首页",
+                leading: {
+                    Button(action: {
+                        sortMode = sortMode.next
+                    }) {
+                        Image(systemName: sortMode.iconName)
+                            .symbolRenderingMode(.monochrome)
+                            .font(Constants.Fonts.navAction)
+                            .frame(width: scaled(20), height: scaled(20))
+                            .foregroundStyle(.primary)
+                    }
+                }
+            )
         }
         .fullScreenCover(item: $sessionToPlayFromHome) { item in
             PlayView(recordId: item.id, queueRecordIds: item.queueRecordIds, onDismiss: {
@@ -209,6 +315,9 @@ struct HomePageView: View {
             }
         }
         .onChange(of: selectedSeries) {
+            refreshFirstBatch()
+        }
+        .onChange(of: sortMode) {
             refreshFirstBatch()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
@@ -253,14 +362,21 @@ struct HomePageView: View {
             ? true
             : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
 
-        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "HomePageView.连播队列")
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+            sortMode: sortMode.sessionSortMode,
+            caller: "HomePageView.连播队列"
+        )
         let queue: [String]
 
-        if playPlanEnabled, todoRecordIds.contains(id) {
-            // 播放计划开启且记录在计划内：构建计划内连播队列
+        if HomePagePlayPlanHelper.shouldUsePlanQueue(
+            sortMode: sortMode.sessionSortMode,
+            playPlanEnabled: playPlanEnabled,
+            isTodoRecord: todoRecordIds.contains(id)
+        ) {
+            // 仅列表模式下，播放计划内记录才构建计划连播队列
             queue = SessionRecordManager.buildPlanQueue(from: id, in: allMetadata, todoRecordIds: todoRecordIds)
         } else {
-            // 播放计划关闭或记录不在计划内：仅单条播放
+            // 非列表模式或非计划内记录：仅单条播放
             queue = [id]
         }
 
@@ -288,6 +404,7 @@ struct HomePageView: View {
             return false
         }
 
+        sortMode = snapshot.sortMode == .series ? .series : .list
         let (sortedItems, todoIds) = applyPlayPlanSort(to: snapshot.items, statsMap: snapshot.playStatsMap)
         pagedMetadataList = sortedItems
         todoRecordIds = todoIds
@@ -325,9 +442,16 @@ struct HomePageView: View {
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
         let series = selectedSeries
+        let requestedSortMode = sortMode
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
-                page: page, pageSize: pageSize, searchKeyword: keyword, seriesFilter: series, completedOnly: true, caller: "首页卡片"
+                page: page,
+                pageSize: pageSize,
+                searchKeyword: keyword,
+                seriesFilter: series,
+                completedOnly: true,
+                sortMode: requestedSortMode.sessionSortMode,
+                caller: "首页卡片"
             )
             let statsMap = SessionRecordManager.shared.loadPlayStats(
                 sessionIds: result.items.map(\.id)
@@ -341,7 +465,9 @@ struct HomePageView: View {
                     }
                 }
 
-                guard self.searchText == keyword, self.selectedSeries == series else {
+                guard self.searchText == keyword,
+                      self.selectedSeries == series,
+                      self.sortMode == requestedSortMode else {
                     return
                 }
 
@@ -385,63 +511,16 @@ struct HomePageView: View {
     ///   - statsMap: 播放统计字典
     /// - Returns: (排序后的列表, 置顶记录ID集合)
     private func applyPlayPlanSort(to items: [SessionRecordMetadata], statsMap: [String: PlayStatInfo]) -> ([SessionRecordMetadata], Set<String>) {
-        // 检查播放计划开关是否开启
         let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
             ? true
             : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
-        guard playPlanEnabled else {
-            return (items, [])
-        }
-        // 1. 如果今天已经处理过待办，直接返回原列表和空集合
-        if isTodayProcessed {
-            return (items, [])
-        }
-
-        // 2. 计算30天前的日期
-        let calendar = Calendar.current
-        let now = Date()
-        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) else {
-            // 日期计算失败，安全降级为不过滤
-            return (items, [])
-        }
-        let thirtyDaysAgoStart = calendar.startOfDay(for: thirtyDaysAgo)
-
-        // 3. 分离未播放记录，且仅保留最近30天内的
-        let unplayedItems = items.filter { metadata in
-            guard statsMap[metadata.id] == nil else { return false }
-            let itemDate = calendar.startOfDay(for: metadata.namePrefixDate)
-            return itemDate >= thirtyDaysAgoStart
-        }
-        guard !unplayedItems.isEmpty else {
-            // 无未播放记录，返回原列表和空集合
-            return (items, [])
-        }
-
-        // 4. 按天分组未播放记录
-        var groupsByDate: [Date: [SessionRecordMetadata]] = [:]
-        for item in unplayedItems {
-            let date = calendar.startOfDay(for: item.namePrefixDate)
-            groupsByDate[date, default: []].append(item)
-        }
-
-        // 5. 找到最早的日期
-        guard let earliestDate = groupsByDate.keys.min() else {
-            return (items, [])
-        }
-
-        // 6. 最早日期的未播放记录（保持在原列表中的相对顺序）
-        let todoItems = items.filter { item in
-            guard statsMap[item.id] == nil else { return false }
-            let itemDate = calendar.startOfDay(for: item.namePrefixDate)
-            return itemDate == earliestDate
-        }
-
-        // 7. 其他记录（排除 todoItems，保持原相对顺序）
-        let todoIdSet = Set(todoItems.map { $0.id })
-        let otherItems = items.filter { !todoIdSet.contains($0.id) }
-
-        // 8. 合并结果
-        return (todoItems + otherItems, todoIdSet)
+        return HomePagePlayPlanHelper.applySort(
+            to: items,
+            statsMap: statsMap,
+            sortMode: sortMode.sessionSortMode,
+            playPlanEnabled: playPlanEnabled,
+            isTodayProcessed: isTodayProcessed
+        )
     }
 }
 

@@ -4,6 +4,11 @@ import ImageIO
 import AVFoundation
 import os.log
 
+enum HomeSessionSortMode {
+    case list
+    case series
+}
+
 // MARK: - 会话记录管理器
 /// 会话记录管理器，负责会话记录的存储、读取、删除等操作
 /// 使用文件系统存储，每个会话记录存储为一个独立的文件夹
@@ -272,11 +277,11 @@ class SessionRecordManager {
         metadataCache = nil
     }
 
-    func getAllSessionMetadata(caller: String = "") -> [SessionRecordMetadata] {
+    func getAllSessionMetadata(sortMode: HomeSessionSortMode = .list, caller: String = "") -> [SessionRecordMetadata] {
         // 短时效缓存命中则直接返回，避免 Siri 实体查询等场景重复磁盘扫描
         if let cached = metadataCache,
            Date().timeIntervalSince(metadataCacheTime) < Self.metadataCacheTTL {
-            return cached
+            return Self.sortSessionMetadata(cached, by: sortMode)
         }
 
         var metadataList: [SessionRecordMetadata] = []
@@ -299,14 +304,6 @@ class SessionRecordManager {
                 }
             }
             
-            // 首先按名字倒序排序（Z-A），其次按创建时间倒序排序
-            metadataList.sort { lhs, rhs in
-                if lhs.name != rhs.name {
-                    return lhs.name > rhs.name
-                }
-                return lhs.createdAt > rhs.createdAt
-            }
-            
             let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
             logger.info("加载了 \(metadataList.count) 条会话记录元数据\(callerTag)")
             
@@ -324,7 +321,7 @@ class SessionRecordManager {
         metadataCache = metadataList
         metadataCacheTime = Date()
         
-        return metadataList
+        return Self.sortSessionMetadata(metadataList, by: sortMode)
     }
     
     /// 分页查询会话记录元数据（支持搜索过滤）
@@ -335,7 +332,7 @@ class SessionRecordManager {
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 当前页的元数据列表 + 匹配总数
-    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
         var metadataList: [SessionRecordMetadata] = []
         
         do {
@@ -381,13 +378,7 @@ class SessionRecordManager {
             metadataList = metadataList.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
         }
 
-        // 按名字倒序排序（Z-A），其次按创建时间倒序排序（与 getAllSessionMetadata 一致）
-        metadataList.sort { lhs, rhs in
-            if lhs.name != rhs.name {
-                return lhs.name > rhs.name
-            }
-            return lhs.createdAt > rhs.createdAt
-        }
+        metadataList = Self.sortSessionMetadata(metadataList, by: sortMode)
         
         let totalCount = metadataList.count
         
@@ -401,6 +392,65 @@ class SessionRecordManager {
         let pageItems = Array(metadataList[startIndex..<endIndex])
         
         return (pageItems, totalCount)
+    }
+
+    static func sortSessionMetadata(_ items: [SessionRecordMetadata], by mode: HomeSessionSortMode) -> [SessionRecordMetadata] {
+        items.sorted { lhs, rhs in
+            switch mode {
+            case .list:
+                return compareMetadata(lhs, rhs, primary: \.namePrefixDate, secondary: \.seriesName)
+            case .series:
+                return compareMetadata(lhs, rhs, primary: \.seriesName, secondary: \.namePrefixDate)
+            }
+        }
+    }
+
+    private static func compareMetadata(
+        _ lhs: SessionRecordMetadata,
+        _ rhs: SessionRecordMetadata,
+        primary: KeyPath<SessionRecordMetadata, Date>,
+        secondary: KeyPath<SessionRecordMetadata, String>
+    ) -> Bool {
+        let lhsPrimary = lhs[keyPath: primary]
+        let rhsPrimary = rhs[keyPath: primary]
+        if lhsPrimary != rhsPrimary {
+            return lhsPrimary > rhsPrimary
+        }
+
+        let lhsSecondary = lhs[keyPath: secondary]
+        let rhsSecondary = rhs[keyPath: secondary]
+        if lhsSecondary != rhsSecondary {
+            return compareDisplayString(lhsSecondary, rhsSecondary)
+        }
+
+        return compareDisplayString(lhs.name, rhs.name)
+    }
+
+    private static func compareMetadata(
+        _ lhs: SessionRecordMetadata,
+        _ rhs: SessionRecordMetadata,
+        primary: KeyPath<SessionRecordMetadata, String>,
+        secondary: KeyPath<SessionRecordMetadata, Date>
+    ) -> Bool {
+        let lhsPrimary = lhs[keyPath: primary]
+        let rhsPrimary = rhs[keyPath: primary]
+        if lhsPrimary != rhsPrimary {
+            if lhsPrimary == Constants.GroupDisplay.uncategorizedLabel { return false }
+            if rhsPrimary == Constants.GroupDisplay.uncategorizedLabel { return true }
+            return compareDisplayString(lhsPrimary, rhsPrimary)
+        }
+
+        let lhsSecondary = lhs[keyPath: secondary]
+        let rhsSecondary = rhs[keyPath: secondary]
+        if lhsSecondary != rhsSecondary {
+            return lhsSecondary > rhsSecondary
+        }
+
+        return compareDisplayString(lhs.name, rhs.name)
+    }
+
+    private static func compareDisplayString(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.localizedStandardCompare(rhs) == .orderedAscending
     }
     
     /// 根据ID加载完整的会话记录

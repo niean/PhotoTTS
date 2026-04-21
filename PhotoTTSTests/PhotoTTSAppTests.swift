@@ -508,8 +508,8 @@ final class PhotoTTSAppTests: XCTestCase {
     
     // MARK: - SessionRecordMetadata seriesName 测试
 
-    private func makeMetadata(name: String, createdAt: Date = Date()) -> SessionRecordMetadata {
-        SessionRecordMetadata(id: UUID().uuidString, name: name, createdAt: createdAt, updatedAt: createdAt, totalImageCount: 1, validImageCount: 1, textLength: 100, audioDuration: 60, avatarImageIndex: 0, storageSize: 1024)
+    private func makeMetadata(id: String = UUID().uuidString, name: String, createdAt: Date = Date()) -> SessionRecordMetadata {
+        SessionRecordMetadata(id: id, name: name, createdAt: createdAt, updatedAt: createdAt, totalImageCount: 1, validImageCount: 1, textLength: 100, audioDuration: 60, avatarImageIndex: 0, storageSize: 1024)
     }
 
     private func makeImage(color: UIColor, size: CGSize = CGSize(width: 40, height: 40)) -> UIImage {
@@ -560,6 +560,106 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(m.monthKey, "2026年1月")
     }
 
+    // MARK: - 首页排序测试
+
+    func testHomeListSort_ordersByDateThenSeriesThenName() {
+        let items = [
+            makeMetadata(name: "26.03.17 小熊-B"),
+            makeMetadata(name: "26.03.18 小熊-B"),
+            makeMetadata(name: "26.03.18 白雪-A"),
+            makeMetadata(name: "26.03.18 小熊-A")
+        ]
+
+        let sortedNames = SessionRecordManager.sortSessionMetadata(items, by: .list).map(\.name)
+
+        XCTAssertEqual(sortedNames, [
+            "26.03.18 白雪-A",
+            "26.03.18 小熊-A",
+            "26.03.18 小熊-B",
+            "26.03.17 小熊-B"
+        ])
+    }
+
+    func testHomeSeriesSort_ordersBySeriesThenDateThenName() {
+        let items = [
+            makeMetadata(name: "26.03.17 小熊-B"),
+            makeMetadata(name: "26.03.18 小熊-B"),
+            makeMetadata(name: "26.03.18 白雪-A"),
+            makeMetadata(name: "26.03.18 小熊-A")
+        ]
+
+        let sortedNames = SessionRecordManager.sortSessionMetadata(items, by: .series).map(\.name)
+
+        XCTAssertEqual(sortedNames, [
+            "26.03.18 白雪-A",
+            "26.03.18 小熊-A",
+            "26.03.18 小熊-B",
+            "26.03.17 小熊-B"
+        ])
+    }
+
+    func testHomeSeriesSort_placesUncategorizedLast() {
+        let items = [
+            makeMetadata(name: "26.03.18 小熊-第一章"),
+            makeMetadata(name: "26.03.18 没有系列名"),
+            makeMetadata(name: "26.03.18 白雪-第一章")
+        ]
+
+        let sortedNames = SessionRecordManager.sortSessionMetadata(items, by: .series).map(\.name)
+
+        XCTAssertEqual(sortedNames, [
+            "26.03.18 白雪-第一章",
+            "26.03.18 小熊-第一章",
+            "26.03.18 没有系列名"
+        ])
+    }
+
+    func testHomePlayPlanSort_listModePromotesEarliestTodoDate() {
+        let items = [
+            makeMetadata(id: "b", name: "26.03.18 小熊-A"),
+            makeMetadata(id: "a", name: "26.03.17 白雪-A"),
+            makeMetadata(id: "c", name: "26.03.18 白雪-B")
+        ]
+
+        let (sortedItems, todoIds) = HomePagePlayPlanHelper.applySort(
+            to: items,
+            statsMap: [:],
+            sortMode: .list,
+            playPlanEnabled: true,
+            isTodayProcessed: false,
+            now: makeDate("2026-03-20")
+        )
+
+        XCTAssertEqual(sortedItems.map(\.id), ["a", "b", "c"])
+        XCTAssertEqual(todoIds, Set(["a"]))
+    }
+
+    func testHomePlayPlanSort_seriesModeKeepsOriginalOrder() {
+        let items = [
+            makeMetadata(id: "b", name: "26.03.18 小熊-A"),
+            makeMetadata(id: "a", name: "26.03.17 白雪-A"),
+            makeMetadata(id: "c", name: "26.03.18 白雪-B")
+        ]
+
+        let (sortedItems, todoIds) = HomePagePlayPlanHelper.applySort(
+            to: items,
+            statsMap: [:],
+            sortMode: .series,
+            playPlanEnabled: true,
+            isTodayProcessed: false,
+            now: makeDate("2026-03-20")
+        )
+
+        XCTAssertEqual(sortedItems.map(\.id), ["b", "a", "c"])
+        XCTAssertEqual(todoIds, Set(["a"]))
+    }
+
+    func testHomePlayPlanQueue_onlyListModeUsesPlanQueue() {
+        XCTAssertTrue(HomePagePlayPlanHelper.shouldUsePlanQueue(sortMode: .list, playPlanEnabled: true, isTodoRecord: true))
+        XCTAssertFalse(HomePagePlayPlanHelper.shouldUsePlanQueue(sortMode: .series, playPlanEnabled: true, isTodoRecord: true))
+        XCTAssertFalse(HomePagePlayPlanHelper.shouldUsePlanQueue(sortMode: .list, playPlanEnabled: true, isTodoRecord: false))
+    }
+
     // MARK: - 性能测试
     
     func testVoiceSettingsEncodingPerformance() {
@@ -571,5 +671,12 @@ final class PhotoTTSAppTests: XCTestCase {
                 _ = try? encoder.encode(settings)
             }
         }
+    }
+
+    private func makeDate(_ value: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "zh_CN")
+        return formatter.date(from: value)!
     }
 }
