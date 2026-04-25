@@ -630,11 +630,11 @@ final class PhotoTTSAppTests: XCTestCase {
             now: makeDate("2026-03-20")
         )
 
-        XCTAssertEqual(sortedItems.map(\.id), ["a", "b", "c"])
+        XCTAssertEqual(sortedItems.map(\.id), ["a"])
         XCTAssertEqual(todoIds, Set(["a"]))
     }
 
-    func testHomePlayPlanSort_seriesModeKeepsOriginalOrder() {
+    func testHomePlayPlanSort_seriesModeHidesItemsAfterPlanDate() {
         let items = [
             makeMetadata(id: "b", name: "26.03.18 小熊-A"),
             makeMetadata(id: "a", name: "26.03.17 白雪-A"),
@@ -650,8 +650,29 @@ final class PhotoTTSAppTests: XCTestCase {
             now: makeDate("2026-03-20")
         )
 
-        XCTAssertEqual(sortedItems.map(\.id), ["b", "a", "c"])
+        XCTAssertEqual(sortedItems.map(\.id), ["a"])
         XCTAssertEqual(todoIds, Set(["a"]))
+    }
+
+    func testHomePlayPlanSort_todayProcessedHidesItemsAfterProcessedPlanDate() {
+        let items = [
+            makeMetadata(id: "future", name: "26.03.19 小熊-A"),
+            makeMetadata(id: "plan", name: "26.03.18 白雪-A"),
+            makeMetadata(id: "past", name: "26.03.17 小兔-A")
+        ]
+
+        let (sortedItems, todoIds) = HomePagePlayPlanHelper.applySort(
+            to: items,
+            statsMap: [:],
+            sortMode: .list,
+            playPlanEnabled: true,
+            isTodayProcessed: true,
+            todayProcessedTodoDate: makeDate("2026-03-18"),
+            now: makeDate("2026-03-20")
+        )
+
+        XCTAssertEqual(sortedItems.map(\.id), ["plan", "past"])
+        XCTAssertTrue(todoIds.isEmpty)
     }
 
     func testHomePlayPlanQueue_onlyListModeUsesPlanQueue() {

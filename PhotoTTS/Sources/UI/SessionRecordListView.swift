@@ -44,6 +44,7 @@ struct SessionRecordListView: View {
     @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
     // 分页数据状态
     @State private var pagedMetadataList: [SessionRecordMetadata] = []
+    @State private var playStatsMap: [String: PlayStatInfo] = [:]
     @State private var totalCount: Int = 0
     @State private var currentPage: Int = 1
     
@@ -759,6 +760,7 @@ struct SessionRecordListView: View {
         return SessionRecordRow(
             metadata: metadata,
             makeProgress: makeProgress,
+            playCount: playStatsMap[metadata.id]?.playCount ?? 0,
             mode: mode,
             onLoad: (mode == .embedded && !isMaking && !isIncomplete && !isSelectionMode) ? { loadSession(metadata.id) } : nil,
             onLoadToMake: (!isDefault && mode == .manage && onLoadToMake != nil && !isSelectionMode) ? { onLoadToMake?(metadata.id) } : nil,
@@ -863,8 +865,16 @@ struct SessionRecordListView: View {
                 seriesFilter: series,
                 caller: "记录列表"
             )
+            let statsMap = mode == .manage
+                ? SessionRecordManager.shared.loadPlayStats(sessionIds: result.items.map(\.id))
+                : [:]
             DispatchQueue.main.async {
+                let visibleIds = result.items.map(\.id)
+                for id in visibleIds {
+                    self.playStatsMap.removeValue(forKey: id)
+                }
                 self.pagedMetadataList = result.items
+                self.playStatsMap.merge(statsMap) { _, new in new }
                 self.totalCount = result.totalCount
                 self.isLoading = false
 
@@ -891,8 +901,16 @@ struct SessionRecordListView: View {
             if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
                 list = list.filter { $0.seriesName == seriesFilter }
             }
+            let statsMap = mode == .manage
+                ? SessionRecordManager.shared.loadPlayStats(sessionIds: list.map(\.id))
+                : [:]
             DispatchQueue.main.async {
+                let visibleIds = list.map(\.id)
+                for id in visibleIds {
+                    self.playStatsMap.removeValue(forKey: id)
+                }
                 self.allMetadataList = list
+                self.playStatsMap.merge(statsMap) { _, new in new }
                 self.totalCount = list.count
                 self.rebuildGroups()
                 self.isLoading = false
@@ -967,6 +985,7 @@ struct SessionRecordListView: View {
                 pagedMetadataList.removeAll { $0.id == id }
                 totalCount = max(0, totalCount - 1)
             }
+            playStatsMap.removeValue(forKey: id)
         }
         sessionToDelete = nil
 
@@ -1238,6 +1257,9 @@ struct SessionRecordListView: View {
                 pagedMetadataList.removeAll { idsToDelete.contains($0.id) }
                 totalCount = max(0, totalCount - idsToDelete.count)
             }
+            for id in idsToDelete {
+                playStatsMap.removeValue(forKey: id)
+            }
         }
 
         // 退出多选模式
@@ -1265,6 +1287,7 @@ struct SessionRecordRow: View {
     let metadata: SessionRecordMetadata
     /// 后台制作实时进度（0.0~1.0），nil 表示无活跃任务或非制作中状态
     var makeProgress: Float? = nil
+    var playCount: Int = 0
     let mode: SessionRecordListMode
     let onLoad: (() -> Void)?
     let onLoadToMake: (() -> Void)?
@@ -1359,6 +1382,13 @@ struct SessionRecordRow: View {
                             .labelStyle(.titleOnly)
                             .font(Constants.Fonts.recordMeta)
                             .foregroundColor(.secondary)
+
+                        if mode == .manage && playCount > 0 {
+                            Label("\(playCount)次", systemImage: "play.circle")
+                                .labelStyle(.titleOnly)
+                                .font(Constants.Fonts.recordMeta)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
             }

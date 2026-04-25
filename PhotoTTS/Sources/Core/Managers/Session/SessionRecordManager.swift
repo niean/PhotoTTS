@@ -324,26 +324,26 @@ class SessionRecordManager {
         return Self.sortSessionMetadata(metadataList, by: sortMode)
     }
     
-    /// 分页查询会话记录元数据（支持搜索过滤）
+    /// 查询会话记录元数据（支持搜索过滤）
     /// - Parameters:
-    ///   - page: 页码（从 1 开始）
-    ///   - pageSize: 每页条数
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
+    ///   - completedOnly: 是否仅保留已完成记录
+    ///   - sortMode: 首页排序模式
     ///   - caller: 调用方标识，用于日志
-    /// - Returns: 当前页的元数据列表 + 匹配总数
-    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+    /// - Returns: 匹配的元数据列表
+    func getFilteredSessionMetadata(searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> [SessionRecordMetadata] {
         var metadataList: [SessionRecordMetadata] = []
-        
+
         do {
             let contents = try fileManager.contentsOfDirectory(at: sessionsDirectory, includingPropertiesForKeys: [.isDirectoryKey], options: [])
-            
+
             for url in contents {
                 guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
                       resourceValues.isDirectory == true else {
                     continue
                 }
-                
+
                 let metadataURL = url.appendingPathComponent("metadata.json")
                 if fileManager.fileExists(atPath: metadataURL.path) {
                     if let data = try? Data(contentsOf: metadataURL),
@@ -353,15 +353,15 @@ class SessionRecordManager {
                 }
             }
         } catch {
-            logger.error("分页读取会话记录列表失败: \(error.localizedDescription)")
-            return ([], 0)
+            logger.error("读取会话记录列表失败: \(error.localizedDescription)")
+            return []
         }
-        
+
         // 用户无记录时，展示内置默认会话
         if metadataList.isEmpty, let bundledMetadata = loadBundledDefaultSessionMetadata() {
             metadataList.append(bundledMetadata)
         }
-        
+
         // 按搜索关键词过滤
         let trimmed = searchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
@@ -378,7 +378,28 @@ class SessionRecordManager {
             metadataList = metadataList.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
         }
 
-        metadataList = Self.sortSessionMetadata(metadataList, by: sortMode)
+        let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
+        logger.info("筛选了 \(metadataList.count) 条会话记录元数据\(callerTag)")
+
+        return Self.sortSessionMetadata(metadataList, by: sortMode)
+    }
+
+    /// 分页查询会话记录元数据（支持搜索过滤）
+    /// - Parameters:
+    ///   - page: 页码（从 1 开始）
+    ///   - pageSize: 每页条数
+    ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
+    ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
+    ///   - caller: 调用方标识，用于日志
+    /// - Returns: 当前页的元数据列表 + 匹配总数
+    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+        let metadataList = getFilteredSessionMetadata(
+            searchKeyword: searchKeyword,
+            seriesFilter: seriesFilter,
+            completedOnly: completedOnly,
+            sortMode: sortMode,
+            caller: caller
+        )
         
         let totalCount = metadataList.count
         

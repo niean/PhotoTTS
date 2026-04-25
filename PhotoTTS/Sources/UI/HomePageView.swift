@@ -16,59 +16,79 @@ enum HomePagePlayPlanHelper {
         sortMode == .list && playPlanEnabled && isTodoRecord
     }
 
+    static func activePlanDate(
+        in items: [SessionRecordMetadata],
+        statsMap: [String: PlayStatInfo],
+        isTodayProcessed: Bool,
+        todayProcessedTodoDate: Date? = nil,
+        now: Date = Date()
+    ) -> Date? {
+        let calendar = Calendar.current
+
+        if isTodayProcessed, let todayProcessedTodoDate {
+            return calendar.startOfDay(for: todayProcessedTodoDate)
+        }
+
+        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) else {
+            return nil
+        }
+        let thirtyDaysAgoStart = calendar.startOfDay(for: thirtyDaysAgo)
+
+        return items
+            .filter { metadata in
+                guard statsMap[metadata.id] == nil else { return false }
+                let itemDate = calendar.startOfDay(for: metadata.namePrefixDate)
+                return itemDate >= thirtyDaysAgoStart
+            }
+            .map { calendar.startOfDay(for: $0.namePrefixDate) }
+            .min()
+    }
+
     static func applySort(
         to items: [SessionRecordMetadata],
         statsMap: [String: PlayStatInfo],
         sortMode: HomeSessionSortMode,
         playPlanEnabled: Bool,
         isTodayProcessed: Bool,
+        todayProcessedTodoDate: Date? = nil,
         now: Date = Date()
     ) -> ([SessionRecordMetadata], Set<String>) {
         guard playPlanEnabled else {
             return (items, [])
         }
 
-        guard !isTodayProcessed else {
-            return (items, [])
-        }
-
         let calendar = Calendar.current
-        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) else {
+        guard let planDate = activePlanDate(
+            in: items,
+            statsMap: statsMap,
+            isTodayProcessed: isTodayProcessed,
+            todayProcessedTodoDate: todayProcessedTodoDate,
+            now: now
+        ) else {
             return (items, [])
         }
-        let thirtyDaysAgoStart = calendar.startOfDay(for: thirtyDaysAgo)
 
-        let unplayedItems = items.filter { metadata in
-            guard statsMap[metadata.id] == nil else { return false }
+        let visibleItems = items.filter { metadata in
             let itemDate = calendar.startOfDay(for: metadata.namePrefixDate)
-            return itemDate >= thirtyDaysAgoStart
-        }
-        guard !unplayedItems.isEmpty else {
-            return (items, [])
+            return itemDate <= planDate
         }
 
-        var groupsByDate: [Date: [SessionRecordMetadata]] = [:]
-        for item in unplayedItems {
-            let date = calendar.startOfDay(for: item.namePrefixDate)
-            groupsByDate[date, default: []].append(item)
+        guard !isTodayProcessed else {
+            return (visibleItems, [])
         }
 
-        guard let earliestDate = groupsByDate.keys.min() else {
-            return (items, [])
-        }
-
-        let todoItems = items.filter { item in
+        let todoItems = visibleItems.filter { item in
             guard statsMap[item.id] == nil else { return false }
             let itemDate = calendar.startOfDay(for: item.namePrefixDate)
-            return itemDate == earliestDate
+            return itemDate == planDate
         }
 
         let todoIdSet = Set(todoItems.map(\.id))
         guard sortMode == .list else {
-            return (items, todoIdSet)
+            return (visibleItems, todoIdSet)
         }
 
-        let otherItems = items.filter { !todoIdSet.contains($0.id) }
+        let otherItems = visibleItems.filter { !todoIdSet.contains($0.id) }
         return (todoItems + otherItems, todoIdSet)
     }
 }
@@ -397,6 +417,14 @@ struct HomePageView: View {
     }
 
     private func applyStartupPreloadIfAvailable() -> Bool {
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        guard !playPlanEnabled else {
+            _ = appState.consumeHomePageStartupPreloadSnapshot()
+            return false
+        }
+
         guard loadedPageCount == 0,
               searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               selectedSeries == nil,
@@ -443,16 +471,51 @@ struct HomePageView: View {
         let keyword = searchText
         let series = selectedSeries
         let requestedSortMode = sortMode
+        let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let hasTodayProcessed = isTodayProcessed
+        let processedTodoDate = todayProcessedTodoDate
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = SessionRecordManager.shared.getSessionMetadataPage(
-                page: page,
-                pageSize: pageSize,
-                searchKeyword: keyword,
-                seriesFilter: series,
-                completedOnly: true,
-                sortMode: requestedSortMode.sessionSortMode,
-                caller: "首页卡片"
-            )
+            let result: (items: [SessionRecordMetadata], totalCount: Int)
+            let batchTodoIds: Set<String>
+            if isPlanEnabled {
+                let allItems = SessionRecordManager.shared.getFilteredSessionMetadata(
+                    searchKeyword: keyword,
+                    seriesFilter: series,
+                    completedOnly: true,
+                    sortMode: requestedSortMode.sessionSortMode,
+                    caller: "首页卡片"
+                )
+                let allStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: allItems.map(\.id))
+                let (visibleItems, allTodoIds) = HomePagePlayPlanHelper.applySort(
+                    to: allItems,
+                    statsMap: allStatsMap,
+                    sortMode: requestedSortMode.sessionSortMode,
+                    playPlanEnabled: isPlanEnabled,
+                    isTodayProcessed: hasTodayProcessed,
+                    todayProcessedTodoDate: processedTodoDate
+                )
+                batchTodoIds = allTodoIds
+                let startIndex = max(0, (max(1, page) - 1) * pageSize)
+                if startIndex < visibleItems.count {
+                    let endIndex = min(startIndex + pageSize, visibleItems.count)
+                    result = (Array(visibleItems[startIndex..<endIndex]), visibleItems.count)
+                } else {
+                    result = ([], visibleItems.count)
+                }
+            } else {
+                result = SessionRecordManager.shared.getSessionMetadataPage(
+                    page: page,
+                    pageSize: pageSize,
+                    searchKeyword: keyword,
+                    seriesFilter: series,
+                    completedOnly: true,
+                    sortMode: requestedSortMode.sessionSortMode,
+                    caller: "首页卡片"
+                )
+                batchTodoIds = []
+            }
             let statsMap = SessionRecordManager.shared.loadPlayStats(
                 sessionIds: result.items.map(\.id)
             )
@@ -471,8 +534,15 @@ struct HomePageView: View {
                     return
                 }
 
-                // 应用播放计划排序
-                let (sortedItems, todoIds) = self.applyPlayPlanSort(to: result.items, statsMap: statsMap)
+                // 播放计划开启时已基于全量列表完成过滤与排序，避免按当前页重复计算计划日期。
+                let sortedItems: [SessionRecordMetadata]
+                let todoIds: Set<String>
+                if isPlanEnabled {
+                    sortedItems = result.items
+                    todoIds = batchTodoIds
+                } else {
+                    (sortedItems, todoIds) = self.applyPlayPlanSort(to: result.items, statsMap: statsMap)
+                }
 
                 if append {
                     if sortedItems.isEmpty {
@@ -519,7 +589,8 @@ struct HomePageView: View {
             statsMap: statsMap,
             sortMode: sortMode.sessionSortMode,
             playPlanEnabled: playPlanEnabled,
-            isTodayProcessed: isTodayProcessed
+            isTodayProcessed: isTodayProcessed,
+            todayProcessedTodoDate: todayProcessedTodoDate
         )
     }
 }
