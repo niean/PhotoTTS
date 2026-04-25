@@ -18,12 +18,14 @@ private enum GroupMode: CaseIterable {
     case flat       // 平铺（list.bullet）
     case bySeries   // 按系列（square.grid.2x2）
     case byMonth    // 按月份（calendar）
+    case byReadStatus // 按未读/已读（book.closed）
 
     var iconName: String {
         switch self {
         case .flat: return "list.bullet"
         case .bySeries: return "square.grid.2x2"
         case .byMonth: return "calendar"
+        case .byReadStatus: return "book.closed"
         }
     }
 
@@ -31,7 +33,8 @@ private enum GroupMode: CaseIterable {
         switch self {
         case .flat: return .bySeries
         case .bySeries: return .byMonth
-        case .byMonth: return .flat
+        case .byMonth: return .byReadStatus
+        case .byReadStatus: return .flat
         }
     }
 }
@@ -49,6 +52,7 @@ struct SessionRecordListView: View {
     @State private var currentPage: Int = 1
     
     @State private var isLoading = true
+    @State private var isLoadingMore = false
     @State private var showDeleteConfirmation = false
     @State private var sessionToDelete: SessionRecordMetadata?
     @State private var sessionToEditRecord: SessionRecord?  // 编辑时加载的完整记录
@@ -118,16 +122,8 @@ struct SessionRecordListView: View {
         .infinity
     }
     
-    // 总页数
-    private var totalPages: Int {
-        let pageSize = Constants.Pagination.pageSize
-        guard totalCount > 0 else { return 1 }
-        return (totalCount + pageSize - 1) / pageSize
-    }
-    
-    // 是否显示分页控件
-    private var showPagination: Bool {
-        totalCount > Constants.Pagination.pageSize
+    private var hasMoreItems: Bool {
+        pagedMetadataList.count < totalCount
     }
     
     // 是否处于分组模式
@@ -140,9 +136,19 @@ struct SessionRecordListView: View {
             return
         }
 
-        let keyExtractor: (SessionRecordMetadata) -> String = groupMode == .bySeries
-            ? { $0.seriesName }
-            : { $0.monthKey }
+        let keyExtractor: (SessionRecordMetadata) -> String = { item in
+            switch groupMode {
+            case .flat:
+                return ""
+            case .bySeries:
+                return item.seriesName
+            case .byMonth:
+                return item.monthKey
+            case .byReadStatus:
+                let playCount = playStatsMap[item.id]?.playCount ?? 0
+                return playCount > 0 ? "已读" : "未读"
+            }
+        }
 
         var groups: [String: [SessionRecordMetadata]] = [:]
         for item in allMetadataList {
@@ -153,6 +159,17 @@ struct SessionRecordListView: View {
         let uncategorized = Constants.GroupDisplay.uncategorizedLabel
         let sorted = groups.map { (key: $0.key, items: $0.value.sorted { $0.namePrefixDate > $1.namePrefixDate }) }
             .sorted { lhs, rhs in
+                if groupMode == .byReadStatus {
+                    let order = ["未读": 0, "已读": 1]
+                    let lhsOrder = order[lhs.key] ?? Int.max
+                    let rhsOrder = order[rhs.key] ?? Int.max
+                    if lhsOrder != rhsOrder {
+                        return lhsOrder < rhsOrder
+                    }
+                    let lhsDate = lhs.items.first?.namePrefixDate ?? Date.distantPast
+                    let rhsDate = rhs.items.first?.namePrefixDate ?? Date.distantPast
+                    return lhsDate > rhsDate
+                }
                 if lhs.key == uncategorized { return false }
                 if rhs.key == uncategorized { return true }
                 if groupMode == .bySeries {
@@ -283,6 +300,9 @@ struct SessionRecordListView: View {
         } else {
             ForEach(pagedMetadataList) { metadata in
                 self.makeSessionRecordRow(for: metadata)
+                    .onAppear {
+                        loadNextPageIfNeeded(currentItem: metadata)
+                    }
                     .overlay {
                         if metadata.id == pagedMetadataList.first?.id {
                             GeometryReader { geo in
@@ -304,23 +324,14 @@ struct SessionRecordListView: View {
                     }
             }
 
-            if showPagination {
-                paginationControl
+            if isLoadingMore {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: scaled(Constants.Pagination.controlHeight))
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color(.systemBackground))
                     .listRowSeparator(.hidden)
             }
         }
-    }
-
-    // 分页控件
-    private var paginationControl: some View {
-        PaginationControl(
-            currentPage: currentPage,
-            totalPages: totalPages,
-            onPrevious: { if currentPage > 1 { currentPage -= 1; loadPage() } },
-            onNext: { if currentPage < totalPages { currentPage += 1; loadPage() } }
-        )
     }
     
     // 主内容区（loading / empty / list）
@@ -847,20 +858,45 @@ struct SessionRecordListView: View {
         }
     }
     
-    // 按需加载当前页数据（showLoading=false 时静默刷新，不销毁列表视图）
+    // 按需加载首批数据（showLoading=false 时静默刷新，不销毁列表视图）
     private func loadPage(showLoading: Bool = true) {
-        if showLoading {
-            isLoading = true
+        loadBatch(page: 1, append: false, showLoading: showLoading)
+    }
+
+    private func loadNextPageIfNeeded(currentItem: SessionRecordMetadata) {
+        guard currentItem.id == pagedMetadataList.last?.id,
+              hasMoreItems,
+              !isLoading,
+              !isLoadingMore else {
+            return
         }
-        let page = currentPage
+        loadBatch(page: currentPage + 1, append: true, showLoading: true)
+    }
+
+    private func refreshLoadedPages(showLoading: Bool = false) {
+        let loadedPageCount = max(1, currentPage)
+        loadBatch(page: 1, append: false, showLoading: showLoading, pageSizeOverride: Constants.Pagination.pageSize * loadedPageCount)
+    }
+
+    private func loadBatch(page: Int, append: Bool, showLoading: Bool = true, pageSizeOverride: Int? = nil) {
+        if append {
+            isLoadingMore = true
+        } else {
+            if showLoading {
+                isLoading = true
+            }
+            isLoadingMore = false
+        }
+
         let pageSize = Constants.Pagination.pageSize
+        let requestPageSize = pageSizeOverride ?? pageSize
         let keyword = searchText
         let series = selectedSeries
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
                 page: page,
-                pageSize: pageSize,
+                pageSize: requestPageSize,
                 searchKeyword: keyword,
                 seriesFilter: series,
                 caller: "记录列表"
@@ -869,19 +905,35 @@ struct SessionRecordListView: View {
                 ? SessionRecordManager.shared.loadPlayStats(sessionIds: result.items.map(\.id))
                 : [:]
             DispatchQueue.main.async {
-                let visibleIds = result.items.map(\.id)
-                for id in visibleIds {
-                    self.playStatsMap.removeValue(forKey: id)
+                defer {
+                    if append {
+                        self.isLoadingMore = false
+                    } else {
+                        self.isLoading = false
+                    }
                 }
-                self.pagedMetadataList = result.items
-                self.playStatsMap.merge(statsMap) { _, new in new }
-                self.totalCount = result.totalCount
-                self.isLoading = false
 
-                // 当前页为空但还有数据时（如删除了最后一页的最后一条），回退到上一页
-                if result.items.isEmpty && result.totalCount > 0 && self.currentPage > 1 {
-                    self.currentPage -= 1
-                    self.loadPage()
+                guard self.searchText == keyword,
+                      self.selectedSeries == series else {
+                    return
+                }
+
+                if append {
+                    guard !result.items.isEmpty else {
+                        self.totalCount = result.totalCount
+                        return
+                    }
+                    let existingIds = Set(self.pagedMetadataList.map(\.id))
+                    let newItems = result.items.filter { !existingIds.contains($0.id) }
+                    self.pagedMetadataList += newItems
+                    self.playStatsMap.merge(statsMap) { _, new in new }
+                    self.totalCount = result.totalCount
+                    self.currentPage = page
+                } else {
+                    self.pagedMetadataList = result.items
+                    self.playStatsMap = statsMap
+                    self.totalCount = result.totalCount
+                    self.currentPage = max(1, Int(ceil(Double(result.items.count) / Double(pageSize))))
                 }
             }
         }
@@ -993,9 +1045,8 @@ struct SessionRecordListView: View {
         DispatchQueue.global(qos: .userInitiated).async {
             let _ = SessionRecordManager.shared.deleteSession(id: id)
             DispatchQueue.main.async {
-                // 当前页为空但还有数据时，回退到上一页
-                if !self.isGroupedMode && self.pagedMetadataList.isEmpty && self.totalCount > 0 && self.currentPage > 1 {
-                    self.currentPage -= 1
+                // 已加载列表为空但还有数据时，重新拉取首批
+                if !self.isGroupedMode && self.pagedMetadataList.isEmpty && self.totalCount > 0 {
                     self.loadPage()
                 }
             }
@@ -1092,8 +1143,8 @@ struct SessionRecordListView: View {
                     if isGroupedMode {
                         loadAllMetadata()
                     } else {
-                        // 静默刷新：不显示加载指示器，保留列表滚动位置
-                        loadPage(showLoading: false)
+                        // 静默刷新已加载批次：不显示加载指示器，保留列表滚动位置
+                        refreshLoadedPages(showLoading: false)
                     }
                 }
                 completion()
@@ -1166,29 +1217,29 @@ struct SessionRecordListView: View {
         }
     }
 
-    // 选中当前页：选中当前页所有非默认记录
+    // 选中已加载记录：选中当前已懒加载出的所有非默认记录
     private func selectCurrentPage() {
-        let currentPageIDs = pagedMetadataList
+        let currentLoadedIDs = pagedMetadataList
             .filter { $0.id != Constants.DefaultSession.id }
             .map { $0.id }
-        selectedIDs.formUnion(currentPageIDs)
+        selectedIDs.formUnion(currentLoadedIDs)
     }
 
-    // 反选：切换当前页所有非默认记录的选中状态
+    // 反选：切换已加载记录中所有非默认记录的选中状态
     private func toggleSelection() {
-        let currentPageIDs = pagedMetadataList
+        let currentLoadedIDs = pagedMetadataList
             .filter { $0.id != Constants.DefaultSession.id }
             .map { $0.id }
-        let currentPageSet = Set(currentPageIDs)
+        let currentLoadedSet = Set(currentLoadedIDs)
 
-        // 当前页已选中的记录
-        let selectedInCurrentPage = selectedIDs.intersection(currentPageSet)
-        // 当前页未选中的记录
-        let unselectedInCurrentPage = currentPageSet.subtracting(selectedInCurrentPage)
+        // 已加载范围内已选中的记录
+        let selectedInCurrentLoaded = selectedIDs.intersection(currentLoadedSet)
+        // 已加载范围内未选中的记录
+        let unselectedInCurrentLoaded = currentLoadedSet.subtracting(selectedInCurrentLoaded)
 
-        // 移除当前页已选中的，添加当前页未选中的
-        selectedIDs.subtract(selectedInCurrentPage)
-        selectedIDs.formUnion(unselectedInCurrentPage)
+        // 移除已加载范围内已选中的，添加未选中的
+        selectedIDs.subtract(selectedInCurrentLoaded)
+        selectedIDs.formUnion(unselectedInCurrentLoaded)
     }
     
     // 导出选中的会话记录
@@ -1272,9 +1323,8 @@ struct SessionRecordListView: View {
                 _ = SessionRecordManager.shared.deleteSession(id: id)
             }
             DispatchQueue.main.async {
-                // 当前页为空但还有数据时，回退到上一页
-                if !self.isGroupedMode && self.pagedMetadataList.isEmpty && self.totalCount > 0 && self.currentPage > 1 {
-                    self.currentPage -= 1
+                // 已加载列表为空但还有数据时，重新拉取首批
+                if !self.isGroupedMode && self.pagedMetadataList.isEmpty && self.totalCount > 0 {
                     self.loadPage()
                 }
             }
