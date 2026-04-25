@@ -20,11 +20,21 @@ class SessionRecordManager {
     // MARK: - 属性
     private let fileManager = FileManager.default
     private let logger = os.Logger.sessionRecord
+    private let shanghaiTimeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
 
     // 元数据短时效缓存：避免 Siri 实体查询等场景短时间内多次磁盘扫描
     private var metadataCache: [SessionRecordMetadata]?
     private var metadataCacheTime: Date = .distantPast
     private static let metadataCacheTTL: TimeInterval = 2 // 缓存有效期 2 秒
+
+    private static let legacyUnreadHistoryBackfillMakeEvent = SessionHistoryEvent(
+        timestamp: ISO8601DateFormatter().date(from: "2026-03-01T20:00:00Z") ?? Date(timeIntervalSince1970: 1772395200),
+        identity: "iPhone"
+    )
+    private static let legacyUnreadHistoryBackfillPlayEvent = SessionHistoryEvent(
+        timestamp: ISO8601DateFormatter().date(from: "2026-03-02T20:30:00Z") ?? Date(timeIntervalSince1970: 1772483400),
+        identity: "iPad"
+    )
     
     /// 会话记录存储根目录（内部访问）
     var sessionsDirectory: URL {
@@ -107,6 +117,83 @@ class SessionRecordManager {
     // MARK: - 初始化
     private init() {
         logger.info("会话记录管理器初始化，存储目录: \(self.sessionsDirectory.path)")
+    }
+
+    // MARK: - 一次性补数任务
+
+    /// 一次性补齐 2026-03-02 及更早未读绘本的 history.json
+    /// 条件：仅处理未读会话（playEvents 为空），按需补齐 makeEvents / playEvents，避免覆盖已有事件
+    func backfillLegacyUnreadHistoryIfNeeded() {
+        let key = "PhotoTTS.LegacyUnreadHistoryBackfillV1Completed"
+        guard !UserDefaults.standard.bool(forKey: key) else {
+            logger.info("未读绘本 history 补数已执行过，跳过")
+            return
+        }
+
+        let result = backfillLegacyUnreadHistory()
+        UserDefaults.standard.set(true, forKey: key)
+        logger.info("未读绘本 history 补数完成: 补齐=\(result.updated), 跳过=\(result.skipped)")
+    }
+
+    /// 为 2026-03-02 及更早的未读绘本补齐 history.json
+    @discardableResult
+    func backfillLegacyUnreadHistory() -> (updated: Int, skipped: Int) {
+        let allMetadata = getAllSessionMetadata(caller: "未读绘本-history-补数")
+        var updated = 0
+        var skipped = 0
+
+        for metadata in allMetadata {
+            if isBundledDefaultSession(metadata.id) {
+                skipped += 1
+                continue
+            }
+
+            if metadata.makeStatus == .making || metadata.makeStatus == .incomplete {
+                skipped += 1
+                continue
+            }
+
+            guard isLegacyUnreadBackfillTarget(metadata) else {
+                skipped += 1
+                continue
+            }
+
+            var history = loadSessionHistory(sessionId: metadata.id)
+            guard history.playEvents.isEmpty else {
+                skipped += 1
+                continue
+            }
+
+            var changed = false
+            if history.makeEvents.isEmpty {
+                history.makeEvents = [Self.legacyUnreadHistoryBackfillMakeEvent]
+                changed = true
+            }
+            if history.playEvents.isEmpty {
+                history.playEvents = [Self.legacyUnreadHistoryBackfillPlayEvent]
+                changed = true
+            }
+
+            if changed {
+                saveSessionHistory(sessionId: metadata.id, history: history)
+                updated += 1
+            } else {
+                skipped += 1
+            }
+        }
+
+        return (updated, skipped)
+    }
+
+    private func isLegacyUnreadBackfillTarget(_ metadata: SessionRecordMetadata) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = shanghaiTimeZone
+
+        let sessionDay = calendar.startOfDay(for: metadata.namePrefixDate)
+        guard let cutoffDay = calendar.date(from: DateComponents(year: 2026, month: 3, day: 2)) else {
+            return false
+        }
+        return sessionDay <= cutoffDay
     }
     
     // MARK: - 保存会话记录

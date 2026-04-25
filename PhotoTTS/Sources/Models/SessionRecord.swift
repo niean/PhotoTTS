@@ -39,6 +39,17 @@ struct SessionHistory: Codable {
         self.makeEvents = makeEvents
         self.playEvents = playEvents
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case makeEvents
+        case playEvents
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        makeEvents = try container.decodeIfPresent([SessionHistoryEvent].self, forKey: .makeEvents) ?? []
+        playEvents = try container.decodeIfPresent([SessionHistoryEvent].self, forKey: .playEvents) ?? []
+    }
 }
 
 // MARK: - 播放统计

@@ -562,6 +562,7 @@ struct SessionRecordListView: View {
                             }) {
                                 Label("拍照制作", systemImage: "camera")
                             }
+                            Divider()
                             Button(action: {
                                 appState.openPhotoPickerOnNextRecordAppear = true
                                 appState.selectedTab = 1
