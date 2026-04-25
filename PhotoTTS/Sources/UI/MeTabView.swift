@@ -2,14 +2,68 @@ import SwiftUI
 
 // MARK: - 我的 Tab 页
 struct MeTabView: View {
+    private enum TodayPlanSummary {
+        case pending(bookCount: Int, duration: TimeInterval)
+        case completed(bookCount: Int, duration: TimeInterval)
+        case empty
+
+        var buttonText: String? {
+            switch self {
+            case let .pending(bookCount, duration),
+                 let .completed(bookCount, duration):
+                guard bookCount > 0 else { return nil }
+                return "今日计划\(bookCount)本 \(Self.formatDuration(duration))"
+            case .empty:
+                return nil
+            }
+        }
+
+        private static func formatDuration(_ duration: TimeInterval) -> String {
+            let totalMinutes = max(1, Int((duration + 59) / 60))
+            let hours = totalMinutes / 60
+            let minutes = totalMinutes % 60
+
+            if hours > 0 {
+                return minutes > 0 ? "\(hours)小时\(minutes)分" : "\(hours)小时"
+            }
+            return "\(totalMinutes)分"
+        }
+    }
+
     @ObservedObject var appState: AppState
     @State private var showNameEditor = false
     @State private var editingName = ""
     @State private var displayName = SettingsManager.shared.identityName
+    @State private var todayPlanSummary: TodayPlanSummary = .empty
     
     private let avatarSize: CGFloat = 64
     private let topPadding: CGFloat = 20
     private let horizontalPadding: CGFloat = 16
+
+    private var playPlanEnabled: Bool {
+        let key = Constants.UserDefaultsKeys.playPlanEnabled
+        if UserDefaults.standard.object(forKey: key) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    /// 检查今天是否已经处理过某个待办日期
+    private var isTodayProcessed: Bool {
+        let today = Calendar.current.startOfDay(for: Date())
+        let storedForDate = UserDefaults.standard.double(forKey: Constants.UserDefaultsKeys.playPlanTodayProcessedForDate)
+        guard storedForDate > 0 else { return false }
+        let storedForDateValue = Date(timeIntervalSince1970: storedForDate)
+        return Calendar.current.isDate(storedForDateValue, inSameDayAs: today)
+    }
+
+    /// 获取今日已处理的待办日期（如果有）
+    private var todayProcessedTodoDate: Date? {
+        guard isTodayProcessed else { return nil }
+        let storedDate = UserDefaults.standard.double(forKey: Constants.UserDefaultsKeys.playPlanTodayProcessedTodoDate)
+        guard storedDate > 0 else { return nil }
+        return Date(timeIntervalSince1970: storedDate)
+    }
     
     var body: some View {
         NavigationStack {
@@ -66,7 +120,17 @@ struct MeTabView: View {
                     NavigationLink {
                         PlaybackSettingsView()
                     } label: {
-                        Label("播放设置", systemImage: "play.circle.fill")
+                        HStack(spacing: 12) {
+                            Label("播放设置", systemImage: "play.circle.fill")
+                            Spacer(minLength: 8)
+                            if playPlanEnabled, let buttonText = todayPlanSummary.buttonText {
+                                Text(buttonText)
+                                    .font(Constants.Fonts.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                        }
                     }
                 }
 
@@ -114,6 +178,15 @@ struct MeTabView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .onAppear {
+                refreshTodayPlanSummary()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
+                refreshTodayPlanSummary()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+                refreshTodayPlanSummary()
+            }
             .alert("修改名称", isPresented: $showNameEditor) {
                 TextField("输入名称", text: $editingName)
                 Button("取消", role: .cancel) {}
@@ -124,6 +197,56 @@ struct MeTabView: View {
                 }
             } message: {
                 Text("最多 \(AppConstants.Identity.nameMaxLength) 个字符，留空则恢复为设备名称")
+            }
+        }
+    }
+
+    private func refreshTodayPlanSummary() {
+        guard playPlanEnabled else {
+            todayPlanSummary = .empty
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "MeTabView.今日计划")
+            let completedMetadata = allMetadata.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
+            let statsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: completedMetadata.map(\.id))
+            let planDate = HomePagePlayPlanHelper.activePlanDate(
+                in: completedMetadata,
+                statsMap: statsMap,
+                isTodayProcessed: isTodayProcessed,
+                todayProcessedTodoDate: todayProcessedTodoDate
+            )
+
+            let calendar = Calendar.current
+            let summary: TodayPlanSummary
+
+            if let planDate {
+                let sameDayItems = completedMetadata.filter { metadata in
+                    calendar.isDate(metadata.namePrefixDate, inSameDayAs: planDate)
+                }
+
+                let summaryItems: [SessionRecordMetadata]
+                if isTodayProcessed {
+                    summaryItems = sameDayItems
+                } else {
+                    summaryItems = sameDayItems.filter { statsMap[$0.id] == nil }
+                }
+
+                let totalDuration = summaryItems.reduce(0) { $0 + $1.audioDuration }
+                if isTodayProcessed {
+                    summary = .completed(bookCount: summaryItems.count, duration: totalDuration)
+                } else {
+                    summary = summaryItems.isEmpty
+                        ? .empty
+                        : .pending(bookCount: summaryItems.count, duration: totalDuration)
+                }
+            } else {
+                summary = .empty
+            }
+
+            DispatchQueue.main.async {
+                todayPlanSummary = summary
             }
         }
     }
