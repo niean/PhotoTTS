@@ -2,11 +2,29 @@ import Foundation
 import UIKit
 import ImageIO
 import AVFoundation
+import CryptoKit
 import os.log
 
 enum HomeSessionSortMode {
     case list
     case series
+}
+
+private struct SessionIntegrityManifest: Codable {
+    let version: Int
+    let generatedAt: Date
+    let files: [SessionIntegrityEntry]
+}
+
+private struct SessionIntegrityEntry: Codable {
+    let path: String
+    let md5: String
+    let size: Int64
+}
+
+enum TransferredSessionValidationResult: Equatable {
+    case valid(id: String, name: String)
+    case invalid(reason: String)
 }
 
 // MARK: - 会话记录管理器
@@ -119,7 +137,57 @@ class SessionRecordManager {
         logger.info("会话记录管理器初始化，存储目录: \(self.sessionsDirectory.path)")
     }
 
-    // MARK: - 一次性补数任务
+    // MARK: - 一次性清理任务
+
+    /// 清理本地存量记录中的完整性校验文件；该文件仅用于导入、接收时校验导出包/传输快照的完整性。
+    func purgeLocalSessionIntegrityIfNeeded() {
+        let key = "PhotoTTS.LocalSessionIntegrityPurgeV1Completed"
+        guard !UserDefaults.standard.bool(forKey: key) else {
+            logger.info("本地完整性校验文件清理已执行过，跳过")
+            return
+        }
+
+        let result = purgeLocalSessionIntegrityForAllSessions()
+        UserDefaults.standard.set(true, forKey: key)
+        logger.info("本地完整性校验文件清理完成: 清理=\(result.updated), 跳过=\(result.skipped)")
+    }
+
+    @discardableResult
+    func purgeLocalSessionIntegrityForAllSessions() -> (updated: Int, skipped: Int) {
+        var updated = 0
+        var skipped = 0
+
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: sessionsDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        ) else {
+            logger.error("本地完整性校验文件清理失败: 无法读取 Sessions 目录")
+            return (0, 0)
+        }
+
+        for sessionDir in contents {
+            guard (try? sessionDir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+                continue
+            }
+
+            let sessionId = sessionDir.lastPathComponent
+            if isBundledDefaultSession(sessionId) {
+                skipped += 1
+                continue
+            }
+
+            if removeLocalIntegrityManifestIfExists(sessionDir: sessionDir) {
+                updated += 1
+                let size = calculateDirectorySize(sessionDir)
+                updateStorageSizeInFiles(sessionDir: sessionDir, size: size)
+            } else {
+                skipped += 1
+            }
+        }
+
+        return (updated, skipped)
+    }
 
     /// 一次性补齐 2026-03-02 及更早未读绘本的 history.json
     /// 条件：仅处理未读会话（playEvents 为空），按需补齐 makeEvents / playEvents，避免覆盖已有事件
@@ -194,6 +262,145 @@ class SessionRecordManager {
             return false
         }
         return sessionDay <= cutoffDay
+    }
+
+    func verifySessionIntegrity(sessionId: String) -> Bool {
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        return verifySessionIntegrity(sessionDir: sessionDir)
+    }
+
+    private func verifySessionIntegrity(sessionDir: URL) -> Bool {
+        let manifestURL = sessionDir.appendingPathComponent(Self.integrityFileName)
+        guard fileManager.fileExists(atPath: manifestURL.path),
+              let data = try? Data(contentsOf: manifestURL),
+              let manifest = try? integrityDecoder.decode(SessionIntegrityManifest.self, from: data) else {
+            return false
+        }
+
+        let actualFiles = listFilesForIntegrity(in: sessionDir)
+        let actualPaths = Set(actualFiles.map { relativePath(for: $0, under: sessionDir) })
+        let manifestPaths = Set(manifest.files.map(\.path))
+        guard actualPaths == manifestPaths else {
+            return false
+        }
+
+        for entry in manifest.files {
+            let fileURL = sessionDir.appendingPathComponent(entry.path)
+            guard fileManager.fileExists(atPath: fileURL.path),
+                  let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
+                  Int64(values.fileSize ?? -1) == entry.size,
+                  let md5 = try? md5Hex(for: fileURL),
+                  md5 == entry.md5 else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func writeSessionIntegrityManifest(sessionDir: URL, changedPaths: Set<String>? = nil) {
+        guard fileManager.fileExists(atPath: sessionDir.path) else { return }
+
+        let allFiles = listFilesForIntegrity(in: sessionDir)
+        let allRelativePaths = Set(allFiles.map { relativePath(for: $0, under: sessionDir) })
+        let manifestURL = sessionDir.appendingPathComponent(Self.integrityFileName)
+        let existingManifest: SessionIntegrityManifest? = {
+            guard fileManager.fileExists(atPath: manifestURL.path),
+                  let data = try? Data(contentsOf: manifestURL) else {
+                return nil
+            }
+            return try? integrityDecoder.decode(SessionIntegrityManifest.self, from: data)
+        }()
+
+        do {
+            let existingEntries = Dictionary(uniqueKeysWithValues: (existingManifest?.files ?? []).map { ($0.path, $0) })
+            let normalizedChangedPaths = changedPaths?.intersection(allRelativePaths)
+            let shouldRebuildAll = normalizedChangedPaths == nil || existingManifest == nil
+
+            let entries = try allFiles.map { fileURL -> SessionIntegrityEntry in
+                let path = relativePath(for: fileURL, under: sessionDir)
+                if !shouldRebuildAll,
+                   let normalizedChangedPaths,
+                   !normalizedChangedPaths.contains(path),
+                   let existing = existingEntries[path] {
+                    return existing
+                }
+
+                let size = Int64((try fileURL.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0)
+                return SessionIntegrityEntry(
+                    path: path,
+                    md5: try md5Hex(for: fileURL),
+                    size: size
+                )
+            }
+            .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+
+            let manifest = SessionIntegrityManifest(version: 1, generatedAt: Date(), files: entries)
+            let data = try integrityEncoder.encode(manifest)
+            try data.write(to: manifestURL, options: .atomic)
+
+            var mutableManifestURL = manifestURL
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = false
+            try? mutableManifestURL.setResourceValues(values)
+        } catch {
+            logger.error("写入完整性校验文件失败: session=\(sessionDir.lastPathComponent), error=\(error.localizedDescription)")
+        }
+    }
+
+    private func listFilesForIntegrity(in sessionDir: URL) -> [URL] {
+        guard let enumerator = fileManager.enumerator(
+            at: sessionDir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var files: [URL] = []
+        for case let fileURL as URL in enumerator {
+            guard (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == false,
+                  fileURL.lastPathComponent != Self.integrityFileName else {
+                continue
+            }
+            files.append(fileURL)
+        }
+
+        return files.sorted {
+            relativePath(for: $0, under: sessionDir)
+                .localizedStandardCompare(relativePath(for: $1, under: sessionDir)) == .orderedAscending
+        }
+    }
+
+    private func relativePath(for fileURL: URL, under rootURL: URL) -> String {
+        let prefix = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
+        if fileURL.path.hasPrefix(prefix) {
+            return String(fileURL.path.dropFirst(prefix.count))
+        }
+        return fileURL.lastPathComponent
+    }
+
+    @discardableResult
+    private func removeLocalIntegrityManifestIfExists(sessionDir: URL) -> Bool {
+        let manifestURL = sessionDir.appendingPathComponent(Self.integrityFileName)
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            return false
+        }
+
+        do {
+            try fileManager.removeItem(at: manifestURL)
+            logger.info("已移除本地完整性校验文件: session=\(sessionDir.lastPathComponent)")
+            return true
+        } catch {
+            logger.error("移除本地完整性校验文件失败: session=\(sessionDir.lastPathComponent), error=\(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func md5Hex(for fileURL: URL) throws -> String {
+        let data = try Data(contentsOf: fileURL)
+        let digest = Insecure.MD5.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
     
     // MARK: - 保存会话记录
@@ -336,6 +543,8 @@ class SessionRecordManager {
             logger.info("会话记录保存成功: \(record.name)")
             logger.info("会话记录路径: \(sessionDir.path)，可在'文件'应用中访问")
             logger.info("存储空间: \(formattedSize) (\(storageSize) 字节)")
+
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
             
             return (true, storageSize)
             
@@ -1243,6 +1452,22 @@ public struct EndPictQueueInfo {
     
     // MARK: - 记录头像
     private static let avatarFileName = "avatar.jpg"
+    private static let coverFileName = "cover.jpg"
+    private static let integrityFileName = "integrity.json"
+    private static let historyFileName = "history.json"
+
+    private let integrityEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }()
+
+    private let integrityDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
     
     /// 当 avatar.jpg 缺失时，将传入的已解码图片降采样后写入会话目录（用于列表页回退加载后补写）
     func saveAvatarIfMissing(sessionId: String, image: UIImage) {
@@ -1452,6 +1677,8 @@ public struct EndPictQueueInfo {
                 logger.error("复用封面失败: \(error.localizedDescription)")
             }
         }
+
+        _ = removeLocalIntegrityManifestIfExists(sessionDir: targetDir)
     }
 
     // MARK: - 草稿会话（后台制作）
@@ -1536,6 +1763,7 @@ public struct EndPictQueueInfo {
             } else {
                 logger.info("草稿会话保存成功: \(name), id=\(id), 图片数=\(images.count)")
             }
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
             return true
         } catch {
             logger.error("草稿会话保存失败: \(error.localizedDescription)")
@@ -1590,6 +1818,7 @@ public struct EndPictQueueInfo {
 
             invalidateMetadataCache()
             logger.info("草稿状态更新成功: id=\(id), status=\(status.rawValue)")
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
             return true
         } catch {
             logger.error("草稿状态更新失败: id=\(id), 错误=\(error.localizedDescription)")
@@ -1661,6 +1890,7 @@ public struct EndPictQueueInfo {
 
             invalidateMetadataCache()
             logger.info("草稿OCR结果更新成功: id=\(id), 文本长度=\(ocrCombinedText.count)")
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
             return true
         } catch {
             logger.error("草稿OCR结果更新失败: id=\(id), 错误=\(error.localizedDescription)")
@@ -1766,6 +1996,7 @@ public struct EndPictQueueInfo {
 
             invalidateMetadataCache()
             logger.info("草稿会话更新完成: \(oldRecord.name), id=\(id), 文本长度=\(ocrText.count), 音频大小=\(audioData.count)")
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
 
             // 生成封面图片
             generateCoverForSession(sessionId: id, record: sizeUpdatedRecord)
@@ -1808,6 +2039,7 @@ public struct EndPictQueueInfo {
 
                 self.invalidateMetadataCache()
                 self.logger.info("封面生成并保存成功: sessionId=\(sessionId), path=\(coverPath)")
+                _ = self.removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
             } catch {
                 self.logger.error("封面生成失败: sessionId=\(sessionId), error=\(error.localizedDescription)")
             }
@@ -2230,6 +2462,8 @@ public struct EndPictQueueInfo {
                 try fileManager.removeItem(at: targetDir)
             }
             try fileManager.copyItem(at: sessionDir, to: targetDir)
+            // 以导出包内的实际快照为权威，重建校验文件，避免源目录在复制期间继续变更导致导出包校验过期。
+            writeSessionIntegrityManifest(sessionDir: targetDir)
             let size = calculateDirectorySize(targetDir)
             logger.info("单条会话记录导出成功: \(sessionName), 文件夹: \(folderName), 大小: \(self.formatStorageSize(size))")
             return (true, size, nil)
@@ -2252,7 +2486,7 @@ public struct EndPictQueueInfo {
     ///   - destinationURL: 目标目录 URL（用户选择的目录）
     ///   - isAllSelected: 是否选中了全部记录（用于决定导出目录命名）
     /// - Returns: 导出结果
-    func exportSelectedSessions(_ sessionIDs: [String], to destinationURL: URL, isAllSelected: Bool = false) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
+    func exportSelectedSessions(_ sessionIDs: [String], to destinationURL: URL, isAllSelected: Bool = false, integrityReason: String = "批量导出") -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         do {
             // 生成导出目录名称：全选时用 PhotoTTS_YYMMDD，部分选择时用 PhotoTTS-P_YYMMDD
             let dateFormatter = DateFormatter()
@@ -2280,7 +2514,7 @@ public struct EndPictQueueInfo {
                 if isBundledDefaultSession(id) {
                     continue
                 }
-                
+
                 let sourceSessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
                 guard fileManager.fileExists(atPath: sourceSessionDir.path) else {
                     continue
@@ -2305,6 +2539,8 @@ public struct EndPictQueueInfo {
                 
                 // 复制整个会话目录
                 try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
+                // 以导出包内的实际快照为权威，重建校验文件，避免源目录在复制期间继续变更导致导出包校验过期。
+                writeSessionIntegrityManifest(sessionDir: targetSessionDir)
                 
                 // 计算会话大小
                 let sessionSize = calculateDirectorySize(targetSessionDir)
@@ -2391,7 +2627,7 @@ public struct EndPictQueueInfo {
     func exportAllSessions(to destinationURL: URL) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         let allMetadata = getAllSessionMetadata(caller: "全量导出")
         let allIDs = allMetadata.map { $0.id }
-        return exportSelectedSessions(allIDs, to: destinationURL, isAllSelected: true)
+        return exportSelectedSessions(allIDs, to: destinationURL, isAllSelected: true, integrityReason: "全量导出")
     }
 
     // MARK: - 打包播放历史（仅 history.json）
@@ -2426,47 +2662,202 @@ public struct EndPictQueueInfo {
             .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
 
         do {
-            // 解压 .ptarchive
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             try PeerTransferManager.shared.unarchiveFile(source: archiveURL, destination: tempDir)
-
-            var received = 0
-            var skipped = 0
-
-            // 遍历解压出的子目录（每个 sessionId 一个目录）
-            if let contents = try? fileManager.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: [.isDirectoryKey]) {
-                for item in contents {
-                    let resourceValues = try? item.resourceValues(forKeys: [.isDirectoryKey])
-                    guard resourceValues?.isDirectory == true else { continue }
-
-                    let sessionId = item.lastPathComponent
-                    guard existingSessionIDs.contains(sessionId) else {
-                        skipped += 1
-                        continue
-                    }
-
-                    let historyURL = item.appendingPathComponent(Self.historyFileName)
-                    guard fileManager.fileExists(atPath: historyURL.path),
-                          let data = try? Data(contentsOf: historyURL),
-                          let history = try? historyDecoder.decode(SessionHistory.self, from: data) else {
-                        skipped += 1
-                        continue
-                    }
-
-                    // 覆盖本地 history.json
-                    saveSessionHistory(sessionId: sessionId, history: history)
-                    received += 1
-                }
-            }
-
+            let result = applyHistoryPackageFromUnpackedDirectory(tempDir, existingSessionIDs: existingSessionIDs)
             try? fileManager.removeItem(at: tempDir)
-            return (received, skipped)
-
+            return result
         } catch {
             os.Logger.sessionRecord.error("应用历史记录包失败: \(error.localizedDescription)")
             try? fileManager.removeItem(at: tempDir)
             return (0, 0)
         }
+    }
+
+    /// 接收方：从已解压目录中覆盖本地对应 session 的历史记录
+    func applyHistoryPackageFromUnpackedDirectory(_ unpackedDirectory: URL, existingSessionIDs: Set<String>) -> (received: Int, skipped: Int) {
+        var received = 0
+        var skipped = 0
+
+        if let contents = try? fileManager.contentsOfDirectory(at: unpackedDirectory, includingPropertiesForKeys: [.isDirectoryKey]) {
+            for item in contents {
+                let resourceValues = try? item.resourceValues(forKeys: [.isDirectoryKey])
+                guard resourceValues?.isDirectory == true else { continue }
+
+                let sessionId = item.lastPathComponent
+                guard existingSessionIDs.contains(sessionId) else {
+                    logger.info("跳过接收播放记录（本地记录不存在）: session=\(sessionId)")
+                    skipped += 1
+                    continue
+                }
+
+                let historyURL = item.appendingPathComponent(Self.historyFileName)
+                guard fileManager.fileExists(atPath: historyURL.path) else {
+                    logger.warning("跳过接收播放记录（缺少 history.json）: session=\(sessionId)")
+                    skipped += 1
+                    continue
+                }
+
+                guard let data = try? Data(contentsOf: historyURL) else {
+                    logger.warning("跳过接收播放记录（读取 history.json 失败）: session=\(sessionId)")
+                    skipped += 1
+                    continue
+                }
+
+                guard let history = try? historyDecoder.decode(SessionHistory.self, from: data) else {
+                    logger.warning("跳过接收播放记录（解析 history.json 失败）: session=\(sessionId)")
+                    skipped += 1
+                    continue
+                }
+
+                saveSessionHistory(sessionId: sessionId, history: history)
+                received += 1
+            }
+        }
+
+        return (received, skipped)
+    }
+
+    func importTransferredSessionsRecoveringPartials(from unpackedDirectory: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
+        let sourceSessionsDir: URL
+        let candidateSessionsDir = unpackedDirectory.appendingPathComponent("Sessions", isDirectory: true)
+        if fileManager.fileExists(atPath: candidateSessionsDir.path) {
+            sourceSessionsDir = candidateSessionsDir
+        } else {
+            sourceSessionsDir = unpackedDirectory
+        }
+
+        let existingMetadata = getAllSessionMetadata(caller: "传输中断恢复")
+        var existingIDs = Set(existingMetadata.map { $0.id })
+        var importedCount = 0
+        var skippedCount = 0
+        var duplicateCount = 0
+        var totalSize: Int64 = 0
+
+        let sessionDirectories = findTransferredSessionDirectories(in: sourceSessionsDir)
+        guard !sessionDirectories.isEmpty else {
+            return (false, 0, 0, 0, 0, "未找到可恢复的记录")
+        }
+
+        for sourceSessionDir in sessionDirectories {
+            let validationResult = validateTransferredSessionDirectory(sourceSessionDir)
+            guard case .valid(let recoveredId, let recoveredName) = validationResult else {
+                if case .invalid(let reason) = validationResult {
+                    logger.warning("跳过恢复传输记录: session=\(sourceSessionDir.lastPathComponent), reason=\(reason)")
+                }
+                skippedCount += 1
+                continue
+            }
+
+            let recoveredRecord = (id: recoveredId, name: recoveredName)
+
+            if existingIDs.contains(recoveredRecord.id) {
+                let sourceHistoryURL = sourceSessionDir.appendingPathComponent(Self.historyFileName)
+                if fileManager.fileExists(atPath: sourceHistoryURL.path),
+                   let data = try? Data(contentsOf: sourceHistoryURL),
+                   let history = try? historyDecoder.decode(SessionHistory.self, from: data) {
+                    saveSessionHistory(sessionId: recoveredRecord.id, history: history)
+                }
+                logger.info("跳过恢复传输记录（ID重复）: \(recoveredRecord.name)")
+                duplicateCount += 1
+                continue
+            }
+
+            let targetSessionDir = sessionsDirectory.appendingPathComponent(recoveredRecord.id, isDirectory: true)
+            do {
+                try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
+                var mutableSessionDir = targetSessionDir
+                var resourceValues = URLResourceValues()
+                resourceValues.isExcludedFromBackup = false
+                try? mutableSessionDir.setResourceValues(resourceValues)
+                fixSessionDirectoryPermissions(targetSessionDir)
+
+                _ = removeLocalIntegrityManifestIfExists(sessionDir: targetSessionDir)
+                let sessionSize = calculateDirectorySize(targetSessionDir)
+                updateStorageSizeInFiles(sessionDir: targetSessionDir, size: sessionSize)
+                totalSize += sessionSize
+                importedCount += 1
+                existingIDs.insert(recoveredRecord.id)
+                logger.info("恢复已传输会话记录: \(recoveredRecord.name) (\(self.formatStorageSize(sessionSize)))")
+            } catch {
+                logger.error("恢复已传输会话记录失败: \(recoveredRecord.name), 错误: \(error.localizedDescription)")
+                skippedCount += 1
+            }
+        }
+
+        invalidateMetadataCache()
+        return (true, importedCount, skippedCount, duplicateCount, totalSize, nil)
+    }
+
+    private func findTransferredSessionDirectories(in sourceDirectory: URL) -> [URL] {
+        var sessionDirectories: [URL] = []
+        if let enumerator = fileManager.enumerator(at: sourceDirectory, includingPropertiesForKeys: [.isDirectoryKey]) {
+            for case let fileURL as URL in enumerator {
+                guard fileURL.lastPathComponent == "record.json" else { continue }
+                sessionDirectories.append(fileURL.deletingLastPathComponent())
+            }
+        }
+        return sessionDirectories.sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+    }
+
+    func validateTransferredSessionDirectory(_ sourceSessionDir: URL) -> TransferredSessionValidationResult {
+        let integrityURL = sourceSessionDir.appendingPathComponent(Self.integrityFileName)
+        if fileManager.fileExists(atPath: integrityURL.path),
+           !verifySessionIntegrity(sessionDir: sourceSessionDir) {
+            return .invalid(reason: "完整性校验失败")
+        }
+
+        let recordURL = sourceSessionDir.appendingPathComponent("record.json")
+        let metadataURL = sourceSessionDir.appendingPathComponent("metadata.json")
+        guard fileManager.fileExists(atPath: recordURL.path) else {
+            return .invalid(reason: "缺少 record.json")
+        }
+        guard fileManager.fileExists(atPath: metadataURL.path) else {
+            return .invalid(reason: "缺少 metadata.json")
+        }
+
+        guard let recordData = try? Data(contentsOf: recordURL) else {
+            return .invalid(reason: "读取 record.json 失败")
+        }
+        guard let record = try? JSONDecoder().decode(SessionRecord.self, from: recordData) else {
+            return .invalid(reason: "解析 record.json 失败")
+        }
+        guard let metadataData = try? Data(contentsOf: metadataURL) else {
+            return .invalid(reason: "读取 metadata.json 失败")
+        }
+        guard let metadata = try? JSONDecoder().decode(SessionRecordMetadata.self, from: metadataData) else {
+            return .invalid(reason: "解析 metadata.json 失败")
+        }
+        guard record.id == metadata.id else {
+            return .invalid(reason: "record.json 与 metadata.json 的记录 ID 不一致")
+        }
+
+        let imagesDir = sourceSessionDir.appendingPathComponent("images", isDirectory: true)
+        for index in 0..<record.totalImageCount {
+            let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
+            guard fileManager.fileExists(atPath: imageURL.path) else {
+                return .invalid(reason: "缺少图片文件 image_\(index).jpg")
+            }
+        }
+
+        if !record.audioSegments.isEmpty {
+            for (index, segment) in record.audioSegments.enumerated() {
+                let fileIndex = segment.sequenceNumber > 0 ? segment.sequenceNumber : (index + 1)
+                let audioURL = sourceSessionDir.appendingPathComponent("audio_\(fileIndex).\(segment.format)")
+                guard fileManager.fileExists(atPath: audioURL.path) else {
+                    return .invalid(reason: "缺少音频分段文件 audio_\(fileIndex).\(segment.format)")
+                }
+            }
+        } else if record.audioSize > 0 || record.audioDuration > 0 {
+            let audioURL = sourceSessionDir.appendingPathComponent("audio.\(record.audioFormat)")
+            guard fileManager.fileExists(atPath: audioURL.path) else {
+                return .invalid(reason: "缺少音频文件 audio.\(record.audioFormat)")
+            }
+        }
+
+        return .valid(id: record.id, name: record.name)
     }
 
     // MARK: - 导入会话记录
@@ -2536,6 +2927,21 @@ public struct EndPictQueueInfo {
                     skippedCount += 1
                     continue
                 }
+
+                let validationResult = validateTransferredSessionDirectory(sourceSessionDir)
+                guard case .valid(let validatedId, _) = validationResult,
+                      validatedId == sessionInfo.id else {
+                    let reason: String
+                    switch validationResult {
+                    case .valid:
+                        reason = "导出清单中的 ID 与记录目录内的 ID 不一致"
+                    case .invalid(let validationReason):
+                        reason = validationReason
+                    }
+                    logger.warning("跳过会话记录: \(sessionInfo.name), 文件夹: \(sessionInfo.folderName), 原因: \(reason)")
+                    skippedCount += 1
+                    continue
+                }
                 
                 // ID 重复：跳过会话记录本体，但覆盖播放历史
                 if existingIDs.contains(sessionInfo.id) {
@@ -2568,6 +2974,7 @@ public struct EndPictQueueInfo {
                     fixSessionDirectoryPermissions(targetSessionDir)
                     
                     // 计算导入的会话大小，并更新文件内的 storageSize 元数据
+                    _ = removeLocalIntegrityManifestIfExists(sessionDir: targetSessionDir)
                     let sessionSize = calculateDirectorySize(targetSessionDir)
                     updateStorageSizeInFiles(sessionDir: targetSessionDir, size: sessionSize)
                     totalSize += sessionSize
@@ -2606,11 +3013,13 @@ public struct EndPictQueueInfo {
             return (false, 0, 0, 0, 0, "该目录下未找到 record.json，请选择单个会话目录")
         }
         do {
-            // 读取 record.json 获取原 ID（用于去重检测与日志）
-            let recordData = try Data(contentsOf: recordURL)
-            let record = try JSONDecoder().decode(SessionRecord.self, from: recordData)
-            let sourceID = record.id
-            let sessionName = record.name
+            let validationResult = validateTransferredSessionDirectory(sourceURL)
+            guard case .valid(let sourceID, let sessionName) = validationResult else {
+                if case .invalid(let reason) = validationResult {
+                    logger.warning("跳过单条会话记录导入: 目录=\(sourceURL.lastPathComponent), 原因: \(reason)")
+                }
+                return (false, 0, 1, 0, 0, "该记录目录不完整或已损坏")
+            }
             
             let existingMetadata = getAllSessionMetadata(caller: "单条导入")
             let existingIDs = Set(existingMetadata.map { $0.id })
@@ -2629,6 +3038,7 @@ public struct EndPictQueueInfo {
             try? mutableSessionDir.setResourceValues(resourceValues)
             fixSessionDirectoryPermissions(targetSessionDir)
             // 计算导入的会话大小，并更新文件内的 storageSize 元数据
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: targetSessionDir)
             let sessionSize = calculateDirectorySize(targetSessionDir)
             updateStorageSizeInFiles(sessionDir: targetSessionDir, size: sessionSize)
             invalidateMetadataCache()
@@ -2677,11 +3087,10 @@ public struct EndPictQueueInfo {
            let updatedData = try? JSONEncoder().encode(record.withStorageSize(size)) {
             try? updatedData.write(to: recordURL)
         }
+
     }
 
     // MARK: - 会话历史（history.json）
-
-    private static let historyFileName = "history.json"
 
     private let historyEncoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -2744,6 +3153,7 @@ public struct EndPictQueueInfo {
         do {
             let data = try historyEncoder.encode(history)
             try data.write(to: historyURL)
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
         } catch {
             logger.error("保存会话历史失败: \(error.localizedDescription)")
         }

@@ -6,6 +6,7 @@
 - 底导：底部 Tab 栏（首页/制作/管理/我的）；顶导：各 Tab 内顶部导航栏
 - 手势识别：左边缘滑动返回（注释 // 手势识别，参数 Constants.Gesture）
 - SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/ocrDuration/llmDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus/storyHighlights/hasVirtualPage。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
+- integrity.json：导出包或设备传输快照中的完整性校验文件，记录单条会话目录内全部文件（除自身外）的相对路径/文件大小/MD5；核心用途是供导入、接收时判断“完整记录”，中断恢复沿用同一判断方式；不落到 App 本地磁盘记录
 - storyHighlights：绘本要点（LLM生成的15-30字符摘要），可选字段，播放时作为虚拟页追加到ocrTextSegments末尾
 - hasVirtualPage：是否存在要点图片页（由storyHighlights生成），Bool类型，要点图片从EndPicts资源库随机选取
 - EndPicts：要点图片资源库，包含系统内置（Bundle中）和用户上传（Documents/EndPicts/）两部分，按动画方向分h（横向）和z（纵向）两组；播放至要点图片页时从合并池随机选取

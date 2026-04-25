@@ -160,6 +160,11 @@ struct PhotoTTSApp: App {
             SessionRecordManager.shared.fixAudioDurationForAllSessionsIfNeeded()
         }
 
+        // 一次性清理任务：移除本地记录中的完整性校验文件，仅保留在导出包/传输快照中
+        DispatchQueue.global(qos: .utility).async {
+            SessionRecordManager.shared.purgeLocalSessionIntegrityIfNeeded()
+        }
+
         // 一次性补数任务：为老未读绘本补齐缺失的 history.json / makeEvents / playEvents
         DispatchQueue.global(qos: .utility).async {
             SessionRecordManager.shared.backfillLegacyUnreadHistoryIfNeeded()

@@ -175,6 +175,7 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 - playOnly 模式发送端始终传输所有记录（不跳过重复），由接收端覆盖本地历史
 - 发送端 playOnly 模式下仅打包 .json 文件（不传输图片/音频，体积显著减小）
 - 接收端 didFinishReceivingResourceWithName 中按模式分流：full 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
+- full 模式的完整记录判断优先依赖导出包或传输快照中的 `integrity.json`：该文件的职责就是供导入、接收时做完整性校验，校验清单覆盖目录内全部文件 MD5（不含自身）；接收到本地后会删除该文件，本地 `Documents/Sessions/{id}/` 仍以结构检查和业务文件为准
 - 接收方通过 receiverExistingSessionIDs 在接受邀请时保存本地已有 sessionID，供传输完成后 applyHistoryPackage 使用（pendingInvitation 在接受后即被清除）
 - cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，先 reject 未处理的 pendingInvitation 再置 nil（避免发送方等待超时），同时重置 isIdleTimerDisabled
 - 接收方 didReceiveInvitationFromPeer 中检测 transferState 为 .completed/.failed 时，自动清理 stale 状态（teardownSession + createSession + 状态重置），确保同一 MCPeerID 可重新连接

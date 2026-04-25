@@ -114,6 +114,45 @@ final class PeerTransferManagerTests: XCTestCase {
         try? FileManager.default.removeItem(at: unpackDir)
     }
 
+    func testUnarchiveFileAllowingPartialRecoversCompleteEntries() throws {
+        let manager = PeerTransferManager.shared
+
+        let sourceDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("partial_archive_src_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceDir) }
+
+        let sessionsDir = sourceDir.appendingPathComponent("Sessions", isDirectory: true)
+        let sessionOneDir = sessionsDir.appendingPathComponent("session-1", isDirectory: true)
+        let sessionTwoDir = sessionsDir.appendingPathComponent("session-2", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionOneDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sessionTwoDir, withIntermediateDirectories: true)
+        try Data("one".utf8).write(to: sessionOneDir.appendingPathComponent("record.json"))
+        try Data("two".utf8).write(to: sessionTwoDir.appendingPathComponent("record.json"))
+
+        let archiveURL = try manager.archiveDirectory(source: sourceDir)
+        defer { try? FileManager.default.removeItem(at: archiveURL) }
+
+        let archiveData = try Data(contentsOf: archiveURL)
+        let partialArchiveURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("partial_archive_\(UUID().uuidString).ptarchive")
+        try archiveData.prefix(max(archiveData.count - 8, 1)).write(to: partialArchiveURL)
+        defer { try? FileManager.default.removeItem(at: partialArchiveURL) }
+
+        let unpackDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("partial_unpack_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: unpackDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: unpackDir) }
+
+        let result = try manager.unarchiveFileAllowingPartial(source: partialArchiveURL, destination: unpackDir)
+        XCTAssertFalse(result.didReachArchiveEnd)
+        XCTAssertGreaterThanOrEqual(result.extractedFileCount, 1)
+        let recoveredFiles = FileManager.default.enumerator(at: unpackDir, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { FileManager.default.fileExists(atPath: $0.path) && !$0.hasDirectoryPath } ?? []
+        XCTAssertFalse(recoveredFiles.isEmpty)
+    }
+
     // MARK: - Constants
 
     func testServiceTypeFormat() {

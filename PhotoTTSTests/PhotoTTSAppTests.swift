@@ -338,10 +338,13 @@ final class PhotoTTSAppTests: XCTestCase {
             name: "segmented-import",
             createdAt: Date(),
             updatedAt: Date(),
-            imageDataList: [],
+            images: [
+                makeImage(color: .red, size: CGSize(width: 120, height: 120)),
+                makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+            ],
             ocrText: "甲乙",
             ocrTextSegments: ["甲", "乙"],
-            audioDataBase64: "",
+            audioData: Data(),
             audioFormat: "mp3",
             audioSegments: [
                 TTSAudioSegment(
@@ -370,13 +373,7 @@ final class PhotoTTSAppTests: XCTestCase {
             audioDuration: 1.8,
             ocrDuration: 0,
             ttsDuration: 0,
-            validImageCount: 2,
-            totalImageCount: 2,
-            textLength: 2,
-            audioSize: segmentOneData.count + segmentTwoData.count,
-            voiceSettings: nil,
-            avatarImageIndex: 0,
-            storageSize: 0
+            validImageCount: 2
         )
 
         XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
@@ -404,6 +401,454 @@ final class PhotoTTSAppTests: XCTestCase {
         let importedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
         XCTAssertEqual(importedRecord.audioSegments.map(\.sequenceNumber), [1, 2])
         XCTAssertEqual(importedRecord.audioSegments.compactMap(\.audioData), [segmentOneData, segmentTwoData])
+    }
+
+    func testImportTransferredSessionsRecoveringPartialsImportsOnlyCompleteSessions() throws {
+        let sourceSessionID = "partial-transfer-source-\(UUID().uuidString)"
+        createdSessionIDs.append(sourceSessionID)
+
+        let sourceRecord = SessionRecord(
+            id: sourceSessionID,
+            name: "partial-transfer-source",
+            images: [makeImage(color: .blue)],
+            ocrText: "完整记录",
+            ocrTextSegments: ["完整记录"],
+            audioData: Data([0x01, 0x02, 0x03]),
+            audioFormat: "mp3",
+            audioDuration: 1.2,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(sourceRecord).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("partial_transfer_export_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSelectedSessions([sourceSessionID], to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportPackageDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        let sessionsDir = exportPackageDir.appendingPathComponent("Sessions", isDirectory: true)
+
+        let importedSessionID = "partial-transfer-import-\(UUID().uuidString)"
+        let importedDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedDir.path))
+
+        let importedRecordURL = importedDir.appendingPathComponent("record.json")
+        let importedMetadataURL = importedDir.appendingPathComponent("metadata.json")
+        let importedIntegrityURL = importedDir.appendingPathComponent("integrity.json")
+
+        var recoveredRecord = try JSONDecoder().decode(SessionRecord.self, from: Data(contentsOf: importedRecordURL))
+        recoveredRecord = SessionRecord(
+            id: importedSessionID,
+            name: recoveredRecord.name,
+            createdAt: recoveredRecord.createdAt,
+            updatedAt: recoveredRecord.updatedAt,
+            imageDataList: recoveredRecord.imageDataList,
+            ocrText: recoveredRecord.ocrText,
+            ocrTextSegments: recoveredRecord.ocrTextSegments,
+            audioDataBase64: recoveredRecord.audioDataBase64,
+            audioFormat: recoveredRecord.audioFormat,
+            audioSegments: recoveredRecord.audioSegments,
+            audioDuration: recoveredRecord.audioDuration,
+            ocrDuration: recoveredRecord.ocrDuration,
+            llmDuration: recoveredRecord.llmDuration,
+            ttsDuration: recoveredRecord.ttsDuration,
+            validImageCount: recoveredRecord.validImageCount,
+            totalImageCount: recoveredRecord.totalImageCount,
+            textLength: recoveredRecord.textLength,
+            audioSize: recoveredRecord.audioSize,
+            voiceSettings: recoveredRecord.voiceSettings,
+            avatarImageIndex: recoveredRecord.avatarImageIndex,
+            storageSize: recoveredRecord.storageSize,
+            makeStatus: recoveredRecord.makeStatus,
+            storyHighlights: recoveredRecord.storyHighlights,
+            hasVirtualPage: recoveredRecord.hasVirtualPage,
+            animationStyle: recoveredRecord.animationStyle,
+            coverImagePath: recoveredRecord.coverImagePath
+        )
+        try JSONEncoder().encode(recoveredRecord).write(to: importedRecordURL)
+
+        var recoveredMetadata = try JSONDecoder().decode(SessionRecordMetadata.self, from: Data(contentsOf: importedMetadataURL))
+        recoveredMetadata = SessionRecordMetadata(
+            id: importedSessionID,
+            name: recoveredMetadata.name,
+            createdAt: recoveredMetadata.createdAt,
+            updatedAt: recoveredMetadata.updatedAt,
+            totalImageCount: recoveredMetadata.totalImageCount,
+            validImageCount: recoveredMetadata.validImageCount,
+            textLength: recoveredMetadata.textLength,
+            audioDuration: recoveredMetadata.audioDuration,
+            avatarImageIndex: recoveredMetadata.avatarImageIndex,
+            storageSize: recoveredMetadata.storageSize,
+            makeStatus: recoveredMetadata.makeStatus,
+            animationStyle: recoveredMetadata.animationStyle
+        )
+        try JSONEncoder().encode(recoveredMetadata).write(to: importedMetadataURL)
+        try? FileManager.default.removeItem(at: importedIntegrityURL)
+
+        let incompleteSessionDir = sessionsDir.appendingPathComponent("broken-session", isDirectory: true)
+        try FileManager.default.createDirectory(at: incompleteSessionDir, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: importedRecordURL, to: incompleteSessionDir.appendingPathComponent("record.json"))
+        try FileManager.default.copyItem(at: importedMetadataURL, to: incompleteSessionDir.appendingPathComponent("metadata.json"))
+        try FileManager.default.createDirectory(at: incompleteSessionDir.appendingPathComponent("images", isDirectory: true), withIntermediateDirectories: true)
+
+        let deleteOriginalResult = SessionRecordManager.shared.deleteSession(id: sourceSessionID)
+        XCTAssertTrue(deleteOriginalResult)
+        createdSessionIDs.removeAll(where: { $0 == sourceSessionID })
+
+        let importResult = SessionRecordManager.shared.importTransferredSessionsRecoveringPartials(from: sessionsDir.deletingLastPathComponent())
+        XCTAssertTrue(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 1)
+        XCTAssertEqual(importResult.skippedCount, 1)
+        XCTAssertEqual(importResult.duplicateCount, 0)
+
+        createdSessionIDs.append(importedSessionID)
+        XCTAssertNotNil(SessionRecordManager.shared.loadSession(id: importedSessionID))
+        XCTAssertNil(SessionRecordManager.shared.loadSession(id: "broken-session"))
+    }
+
+    func testSaveSessionDoesNotWriteIntegrityManifestOnDisk() throws {
+        let sessionID = "integrity-save-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-save",
+            images: [makeImage(color: .systemPink)],
+            ocrText: "完整性测试",
+            ocrTextSegments: ["完整性测试"],
+            audioData: Data([0x01, 0x02, 0x03]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let integrityURL = sessionDir.appendingPathComponent("integrity.json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: integrityURL.path))
+    }
+
+    func testPurgeLocalSessionIntegrityRemovesLegacyManifest() throws {
+        let sessionID = "integrity-purge-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-purge",
+            images: [makeImage(color: .systemTeal)],
+            ocrText: "清理测试",
+            ocrTextSegments: ["清理测试"],
+            audioData: Data([0x0A, 0x0B]),
+            audioFormat: "mp3",
+            audioDuration: 0.8,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let integrityURL = sessionDir.appendingPathComponent("integrity.json")
+        try Data("{\"version\":1}".utf8).write(to: integrityURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: integrityURL.path))
+
+        let result = SessionRecordManager.shared.purgeLocalSessionIntegrityForAllSessions()
+        XCTAssertGreaterThanOrEqual(result.updated, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: integrityURL.path))
+    }
+
+    func testExportSessionWritesIntegrityManifestForSnapshotOnly() throws {
+        let sessionID = "integrity-export-snapshot-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-export-snapshot",
+            images: [makeImage(color: .purple)],
+            ocrText: "导出快照",
+            ocrTextSegments: ["导出快照"],
+            audioData: Data([0x21, 0x22]),
+            audioFormat: "mp3",
+            audioDuration: 0.5,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+        let localSessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: localSessionDir.appendingPathComponent("integrity.json").path))
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("integrity_snapshot_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportedSessionDir.appendingPathComponent("integrity.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: localSessionDir.appendingPathComponent("integrity.json").path))
+    }
+
+    func testExportedSnapshotImportsAfterLocalFilesChange() throws {
+        let sessionID = "integrity-export-preflight-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-export-preflight",
+            images: [makeImage(color: .brown)],
+            ocrText: "导出前校验",
+            ocrTextSegments: ["导出前校验"],
+            audioData: Data([0x31, 0x32, 0x33]),
+            audioFormat: "mp3",
+            audioDuration: 0.9,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionDir.appendingPathComponent("integrity.json").path))
+
+        let history = SessionHistory(makeEvents: [SessionHistoryEvent(timestamp: Date(), identity: "iPhone")])
+        SessionRecordManager.shared.saveSessionHistory(sessionId: sessionID, history: history)
+
+        let historyURL = sessionDir.appendingPathComponent("history.json")
+        let tamperedHistory = try XCTUnwrap("""
+        {
+          "makeEvents" : [],
+          "playEvents" : []
+        }
+        """.data(using: .utf8))
+        try tamperedHistory.write(to: historyURL)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("integrity_export_preflight_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportedSessionDir.appendingPathComponent("integrity.json").path))
+
+        _ = SessionRecordManager.shared.deleteSession(id: sessionID)
+        createdSessionIDs.removeAll(where: { $0 == sessionID })
+
+        let importResult = SessionRecordManager.shared.importOneSession(from: exportedSessionDir)
+        XCTAssertTrue(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 1)
+
+        createdSessionIDs.append(sessionID)
+        XCTAssertNotNil(SessionRecordManager.shared.loadSession(id: sessionID))
+        let importedSessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: importedSessionDir.appendingPathComponent("integrity.json").path))
+    }
+
+    func testApplyHistoryPackageFromUnpackedDirectoryDoesNotCreateReceiverIntegrityManifest() throws {
+        let sessionID = "play-history-integrity-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "play-history-integrity",
+            images: [makeImage(color: .magenta)],
+            ocrText: "播放记录接收后更新校验",
+            ocrTextSegments: ["播放记录接收后更新校验"],
+            audioData: Data([0x51, 0x52, 0x53]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let integrityURL = sessionDir.appendingPathComponent("integrity.json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: integrityURL.path))
+
+        let incomingHistory = SessionHistory(
+            makeEvents: [SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_000), identity: "sender-iPhone")],
+            playEvents: [SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_600), identity: "sender-iPad")]
+        )
+
+        let unpackDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("play_history_unpack_\(UUID().uuidString)", isDirectory: true)
+        let incomingSessionDir = unpackDir.appendingPathComponent(sessionID, isDirectory: true)
+        try FileManager.default.createDirectory(at: incomingSessionDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: unpackDir) }
+
+        let incomingHistoryURL = incomingSessionDir.appendingPathComponent("history.json")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let historyData = try encoder.encode(incomingHistory)
+        try historyData.write(to: incomingHistoryURL)
+
+        let result = SessionRecordManager.shared.applyHistoryPackageFromUnpackedDirectory(
+            unpackDir,
+            existingSessionIDs: [sessionID]
+        )
+
+        XCTAssertEqual(result.received, 1)
+        XCTAssertEqual(result.skipped, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: integrityURL.path))
+
+        let persistedHistory = SessionRecordManager.shared.loadSessionHistory(sessionId: sessionID)
+        XCTAssertEqual(persistedHistory.makeEvents.map(\.identity), incomingHistory.makeEvents.map(\.identity))
+        XCTAssertEqual(persistedHistory.makeEvents.map(\.timestamp), incomingHistory.makeEvents.map(\.timestamp))
+        XCTAssertEqual(persistedHistory.playEvents.map(\.identity), incomingHistory.playEvents.map(\.identity))
+        XCTAssertEqual(persistedHistory.playEvents.map(\.timestamp), incomingHistory.playEvents.map(\.timestamp))
+    }
+
+    func testApplyHistoryPackageFromUnpackedDirectorySkipsMissingSessionAndInvalidHistory() throws {
+        let existingSessionID = "play-history-existing-\(UUID().uuidString)"
+        createdSessionIDs.append(existingSessionID)
+
+        let record = SessionRecord(
+            id: existingSessionID,
+            name: "play-history-existing",
+            images: [makeImage(color: .cyan)],
+            ocrText: "历史记录跳过原因",
+            ocrTextSegments: ["历史记录跳过原因"],
+            audioData: Data([0x61, 0x62]),
+            audioFormat: "mp3",
+            audioDuration: 0.7,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let unpackDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("play_history_skip_unpack_\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: unpackDir) }
+
+        let missingSessionDir = unpackDir.appendingPathComponent("missing-session", isDirectory: true)
+        try FileManager.default.createDirectory(at: missingSessionDir, withIntermediateDirectories: true)
+
+        let invalidHistoryDir = unpackDir.appendingPathComponent(existingSessionID, isDirectory: true)
+        try FileManager.default.createDirectory(at: invalidHistoryDir, withIntermediateDirectories: true)
+        try Data("not-json".utf8).write(to: invalidHistoryDir.appendingPathComponent("history.json"))
+
+        let result = SessionRecordManager.shared.applyHistoryPackageFromUnpackedDirectory(
+            unpackDir,
+            existingSessionIDs: [existingSessionID]
+        )
+
+        XCTAssertEqual(result.received, 0)
+        XCTAssertEqual(result.skipped, 2)
+    }
+
+    func testImportOneSessionRejectsTamperedIntegrityManifest() throws {
+        let sessionID = "integrity-import-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-import",
+            images: [makeImage(color: .orange)],
+            ocrText: "导入校验",
+            ocrTextSegments: ["导入校验"],
+            audioData: Data([0x11, 0x12, 0x13]),
+            audioFormat: "mp3",
+            audioDuration: 1.3,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory.appendingPathComponent("integrity_export_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        _ = SessionRecordManager.shared.deleteSession(id: sessionID)
+        createdSessionIDs.removeAll(where: { $0 == sessionID })
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let exportedRecordURL = exportedSessionDir.appendingPathComponent("record.json")
+        var exportedRecordData = try Data(contentsOf: exportedRecordURL)
+        exportedRecordData.append(0x20)
+        try exportedRecordData.write(to: exportedRecordURL)
+
+        let importResult = SessionRecordManager.shared.importOneSession(from: exportedSessionDir)
+        XCTAssertFalse(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 0)
+        XCTAssertEqual(importResult.skippedCount, 1)
+        XCTAssertEqual(importResult.errorMessage, "该记录目录不完整或已损坏")
+    }
+
+    func testValidateTransferredSessionDirectoryReportsMissingImageReason() throws {
+        let sessionID = "integrity-validate-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-validate",
+            images: [makeImage(color: .orange)],
+            ocrText: "校验缺图",
+            ocrTextSegments: ["校验缺图"],
+            audioData: Data([0x71, 0x72, 0x73]),
+            audioFormat: "mp3",
+            audioDuration: 1.1,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("integrity_validate_export_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        try FileManager.default.removeItem(at: exportedSessionDir.appendingPathComponent("integrity.json"))
+        let imageURL = exportedSessionDir.appendingPathComponent("images/image_0.jpg")
+        try FileManager.default.removeItem(at: imageURL)
+
+        let result = SessionRecordManager.shared.validateTransferredSessionDirectory(exportedSessionDir)
+        XCTAssertEqual(result, .invalid(reason: "缺少图片文件 image_0.jpg"))
     }
     
     // MARK: - Constants 测试

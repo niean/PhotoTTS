@@ -55,6 +55,8 @@ SessionHistoryEvent：timestamp(iso8601)/identity(SettingsManager.identityName)�
 
 MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionRecordManager.addMakeEvent/addPlayEvent 写入会话级 history.json；loadEntries 聚合所有会话生成 UI 条目。
 
+完整性校验：`integrity.json` 不属于 App 本地磁盘记录结构，只存在于导出包和设备传输中的记录快照里。SessionRecordManager 在导出会话快照时按复制后的目录内容重建 `integrity.json`；它的用途是供导入、接收时做记录完整性校验，若存在该文件则优先据此判断记录是否完整。记录落回 `Documents/Sessions/{id}/` 后会删除该文件，不参与本地编辑、history 更新、封面/头像修改等日常写入。
+
 ## config_local.json
 
 ```json
@@ -94,6 +96,7 @@ SettingsManager 优先读应用沙箱 Documents 目录中的 config_local.json�
 PhotoTTS_YYYYMMDD/
   export_manifest.json  -- ExportManifest
   Sessions/{id}/        -- 完整会话目录
+    integrity.json      -- 导出/传输快照的完整性校验清单（不含自身）
   README.txt
 ```
 

@@ -84,6 +84,15 @@ struct TransferInvitation: Identifiable {
     let handler: (Bool) -> Void
 }
 
+struct PartialUnarchiveResult {
+    let extractedFileCount: Int
+    let didReachArchiveEnd: Bool
+
+    var hasRecoveredEntries: Bool {
+        extractedFileCount > 0
+    }
+}
+
 // MARK: - PeerTransferManager
 
 class PeerTransferManager: NSObject, ObservableObject {
@@ -329,7 +338,7 @@ class PeerTransferManager: NSObject, ObservableObject {
                     .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
 
                 let exportResult = SessionRecordManager.shared.exportSelectedSessions(
-                    ids, to: tempDir, isAllSelected: false
+                    ids, to: tempDir, isAllSelected: false, integrityReason: "完整记录传输"
                 )
                 guard exportResult.success else {
                     throw NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode,
@@ -645,6 +654,34 @@ class PeerTransferManager: NSObject, ObservableObject {
         }
     }
 
+    private func streamCopyExactly(from input: InputStream, to output: OutputStream, length: Int) throws -> Bool {
+        let bufferSize = 256 * 1024
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+
+        var remaining = length
+        while remaining > 0 {
+            let toRead = min(remaining, bufferSize)
+            let bytesRead = input.read(buffer, maxLength: toRead)
+            if bytesRead < 0 {
+                throw input.streamError ?? NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: nil)
+            }
+            if bytesRead == 0 {
+                return false
+            }
+            var written = 0
+            while written < bytesRead {
+                let result = output.write(buffer + written, maxLength: bytesRead - written)
+                if result < 0 {
+                    throw output.streamError ?? NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: nil)
+                }
+                written += result
+            }
+            remaining -= bytesRead
+        }
+        return true
+    }
+
     func unarchiveFile(source: URL, destination: URL) throws {
         // 流式读取解档
         guard let inputStream = InputStream(url: source) else {
@@ -696,6 +733,156 @@ class PeerTransferManager: NSObject, ObservableObject {
             defer { fileStream.close() }
 
             try streamCopy(from: inputStream, to: fileStream, length: dataLen)
+        }
+    }
+
+    func unarchiveFileAllowingPartial(source: URL, destination: URL) throws -> PartialUnarchiveResult {
+        guard let inputStream = InputStream(url: source) else {
+            throw NSError(
+                domain: Constants.ErrorInfo.domain,
+                code: Constants.ErrorInfo.defaultCode,
+                userInfo: [NSLocalizedDescriptionKey: "无法打开归档文件"]
+            )
+        }
+        inputStream.open()
+        defer { inputStream.close() }
+
+        enum PartialReadError: Error {
+            case truncated
+        }
+
+        func readExactOrEOF(_ count: Int) throws -> Data? {
+            var data = Data(count: count)
+            var totalRead = 0
+            try data.withUnsafeMutableBytes { rawBuffer in
+                guard let bytes = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+                while totalRead < count {
+                    let result = inputStream.read(bytes + totalRead, maxLength: count - totalRead)
+                    if result < 0 {
+                        throw inputStream.streamError ?? NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: nil)
+                    }
+                    if result == 0 {
+                        if totalRead == 0 {
+                            return
+                        }
+                        throw PartialReadError.truncated
+                    }
+                    totalRead += result
+                }
+            }
+            return totalRead == count ? data : nil
+        }
+
+        func readUInt32OrEOF() throws -> UInt32? {
+            guard let data = try readExactOrEOF(4) else { return nil }
+            return data.withUnsafeBytes { $0.load(as: UInt32.self) }
+        }
+
+        func readUInt64OrEOF() throws -> UInt64? {
+            guard let data = try readExactOrEOF(8) else { return nil }
+            return data.withUnsafeBytes { $0.load(as: UInt64.self) }
+        }
+
+        guard let count = try readUInt32OrEOF() else {
+            return PartialUnarchiveResult(extractedFileCount: 0, didReachArchiveEnd: false)
+        }
+
+        var extractedFileCount = 0
+        var didReachArchiveEnd = true
+
+        for _ in 0..<count {
+            do {
+                guard let pathLenValue = try readUInt32OrEOF() else {
+                    didReachArchiveEnd = false
+                    break
+                }
+                let pathLen = Int(pathLenValue)
+                guard let pathData = try readExactOrEOF(pathLen),
+                      let relativePath = String(data: pathData, encoding: .utf8),
+                      let dataLenValue = try readUInt64OrEOF() else {
+                    didReachArchiveEnd = false
+                    break
+                }
+
+                let fileURL = destination.appendingPathComponent(relativePath)
+                try FileManager.default.createDirectory(
+                    at: fileURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+
+                guard let fileStream = OutputStream(url: fileURL, append: false) else {
+                    didReachArchiveEnd = false
+                    break
+                }
+                fileStream.open()
+                let didCopyAllBytes: Bool
+                do {
+                    didCopyAllBytes = try streamCopyExactly(from: inputStream, to: fileStream, length: Int(dataLenValue))
+                } catch {
+                    fileStream.close()
+                    try? FileManager.default.removeItem(at: fileURL)
+                    throw error
+                }
+                fileStream.close()
+
+                guard didCopyAllBytes else {
+                    try? FileManager.default.removeItem(at: fileURL)
+                    didReachArchiveEnd = false
+                    break
+                }
+
+                extractedFileCount += 1
+            } catch PartialReadError.truncated {
+                didReachArchiveEnd = false
+                break
+            }
+        }
+
+        return PartialUnarchiveResult(
+            extractedFileCount: extractedFileCount,
+            didReachArchiveEnd: didReachArchiveEnd
+        )
+    }
+
+    private func recoverTransferredRecords(from archiveURL: URL, transferMode: TransferMode, existingIDs: Set<String>) -> (imported: Int, skipped: Int, message: String?) {
+        let unpackDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
+
+        do {
+            try FileManager.default.createDirectory(at: unpackDir, withIntermediateDirectories: true)
+            let partialResult = try unarchiveFileAllowingPartial(source: archiveURL, destination: unpackDir)
+
+            guard partialResult.hasRecoveredEntries else {
+                try? FileManager.default.removeItem(at: unpackDir)
+                return (0, 0, nil)
+            }
+
+            let result: (imported: Int, skipped: Int)
+            if transferMode == .playOnly {
+                let applyResult = SessionRecordManager.shared.applyHistoryPackageFromUnpackedDirectory(unpackDir, existingSessionIDs: existingIDs)
+                result = (applyResult.received, applyResult.skipped)
+            } else {
+                let importResult = SessionRecordManager.shared.importTransferredSessionsRecoveringPartials(from: unpackDir)
+                result = (importResult.importedCount, importResult.skippedCount + importResult.duplicateCount)
+            }
+
+            try? FileManager.default.removeItem(at: unpackDir)
+
+            guard result.imported > 0 else {
+                return (0, result.skipped, nil)
+            }
+
+            let message: String
+            if transferMode == .playOnly {
+                message = "传输中断，已保存 \(result.imported) 条播放记录"
+            } else {
+                message = "传输中断，已保存 \(result.imported) 条记录"
+            }
+            return (result.imported, result.skipped, message)
+        } catch {
+            try? FileManager.default.removeItem(at: unpackDir)
+            os.Logger.peerTransfer.error("中断恢复失败: \(error.localizedDescription)")
+            return (0, 0, nil)
         }
     }
 }
@@ -815,7 +1002,11 @@ extension PeerTransferManager: MCSessionDelegate {
         transferProgressObserver?.invalidate()
         transferProgressObserver = nil
 
-        guard let localURL, error == nil else {
+        // 在进入 Task 前捕获主线程状态，避免跨线程读取
+        let transferMode = self.receivedTransferMode
+        let existingIDs = self.receiverExistingSessionIDs
+
+        guard let localURL else {
             DispatchQueue.main.async {
                 self.cancelBackgroundTask()
                 os.Logger.peerTransfer.error("接收失败: \(error?.localizedDescription ?? "未知错误")")
@@ -824,16 +1015,35 @@ extension PeerTransferManager: MCSessionDelegate {
             return
         }
 
-        DispatchQueue.main.async {
-            self.transferState = .importing
+        if error == nil {
+            DispatchQueue.main.async {
+                self.transferState = .importing
+            }
         }
 
-        // 在进入 Task 前捕获主线程状态，避免跨线程读取
-        let transferMode = self.receivedTransferMode
-        let existingIDs = self.receiverExistingSessionIDs
-
-        Task {
+        Task<Void, Never> {
             do {
+                if let error {
+                    let recovered = self.recoverTransferredRecords(
+                        from: localURL,
+                        transferMode: transferMode,
+                        existingIDs: existingIDs
+                    )
+                    try? FileManager.default.removeItem(at: localURL)
+                    DispatchQueue.main.async {
+                        self.cancelBackgroundTask()
+                        if let message = recovered.message {
+                            os.Logger.peerTransfer.error("接收中断，但已恢复部分数据: imported=\(recovered.imported), skipped=\(recovered.skipped), error=\(error.localizedDescription)")
+                            self.transferState = .failed(message)
+                            NotificationCenter.default.post(name: Constants.NotificationNames.sessionsDidImport, object: nil)
+                        } else {
+                            os.Logger.peerTransfer.error("接收失败: \(error.localizedDescription)")
+                            self.transferState = .failed("接收失败，请重试")
+                        }
+                    }
+                    return
+                }
+
                 // 检查磁盘空间
                 let archiveSize = (try? FileManager.default.attributesOfItem(atPath: localURL.path)[.size] as? Int64) ?? 0
                 let freeSpace = (try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())[.systemFreeSize] as? Int64) ?? 0
