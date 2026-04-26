@@ -137,6 +137,11 @@ struct MeTabView: View {
                 // Section 2
                 Section {
                     NavigationLink {
+                        RecordAnalysisViewWithBar()
+                    } label: {
+                        Label("记录分析", systemImage: "chart.pie.fill")
+                    }
+                    NavigationLink {
                         EndPictManagementView()
                     } label: {
                         Label("要点图片", systemImage: "photo.on.rectangle.angled")
@@ -182,6 +187,9 @@ struct MeTabView: View {
                 refreshTodayPlanSummary()
             }
             .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
+                refreshTodayPlanSummary()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionsDidImport)) { _ in
                 refreshTodayPlanSummary()
             }
             .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in

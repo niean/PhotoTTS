@@ -13,6 +13,7 @@
 - 制作：MakeView（PhotoTTS/Sources/UI/MakeView.swift）
 - 管理：SessionRecordListView（PhotoTTS/Sources/UI/SessionRecordListView.swift，isRootTab=true，mode=.manage）
 - 我的：MeTabView（PhotoTTS/Sources/UI/MeTabView.swift），含播放历史/制作历史/实时监控/调试日志/更新记录/要点图片/播放设置/制作设置/关于入口
+- 记录分析：RecordAnalysisView（PhotoTTS/Sources/UI/RecordAnalysisView.swift），从我的 Tab 进入，展示记录总数、已读未读、系列分布、制作状态、存储空间
 - 消息（预留）：MessageTabView（PhotoTTS/Sources/UI/MessageTabView.swift），未集成到 MainTabView
 - 要点图片管理：EndPictManagementView（PhotoTTS/Sources/UI/EndPictManagementView.swift），从我的 Tab 进入
 - 播放设置：PlaybackSettingsView（PhotoTTS/Sources/UI/PlaybackSettingsView.swift），从我的 Tab 进入
