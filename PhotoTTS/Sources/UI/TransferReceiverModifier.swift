@@ -10,6 +10,17 @@ struct TransferReceiverModifier: ViewModifier {
 
     @ObservedObject private var transferManager = PeerTransferManager.shared
 
+    private var invitationTitle: String {
+        switch transferManager.receivedTransferMode {
+        case .full:
+            return "传输"
+        case .fullWithStats:
+            return "传输(带统计)"
+        case .playOnly:
+            return "传输播放记录"
+        }
+    }
+
     /// 接受邀请并设置去重决策（全量模式始终跳过重复）
     private func acceptInvitation() {
         if let invitation = transferManager.pendingInvitation {
@@ -43,7 +54,7 @@ struct TransferReceiverModifier: ViewModifier {
                 }
             }
             // 邀请确认 alert
-            .alert(transferManager.receivedTransferMode == .playOnly ? "传输播放记录" : "传输", isPresented: Binding(
+            .alert(invitationTitle, isPresented: Binding(
                 get: { transferManager.pendingInvitation != nil && isActive },
                 set: { if !$0 {
                     transferManager.pendingInvitation?.handler(false)
@@ -52,7 +63,7 @@ struct TransferReceiverModifier: ViewModifier {
             )) {
                 if let invitation = transferManager.pendingInvitation {
                     let allDuplicate = invitation.existingIDs.count == invitation.context.sessionCount
-                        && invitation.context.mode == .full
+                        && invitation.context.mode.isFullRecordTransfer
                     if allDuplicate {
                         Button("确定") {
                             transferManager.pendingInvitation?.handler(false)
@@ -73,9 +84,9 @@ struct TransferReceiverModifier: ViewModifier {
                     let total = invitation.context.sessionCount
                     let existing = invitation.existingIDs.count
                     let modeLabel = invitation.context.mode == .playOnly ? "播放" : ""
-                    if invitation.context.mode == .full && existing == total {
+                    if invitation.context.mode.isFullRecordTransfer && existing == total {
                         Text("\(invitation.context.deviceName) 请求发送 \(total) 条记录，全部已存在无需传输")
-                    } else if invitation.context.mode == .full && existing > 0 {
+                    } else if invitation.context.mode.isFullRecordTransfer && existing > 0 {
                         Text("\(invitation.context.deviceName) 请求发送 \(total) 条记录，其中 \(existing) 条已存在将自动跳过，实际传输 \(total - existing) 条")
                     } else {
                         Text("\(invitation.context.deviceName) 请求发送 \(total) 条\(modeLabel)记录")

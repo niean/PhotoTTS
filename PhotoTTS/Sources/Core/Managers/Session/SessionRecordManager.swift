@@ -27,6 +27,11 @@ enum TransferredSessionValidationResult: Equatable {
     case invalid(reason: String)
 }
 
+enum ExportHistoryMode {
+    case trimPlayEvents
+    case keepAllEvents
+}
+
 // MARK: - 会话记录管理器
 /// 会话记录管理器，负责会话记录的存储、读取、删除等操作
 /// 使用文件系统存储，每个会话记录存储为一个独立的文件夹
@@ -2434,7 +2439,11 @@ public struct EndPictQueueInfo {
     ///   - id: 会话记录ID
     ///   - destinationURL: 目标父目录URL（方法会在其中创建以记录名称命名的子目录）
     /// - Returns: 导出结果
-    func exportSession(id: String, to destinationURL: URL) -> (success: Bool, size: Int64?, errorMessage: String?) {
+    func exportSession(
+        id: String,
+        to destinationURL: URL,
+        historyMode: ExportHistoryMode = .trimPlayEvents
+    ) -> (success: Bool, size: Int64?, errorMessage: String?) {
         // 内置默认会话不可导出
         if isBundledDefaultSession(id) {
             logger.warning("内置默认会话不可导出")
@@ -2462,6 +2471,7 @@ public struct EndPictQueueInfo {
                 try fileManager.removeItem(at: targetDir)
             }
             try fileManager.copyItem(at: sessionDir, to: targetDir)
+            try sanitizeExportedHistory(in: targetDir, mode: historyMode)
             // 以导出包内的实际快照为权威，重建校验文件，避免源目录在复制期间继续变更导致导出包校验过期。
             writeSessionIntegrityManifest(sessionDir: targetDir)
             let size = calculateDirectorySize(targetDir)
@@ -2486,7 +2496,13 @@ public struct EndPictQueueInfo {
     ///   - destinationURL: 目标目录 URL（用户选择的目录）
     ///   - isAllSelected: 是否选中了全部记录（用于决定导出目录命名）
     /// - Returns: 导出结果
-    func exportSelectedSessions(_ sessionIDs: [String], to destinationURL: URL, isAllSelected: Bool = false, integrityReason: String = "批量导出") -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
+    func exportSelectedSessions(
+        _ sessionIDs: [String],
+        to destinationURL: URL,
+        isAllSelected: Bool = false,
+        integrityReason: String = "批量导出",
+        historyMode: ExportHistoryMode = .trimPlayEvents
+    ) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         do {
             // 生成导出目录名称：全选时用 PhotoTTS_YYMMDD，部分选择时用 PhotoTTS-P_YYMMDD
             let dateFormatter = DateFormatter()
@@ -2539,6 +2555,7 @@ public struct EndPictQueueInfo {
                 
                 // 复制整个会话目录
                 try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
+                try sanitizeExportedHistory(in: targetSessionDir, mode: historyMode)
                 // 以导出包内的实际快照为权威，重建校验文件，避免源目录在复制期间继续变更导致导出包校验过期。
                 writeSessionIntegrityManifest(sessionDir: targetSessionDir)
                 
@@ -2620,14 +2637,39 @@ public struct EndPictQueueInfo {
             return (false, 0, 0, error.localizedDescription)
         }
     }
+
+    private func sanitizeExportedHistory(in sessionDir: URL, mode: ExportHistoryMode) throws {
+        guard mode == .trimPlayEvents else {
+            return
+        }
+        let historyURL = sessionDir.appendingPathComponent(Self.historyFileName)
+        guard fileManager.fileExists(atPath: historyURL.path) else {
+            return
+        }
+
+        let data = try Data(contentsOf: historyURL)
+        var history = try historyDecoder.decode(SessionHistory.self, from: data)
+        history.playEvents = []
+        let sanitizedData = try historyEncoder.encode(history)
+        try sanitizedData.write(to: historyURL)
+    }
     
     /// 导出所有会话记录到指定目录（全量导出，委托给 exportSelectedSessions）
     /// - Parameter destinationURL: 目标目录 URL（用户选择的目录）
     /// - Returns: 导出结果
-    func exportAllSessions(to destinationURL: URL) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
+    func exportAllSessions(
+        to destinationURL: URL,
+        historyMode: ExportHistoryMode = .trimPlayEvents
+    ) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         let allMetadata = getAllSessionMetadata(caller: "全量导出")
         let allIDs = allMetadata.map { $0.id }
-        return exportSelectedSessions(allIDs, to: destinationURL, isAllSelected: true, integrityReason: "全量导出")
+        return exportSelectedSessions(
+            allIDs,
+            to: destinationURL,
+            isAllSelected: true,
+            integrityReason: "全量导出",
+            historyMode: historyMode
+        )
     }
 
     // MARK: - 打包播放历史（仅 history.json）

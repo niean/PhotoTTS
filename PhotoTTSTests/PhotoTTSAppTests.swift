@@ -670,6 +670,204 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: importedSessionDir.appendingPathComponent("integrity.json").path))
     }
 
+    func testExportSessionClearsPlayEventsButKeepsMakeEvents() throws {
+        let sessionID = "export-history-trim-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "export-history-trim",
+            images: [makeImage(color: .systemPink)],
+            ocrText: "导出时裁剪历史",
+            ocrTextSegments: ["导出时裁剪历史"],
+            audioData: Data([0x41, 0x42, 0x43]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let makeEvent = SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_001_000), identity: "maker")
+        let playEvent = SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_001_600), identity: "player")
+        let originalHistory = SessionHistory(makeEvents: [makeEvent], playEvents: [playEvent])
+        SessionRecordManager.shared.saveSessionHistory(sessionId: sessionID, history: originalHistory)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export_history_trim_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let exportedHistory = try loadHistory(from: exportedSessionDir.appendingPathComponent("history.json"))
+        XCTAssertEqual(exportedHistory.makeEvents.map(\.identity), ["maker"])
+        XCTAssertEqual(exportedHistory.playEvents.count, 0)
+
+        let localHistory = SessionRecordManager.shared.loadSessionHistory(sessionId: sessionID)
+        XCTAssertEqual(localHistory.makeEvents.map(\.identity), ["maker"])
+        XCTAssertEqual(localHistory.playEvents.map(\.identity), ["player"])
+    }
+
+    func testExportSelectedSessionsClearsPlayEventsButKeepsMakeEvents() throws {
+        let sessionID = "batch-export-history-trim-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "batch-export-history-trim",
+            images: [makeImage(color: .systemTeal)],
+            ocrText: "批量导出裁剪历史",
+            ocrTextSegments: ["批量导出裁剪历史"],
+            audioData: Data([0x44, 0x45, 0x46]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        SessionRecordManager.shared.saveSessionHistory(
+            sessionId: sessionID,
+            history: SessionHistory(
+                makeEvents: [SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_002_000), identity: "maker-batch")],
+                playEvents: [SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_002_600), identity: "player-batch")]
+            )
+        )
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("batch_export_history_trim_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSelectedSessions([sessionID], to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportPackageDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        let sessionsDir = exportPackageDir.appendingPathComponent("Sessions", isDirectory: true)
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let exportedHistory = try loadHistory(from: exportedSessionDir.appendingPathComponent("history.json"))
+        XCTAssertEqual(exportedHistory.makeEvents.map(\.identity), ["maker-batch"])
+        XCTAssertEqual(exportedHistory.playEvents.count, 0)
+    }
+
+    func testExportSessionWithStatsKeepsPlayEvents() throws {
+        let sessionID = "export-history-keep-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "export-history-keep",
+            images: [makeImage(color: .systemIndigo)],
+            ocrText: "带统计导出",
+            ocrTextSegments: ["带统计导出"],
+            audioData: Data([0x47, 0x48, 0x49]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let makeEvent = SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_003_000), identity: "maker-keep")
+        let playEvent = SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_003_600), identity: "player-keep")
+        SessionRecordManager.shared.saveSessionHistory(
+            sessionId: sessionID,
+            history: SessionHistory(makeEvents: [makeEvent], playEvents: [playEvent])
+        )
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export_history_keep_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(
+            id: sessionID,
+            to: exportRoot,
+            historyMode: .keepAllEvents
+        )
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let exportedHistory = try loadHistory(from: exportedSessionDir.appendingPathComponent("history.json"))
+        XCTAssertEqual(exportedHistory.makeEvents.map(\.identity), ["maker-keep"])
+        XCTAssertEqual(exportedHistory.playEvents.map(\.identity), ["player-keep"])
+    }
+
+    func testExportSelectedSessionsWithStatsKeepsPlayEvents() throws {
+        let sessionID = "batch-export-history-keep-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "batch-export-history-keep",
+            images: [makeImage(color: .systemMint)],
+            ocrText: "批量带统计导出",
+            ocrTextSegments: ["批量带统计导出"],
+            audioData: Data([0x4A, 0x4B, 0x4C]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        SessionRecordManager.shared.saveSessionHistory(
+            sessionId: sessionID,
+            history: SessionHistory(
+                makeEvents: [SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_004_000), identity: "maker-batch-keep")],
+                playEvents: [SessionHistoryEvent(timestamp: Date(timeIntervalSince1970: 1_700_004_600), identity: "player-batch-keep")]
+            )
+        )
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("batch_export_history_keep_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSelectedSessions(
+            [sessionID],
+            to: exportRoot,
+            historyMode: .keepAllEvents
+        )
+        XCTAssertTrue(exportResult.success)
+
+        let exportPackageDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        let sessionsDir = exportPackageDir.appendingPathComponent("Sessions", isDirectory: true)
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let exportedHistory = try loadHistory(from: exportedSessionDir.appendingPathComponent("history.json"))
+        XCTAssertEqual(exportedHistory.makeEvents.map(\.identity), ["maker-batch-keep"])
+        XCTAssertEqual(exportedHistory.playEvents.map(\.identity), ["player-batch-keep"])
+    }
+
     func testApplyHistoryPackageFromUnpackedDirectoryDoesNotCreateReceiverIntegrityManifest() throws {
         let sessionID = "play-history-integrity-\(UUID().uuidString)"
         createdSessionIDs.append(sessionID)
@@ -1144,5 +1342,11 @@ final class PhotoTTSAppTests: XCTestCase {
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter.date(from: value)!
+    }
+
+    private func loadHistory(from url: URL) throws -> SessionHistory {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(SessionHistory.self, from: Data(contentsOf: url))
     }
 }

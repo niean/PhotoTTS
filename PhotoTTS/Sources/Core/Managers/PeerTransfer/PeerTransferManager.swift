@@ -36,7 +36,20 @@ enum TransferState: Equatable {
 
 enum TransferMode: String, Codable {
     case full      // 现有全量传输（记录+图片+音频+历史）
+    case fullWithStats  // 完整记录传输（保留播放统计）
     case playOnly  // 仅传输播放记录（history.json）
+
+    var isPlayOnly: Bool {
+        self == .playOnly
+    }
+
+    var keepsPlayEvents: Bool {
+        self == .fullWithStats || self == .playOnly
+    }
+
+    var isFullRecordTransfer: Bool {
+        !isPlayOnly
+    }
 }
 
 // MARK: - 邀请上下文
@@ -272,6 +285,35 @@ class PeerTransferManager: NSObject, ObservableObject {
         os.Logger.peerTransfer.info("已邀请设备: \(peer.displayName)")
     }
 
+    func invitePeerWithStats(_ peer: MCPeerID, sessionIDs: [String]) {
+        guard let browser, let session else {
+            DispatchQueue.main.async { self.transferState = .failed("搜索未启动") }
+            return
+        }
+        DispatchQueue.main.async {
+            self.transferState = .connecting
+            self.isSender = true
+        }
+
+        currentTransferMode = .fullWithStats
+        pendingSendIDs = sessionIDs
+        pendingSendPeer = peer
+
+        let context = TransferInvitationContext(
+            sessionCount: sessionIDs.count,
+            totalSize: 0,
+            deviceName: UIDevice.current.name,
+            sessionIDs: sessionIDs,
+            mode: .fullWithStats
+        )
+        let contextData = try? JSONEncoder().encode(context)
+
+        browser.invitePeer(peer, to: session, withContext: contextData,
+                           timeout: Constants.PeerTransfer.transferTimeout)
+        stopBrowsing()
+        os.Logger.peerTransfer.info("已邀请设备(fullWithStats): \(peer.displayName)")
+    }
+
     func invitePeerPlayOnly(_ peer: MCPeerID, sessionIDs: [String]) {
         guard let browser, let session else {
             DispatchQueue.main.async { self.transferState = .failed("搜索未启动") }
@@ -338,7 +380,11 @@ class PeerTransferManager: NSObject, ObservableObject {
                     .appendingPathComponent(Constants.PeerTransfer.zipTempPrefix + UUID().uuidString)
 
                 let exportResult = SessionRecordManager.shared.exportSelectedSessions(
-                    ids, to: tempDir, isAllSelected: false, integrityReason: "完整记录传输"
+                    ids,
+                    to: tempDir,
+                    isAllSelected: false,
+                    integrityReason: "完整记录传输",
+                    historyMode: currentTransferMode.keepsPlayEvents ? .keepAllEvents : .trimPlayEvents
                 )
                 guard exportResult.success else {
                     throw NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode,
@@ -903,7 +949,7 @@ extension PeerTransferManager: MCSessionDelegate {
                         DispatchQueue.main.async {
                             if let sendPeer = self.pendingSendPeer, !self.pendingSendIDs.isEmpty {
                                 switch self.currentTransferMode {
-                                case .full:
+                                case .full, .fullWithStats:
                                     self.sendSessions(ids: self.pendingSendIDs, to: sendPeer)
                                 case .playOnly:
                                     self.sendPlayHistory(ids: self.pendingSendIDs, to: sendPeer)
@@ -950,7 +996,7 @@ extension PeerTransferManager: MCSessionDelegate {
                 // 开始传输
                 if let sendPeer = self.pendingSendPeer, sendPeer == peerID, !self.pendingSendIDs.isEmpty {
                     switch self.currentTransferMode {
-                    case .full:
+                    case .full, .fullWithStats:
                         // 全量模式：过滤接收方已存在的记录
                         let existingSet = Set(decision.existingIDs)
                         let filteredIDs = self.pendingSendIDs.filter { !existingSet.contains($0) }

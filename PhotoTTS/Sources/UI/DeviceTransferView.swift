@@ -12,6 +12,17 @@ struct DeviceTransferView: View {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
 
+    private var navigationTitle: String {
+        switch transferMode {
+        case .full:
+            return "传输"
+        case .fullWithStats:
+            return "传输(带统计)"
+        case .playOnly:
+            return "传输播放记录"
+        }
+    }
+
     var body: some View {
         CustomZStack {
             // 内容区
@@ -22,7 +33,7 @@ struct DeviceTransferView: View {
 
             // 顶导 + 手势识别
             TopAndLeftSideNavigationBar(
-                title: transferMode == .playOnly ? "传输播放记录" : "传输",
+                title: navigationTitle,
                 onSwipeBack: { handleDismiss() },
                 leading: {
                     Button(action: { handleDismiss() }) {
@@ -53,7 +64,7 @@ struct DeviceTransferView: View {
         )) {
             if let invitation = transferManager.pendingInvitation {
                 let allDuplicate = invitation.existingIDs.count == invitation.context.sessionCount
-                    && invitation.context.mode == .full
+                    && invitation.context.mode.isFullRecordTransfer
                 if allDuplicate {
                     Button("确定") {
                         invitation.handler(false)
@@ -74,9 +85,9 @@ struct DeviceTransferView: View {
                 let total = invitation.context.sessionCount
                 let existing = invitation.existingIDs.count
                 let modeLabel = invitation.context.mode == .playOnly ? "播放" : ""
-                if invitation.context.mode == .full && existing == total {
+                if invitation.context.mode.isFullRecordTransfer && existing == total {
                     Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，全部已存在无需传输")
-                } else if invitation.context.mode == .full && existing > 0 {
+                } else if invitation.context.mode.isFullRecordTransfer && existing > 0 {
                     Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条已存在将自动跳过，实际传输 \(total - existing) 条")
                 } else {
                     Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条\(modeLabel)记录")
@@ -145,6 +156,8 @@ struct DeviceTransferView: View {
                     Button(action: {
                         if transferMode == .playOnly {
                             transferManager.invitePeerPlayOnly(peer, sessionIDs: sessionIDs)
+                        } else if transferMode == .fullWithStats {
+                            transferManager.invitePeerWithStats(peer, sessionIDs: sessionIDs)
                         } else {
                             transferManager.invitePeer(peer, sessionIDs: sessionIDs)
                         }
@@ -167,9 +180,7 @@ struct DeviceTransferView: View {
                 Spacer()
             }
 
-            Text(transferMode == .playOnly
-                     ? "将传输 \(sessionIDs.count) 条播放记录"
-                     : "将传输 \(sessionIDs.count) 条记录")
+            Text("将传输 \(sessionIDs.count) 条\(transferMode == .playOnly ? "播放" : "")记录")
                 .font(Constants.Fonts.caption)
                 .foregroundColor(.secondary)
                 .padding(.bottom, scaled(16))

@@ -80,10 +80,12 @@ struct SessionRecordListView: View {
     @State private var isSelectionMode: Bool = false
     @State private var selectedIDs: Set<String> = []
     @State private var allRecordIDs: [String] = []  // 所有记录的 ID 列表（用于全选）
+    @State private var currentExportHistoryMode: ExportHistoryMode = .trimPlayEvents
 
     // 设备传输
     @State private var showDeviceTransfer = false
     @State private var deviceTransferIDs: [String] = []
+    @State private var currentDeviceTransferMode: TransferMode = .full
     @State private var showPlayOnlyTransfer = false
 
     // 分组状态（仅管理 Tab 使用）
@@ -462,6 +464,7 @@ struct SessionRecordListView: View {
                                 Button(action: {
                                     if !selectedIDs.isEmpty {
                                         deviceTransferIDs = Array(selectedIDs)
+                                        currentDeviceTransferMode = .full
                                         showDeviceTransfer = true
                                     }
                                 }) {
@@ -483,6 +486,7 @@ struct SessionRecordListView: View {
                                 Menu {
                                     Button(action: {
                                         if !selectedIDs.isEmpty {
+                                            currentExportHistoryMode = .trimPlayEvents
                                             exportSelectedSessions()
                                         }
                                     }) {
@@ -492,7 +496,29 @@ struct SessionRecordListView: View {
 
                                     Button(action: {
                                         if !selectedIDs.isEmpty {
+                                            currentExportHistoryMode = .keepAllEvents
+                                            exportSelectedSessions()
+                                        }
+                                    }) {
+                                        Label("导出(带统计)", systemImage: "chart.bar.doc.horizontal")
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+
+                                    Button(action: {
+                                        if !selectedIDs.isEmpty {
                                             deviceTransferIDs = Array(selectedIDs)
+                                            currentDeviceTransferMode = .fullWithStats
+                                            showDeviceTransfer = true
+                                        }
+                                    }) {
+                                        Label("传输(带统计)", systemImage: "chart.bar.xaxis")
+                                    }
+                                    .disabled(selectedIDs.isEmpty)
+
+                                    Button(action: {
+                                        if !selectedIDs.isEmpty {
+                                            deviceTransferIDs = Array(selectedIDs)
+                                            currentDeviceTransferMode = .playOnly
                                             showPlayOnlyTransfer = true
                                         }
                                     }) {
@@ -576,6 +602,10 @@ struct SessionRecordListView: View {
                             Divider()
                             Button(action: { startExportSelectionMode() }) {
                                 Label("导出", systemImage: "square.and.arrow.up")
+                            }
+                            .disabled(totalCount == 0)
+                            Button(action: { startExportSelectionMode(historyMode: .keepAllEvents) }) {
+                                Label("导出(带统计)", systemImage: "chart.bar.doc.horizontal")
                             }
                             .disabled(totalCount == 0)
                             Divider()
@@ -694,7 +724,7 @@ struct SessionRecordListView: View {
                 }
         }
         .navigationDestination(isPresented: $showDeviceTransfer) {
-            DeviceTransferView(sessionIDs: deviceTransferIDs)
+            DeviceTransferView(sessionIDs: deviceTransferIDs, transferMode: currentDeviceTransferMode)
         }
         .navigationDestination(isPresented: $showPlayOnlyTransfer) {
             DeviceTransferView(sessionIDs: deviceTransferIDs, transferMode: .playOnly)
@@ -783,6 +813,7 @@ struct SessionRecordListView: View {
             onExport: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? { exportOneSession(id: metadata.id) } : nil,
             onDeviceTransfer: (!isDefault && allowEditDelete && !isMaking && !isSelectionMode) ? {
                 deviceTransferIDs = [metadata.id]
+                currentDeviceTransferMode = .full
                 showDeviceTransfer = true
             } : nil,
             onDelete: (!isDefault && allowEditDelete && !isSelectionMode) ? {
@@ -1154,11 +1185,11 @@ struct SessionRecordListView: View {
     }
 
     // 导出单条会话记录到临时目录，然后通过分享面板分享
-    private func exportOneSession(id: String) {
+    private func exportOneSession(id: String, historyMode: ExportHistoryMode = .trimPlayEvents) {
         DispatchQueue.global(qos: .userInitiated).async {
             let tempBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent("PhotoTTS_OneExport_\(UUID().uuidString.prefix(8))", isDirectory: true)
-            let result = SessionRecordManager.shared.exportSession(id: id, to: tempBase)
+            let result = SessionRecordManager.shared.exportSession(id: id, to: tempBase, historyMode: historyMode)
             DispatchQueue.main.async {
                 if result.success {
                     // exportSession 在 tempBase 下创建以记录名称命名的子目录
@@ -1195,7 +1226,8 @@ struct SessionRecordListView: View {
     }
     
     // 进入导出多选模式
-    private func startExportSelectionMode() {
+    private func startExportSelectionMode(historyMode: ExportHistoryMode = .trimPlayEvents) {
+        currentExportHistoryMode = historyMode
         isSelectionMode = true
         selectedIDs.removeAll()
         loadAllRecordIDs()
@@ -1266,7 +1298,12 @@ struct SessionRecordListView: View {
             let isAllSelected = selectedIDsCopy.count >= nonDefaultCount && nonDefaultCount > 0
             
             // 执行导出操作
-            let result = SessionRecordManager.shared.exportSelectedSessions(Array(selectedIDsCopy), to: tempBase, isAllSelected: isAllSelected)
+            let result = SessionRecordManager.shared.exportSelectedSessions(
+                Array(selectedIDsCopy),
+                to: tempBase,
+                isAllSelected: isAllSelected,
+                historyMode: currentExportHistoryMode
+            )
             
             DispatchQueue.main.async {
                 self.isExporting = false
