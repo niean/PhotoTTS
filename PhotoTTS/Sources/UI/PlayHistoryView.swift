@@ -152,9 +152,14 @@ struct PlayHistoryViewWithBar: View {
 // MARK: - ShareSheet 用于导出
 struct ShareSheetView: UIViewControllerRepresentable {
     let activityItems: [Any]
+    var onComplete: ((Bool) -> Void)? = nil
     
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            onComplete?(completed)
+        }
+        return controller
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}

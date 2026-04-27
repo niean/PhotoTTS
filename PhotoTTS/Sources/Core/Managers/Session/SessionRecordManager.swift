@@ -32,6 +32,17 @@ enum ExportHistoryMode {
     case keepAllEvents
 }
 
+struct SessionExportProgress {
+    let message: String
+    let completedCount: Int
+    let totalCount: Int
+
+    var fractionCompleted: Double {
+        guard totalCount > 0 else { return 0 }
+        return min(max(Double(completedCount) / Double(totalCount), 0), 1)
+    }
+}
+
 // MARK: - 会话记录管理器
 /// 会话记录管理器，负责会话记录的存储、读取、删除等操作
 /// 使用文件系统存储，每个会话记录存储为一个独立的文件夹
@@ -350,6 +361,108 @@ class SessionRecordManager {
             try? mutableManifestURL.setResourceValues(values)
         } catch {
             logger.error("写入完整性校验文件失败: session=\(sessionDir.lastPathComponent), error=\(error.localizedDescription)")
+        }
+    }
+
+    @discardableResult
+    private func writeSessionIntegrityManifest(sessionDir: URL, entries: [SessionIntegrityEntry]) throws -> Int64 {
+        let manifestURL = sessionDir.appendingPathComponent(Self.integrityFileName)
+        let manifest = SessionIntegrityManifest(version: 1, generatedAt: Date(), files: entries)
+        let data = try integrityEncoder.encode(manifest)
+        try data.write(to: manifestURL, options: .atomic)
+
+        var mutableManifestURL = manifestURL
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = false
+        try? mutableManifestURL.setResourceValues(values)
+
+        let fileSize = try manifestURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? data.count
+        return Int64(fileSize)
+    }
+
+    private func copySessionSnapshotForExport(
+        from sourceSessionDir: URL,
+        to targetSessionDir: URL,
+        historyMode: ExportHistoryMode
+    ) throws -> Int64 {
+        try fileManager.createDirectory(at: targetSessionDir, withIntermediateDirectories: true)
+
+        var manifestEntries: [SessionIntegrityEntry] = []
+        var totalSize: Int64 = 0
+        try copySessionSnapshotContentsForExport(
+            from: sourceSessionDir,
+            to: targetSessionDir,
+            rootSourceDir: sourceSessionDir,
+            rootTargetDir: targetSessionDir,
+            historyMode: historyMode,
+            manifestEntries: &manifestEntries,
+            totalSize: &totalSize
+        )
+
+        manifestEntries.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+        totalSize += try writeSessionIntegrityManifest(sessionDir: targetSessionDir, entries: manifestEntries)
+        return totalSize
+    }
+
+    private func copySessionSnapshotContentsForExport(
+        from currentSourceDir: URL,
+        to currentTargetDir: URL,
+        rootSourceDir: URL,
+        rootTargetDir: URL,
+        historyMode: ExportHistoryMode,
+        manifestEntries: inout [SessionIntegrityEntry],
+        totalSize: inout Int64
+    ) throws {
+        let childURLs = try fileManager.contentsOfDirectory(
+            at: currentSourceDir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        for childURL in childURLs.sorted(by: {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }) {
+            let relativePath = relativePath(for: childURL, under: rootSourceDir)
+            if relativePath == Self.integrityFileName {
+                continue
+            }
+
+            let isDirectory = (try childURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            let targetURL = currentTargetDir.appendingPathComponent(childURL.lastPathComponent, isDirectory: isDirectory)
+
+            if isDirectory {
+                try fileManager.createDirectory(at: targetURL, withIntermediateDirectories: true)
+                try copySessionSnapshotContentsForExport(
+                    from: childURL,
+                    to: targetURL,
+                    rootSourceDir: rootSourceDir,
+                    rootTargetDir: rootTargetDir,
+                    historyMode: historyMode,
+                    manifestEntries: &manifestEntries,
+                    totalSize: &totalSize
+                )
+                continue
+            }
+
+            try fileManager.copyItem(at: childURL, to: targetURL)
+
+            let entryURL: URL
+            if relativePath == Self.historyFileName {
+                try sanitizeExportedHistory(in: rootTargetDir, mode: historyMode)
+                entryURL = rootTargetDir.appendingPathComponent(relativePath)
+            } else {
+                entryURL = childURL
+            }
+
+            let fileSize = Int64((try entryURL.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0)
+            manifestEntries.append(
+                SessionIntegrityEntry(
+                    path: relativePath,
+                    md5: try md5Hex(for: entryURL),
+                    size: fileSize
+                )
+            )
+            totalSize += fileSize
         }
     }
 
@@ -2442,7 +2555,8 @@ public struct EndPictQueueInfo {
     func exportSession(
         id: String,
         to destinationURL: URL,
-        historyMode: ExportHistoryMode = .trimPlayEvents
+        historyMode: ExportHistoryMode = .trimPlayEvents,
+        onProgress: ((SessionExportProgress) -> Void)? = nil
     ) -> (success: Bool, size: Int64?, errorMessage: String?) {
         // 内置默认会话不可导出
         if isBundledDefaultSession(id) {
@@ -2464,17 +2578,27 @@ public struct EndPictQueueInfo {
             sessionName = id
         }
         do {
+            onProgress?(SessionExportProgress(
+                message: "正在准备导出「\(sessionName)」",
+                completedCount: 0,
+                totalCount: 1
+            ))
             try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
             let folderName = sanitizeFolderName(sessionName)
             let targetDir = destinationURL.appendingPathComponent(folderName, isDirectory: true)
             if fileManager.fileExists(atPath: targetDir.path) {
                 try fileManager.removeItem(at: targetDir)
             }
-            try fileManager.copyItem(at: sessionDir, to: targetDir)
-            try sanitizeExportedHistory(in: targetDir, mode: historyMode)
-            // 以导出包内的实际快照为权威，重建校验文件，避免源目录在复制期间继续变更导致导出包校验过期。
-            writeSessionIntegrityManifest(sessionDir: targetDir)
-            let size = calculateDirectorySize(targetDir)
+            let size = try copySessionSnapshotForExport(
+                from: sessionDir,
+                to: targetDir,
+                historyMode: historyMode
+            )
+            onProgress?(SessionExportProgress(
+                message: "已完成 1/1，正在生成保存项",
+                completedCount: 1,
+                totalCount: 1
+            ))
             logger.info("单条会话记录导出成功: \(sessionName), 文件夹: \(folderName), 大小: \(self.formatStorageSize(size))")
             return (true, size, nil)
         } catch {
@@ -2501,7 +2625,8 @@ public struct EndPictQueueInfo {
         to destinationURL: URL,
         isAllSelected: Bool = false,
         integrityReason: String = "批量导出",
-        historyMode: ExportHistoryMode = .trimPlayEvents
+        historyMode: ExportHistoryMode = .trimPlayEvents,
+        onProgress: ((SessionExportProgress) -> Void)? = nil
     ) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         do {
             // 生成导出目录名称：全选时用 PhotoTTS_YYMMDD，部分选择时用 PhotoTTS-P_YYMMDD
@@ -2517,6 +2642,17 @@ public struct EndPictQueueInfo {
             var exportedCount = 0
             var totalSize: Int64 = 0
             var exportedSessions: [ExportSessionInfo] = []
+            let validSessionIDs = sessionIDs.filter { id in
+                !isBundledDefaultSession(id) &&
+                fileManager.fileExists(atPath: sessionsDirectory.appendingPathComponent(id, isDirectory: true).path)
+            }
+            let totalExportCount = validSessionIDs.count
+
+            onProgress?(SessionExportProgress(
+                message: totalExportCount > 0 ? "正在准备导出 0/\(totalExportCount)" : "正在准备导出",
+                completedCount: 0,
+                totalCount: max(totalExportCount, 1)
+            ))
             
             // 确保 Sessions 导出目录存在
             let sessionsExportDir = exportDir.appendingPathComponent("Sessions", isDirectory: true)
@@ -2525,16 +2661,8 @@ public struct EndPictQueueInfo {
             }
             
             // 复制每个选中的会话记录目录
-            for id in sessionIDs {
-                // 跳过默认会话
-                if isBundledDefaultSession(id) {
-                    continue
-                }
-
+            for id in validSessionIDs {
                 let sourceSessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
-                guard fileManager.fileExists(atPath: sourceSessionDir.path) else {
-                    continue
-                }
                 
                 // 读取元数据获取名称
                 let metadataURL = sourceSessionDir.appendingPathComponent("metadata.json")
@@ -2552,15 +2680,19 @@ public struct EndPictQueueInfo {
                     collisionIndex += 1
                 }
                 let targetSessionDir = sessionsExportDir.appendingPathComponent(folderName, isDirectory: true)
+                let nextCount = exportedCount + 1
+
+                onProgress?(SessionExportProgress(
+                    message: "正在准备 \(nextCount)/\(max(totalExportCount, 1))：\(metadata.name)",
+                    completedCount: exportedCount,
+                    totalCount: max(totalExportCount, 1)
+                ))
                 
-                // 复制整个会话目录
-                try fileManager.copyItem(at: sourceSessionDir, to: targetSessionDir)
-                try sanitizeExportedHistory(in: targetSessionDir, mode: historyMode)
-                // 以导出包内的实际快照为权威，重建校验文件，避免源目录在复制期间继续变更导致导出包校验过期。
-                writeSessionIntegrityManifest(sessionDir: targetSessionDir)
-                
-                // 计算会话大小
-                let sessionSize = calculateDirectorySize(targetSessionDir)
+                let sessionSize = try copySessionSnapshotForExport(
+                    from: sourceSessionDir,
+                    to: targetSessionDir,
+                    historyMode: historyMode
+                )
                 totalSize += sessionSize
                 exportedCount += 1
                 
@@ -2570,6 +2702,12 @@ public struct EndPictQueueInfo {
                     createdAt: metadata.createdAt,
                     size: sessionSize,
                     folderName: folderName
+                ))
+
+                onProgress?(SessionExportProgress(
+                    message: "已完成 \(exportedCount)/\(max(totalExportCount, 1))，正在继续准备",
+                    completedCount: exportedCount,
+                    totalCount: max(totalExportCount, 1)
                 ))
                 
                 logger.info("导出会话记录：\(metadata.name), 文件夹：\(folderName) (\(self.formatStorageSize(sessionSize)))")
@@ -2626,6 +2764,12 @@ public struct EndPictQueueInfo {
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = false
             try? mutableExportDir.setResourceValues(resourceValues)
+
+            onProgress?(SessionExportProgress(
+                message: "导出准备完成，正在打开保存框",
+                completedCount: max(exportedCount, 1),
+                totalCount: max(totalExportCount, 1)
+            ))
             
             logger.info("导出完成：\(exportedCount) 个会话记录，总大小：\(self.formatStorageSize(totalSize))")
             logger.info("导出位置：\(exportDir.path)")
@@ -2659,7 +2803,8 @@ public struct EndPictQueueInfo {
     /// - Returns: 导出结果
     func exportAllSessions(
         to destinationURL: URL,
-        historyMode: ExportHistoryMode = .trimPlayEvents
+        historyMode: ExportHistoryMode = .trimPlayEvents,
+        onProgress: ((SessionExportProgress) -> Void)? = nil
     ) -> (success: Bool, sessionCount: Int, totalSize: Int64, errorMessage: String?) {
         let allMetadata = getAllSessionMetadata(caller: "全量导出")
         let allIDs = allMetadata.map { $0.id }
@@ -2668,7 +2813,8 @@ public struct EndPictQueueInfo {
             to: destinationURL,
             isAllSelected: true,
             integrityReason: "全量导出",
-            historyMode: historyMode
+            historyMode: historyMode,
+            onProgress: onProgress
         )
     }
 

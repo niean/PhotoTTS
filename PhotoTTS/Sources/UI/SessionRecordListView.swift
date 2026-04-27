@@ -59,7 +59,7 @@ struct SessionRecordListView: View {
     @State private var isLoadingSession = false  // 加载会话记录时的加载状态
     @State private var showSessionDetail = false  // 显示会话详情
     @State private var sessionToView: SessionRecord?  // 要查看的会话记录
-    @State private var isExporting = false  // 导出状态
+    @State private var exportLoadingState: SessionExportLoadingState?  // 导出准备状态
     @State private var showImportPicker = false  // 显示导入文件夹选择器
     @State private var exportItem: SessionExportableURL?  // 导出分享项
     @State private var isImporting = false  // 导入状态
@@ -717,11 +717,10 @@ struct SessionRecordListView: View {
             }
         }
         .sheet(item: $exportItem) { item in
-            ShareSheetView(activityItems: [item.url])
-                .onDisappear {
-                    // 清理临时导出目录
-                    try? FileManager.default.removeItem(at: item.url)
-                }
+            ExportShareSheet(item: item) { _ in
+                exportItem = nil
+                exportLoadingState = nil
+            }
         }
         .navigationDestination(isPresented: $showDeviceTransfer) {
             DeviceTransferView(sessionIDs: deviceTransferIDs, transferMode: currentDeviceTransferMode)
@@ -742,7 +741,9 @@ struct SessionRecordListView: View {
             }
         }
         .overlay {
-            if isImporting {
+            if let exportLoadingState {
+                ExportLoadingView(state: exportLoadingState)
+            } else if isImporting {
                 CustomZStack {
                     Color.black.opacity(0.3).ignoresSafeArea()
                     VStack(spacing: 12) {
@@ -1186,20 +1187,27 @@ struct SessionRecordListView: View {
 
     // 导出单条会话记录到临时目录，然后通过分享面板分享
     private func exportOneSession(id: String, historyMode: ExportHistoryMode = .trimPlayEvents) {
+        exportLoadingState = SessionExportLoadingState(
+            title: "正在准备导出",
+            completedCount: 0,
+            totalCount: 1
+        )
+
         DispatchQueue.global(qos: .userInitiated).async {
             let tempBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent("PhotoTTS_OneExport_\(UUID().uuidString.prefix(8))", isDirectory: true)
-            let result = SessionRecordManager.shared.exportSession(id: id, to: tempBase, historyMode: historyMode)
+            let result = SessionRecordManager.shared.exportSession(
+                id: id,
+                to: tempBase,
+                historyMode: historyMode
+            ) { progress in
+                self.applyExportProgress(progress, title: "正在准备导出")
+            }
             DispatchQueue.main.async {
                 if result.success {
-                    // exportSession 在 tempBase 下创建以记录名称命名的子目录
-                    if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
-                       let exportDir = contents.first {
-                        self.exportItem = SessionExportableURL(url: exportDir)
-                    } else {
-                        self.exportItem = SessionExportableURL(url: tempBase)
-                    }
+                    self.prepareExportShareItem(from: tempBase)
                 } else {
+                    self.exportLoadingState = nil
                     self.message = "导出失败: \(result.errorMessage ?? "未知错误")"
                     self.showMessage = true
                     try? FileManager.default.removeItem(at: tempBase)
@@ -1283,7 +1291,11 @@ struct SessionRecordListView: View {
             return
         }
         
-        isExporting = true
+        exportLoadingState = SessionExportLoadingState(
+            title: "正在准备导出",
+            completedCount: 0,
+            totalCount: max(selectedIDs.count, 1)
+        )
         
         let selectedIDsCopy = selectedIDs
         
@@ -1303,28 +1315,49 @@ struct SessionRecordListView: View {
                 to: tempBase,
                 isAllSelected: isAllSelected,
                 historyMode: currentExportHistoryMode
-            )
+            ) { progress in
+                self.applyExportProgress(progress, title: "正在准备导出")
+            }
             
             DispatchQueue.main.async {
-                self.isExporting = false
                 self.isSelectionMode = false
                 self.selectedIDs.removeAll()
                 
                 if result.success {
-                    // 查找导出目录
-                    if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
-                       let exportDir = contents.first {
-                        self.exportItem = SessionExportableURL(url: exportDir)
-                    } else {
-                        self.exportItem = SessionExportableURL(url: tempBase)
-                    }
+                    self.prepareExportShareItem(from: tempBase)
                 } else {
+                    self.exportLoadingState = nil
                     self.message = "导出失败：\(result.errorMessage ?? "未知错误")"
                     self.showMessage = true
                     // 清理临时目录
                     try? FileManager.default.removeItem(at: tempBase)
                 }
             }
+        }
+    }
+
+    private func applyExportProgress(_ progress: SessionExportProgress, title: String) {
+        DispatchQueue.main.async {
+            self.exportLoadingState = SessionExportLoadingState(
+                title: title,
+                completedCount: progress.completedCount,
+                totalCount: progress.totalCount
+            )
+        }
+    }
+
+    private func prepareExportShareItem(from tempBase: URL) {
+        exportLoadingState = SessionExportLoadingState(
+            title: "正在准备导出",
+            completedCount: 1,
+            totalCount: 1
+        )
+
+        if let contents = try? FileManager.default.contentsOfDirectory(at: tempBase, includingPropertiesForKeys: nil),
+           let exportDir = contents.first {
+            exportItem = SessionExportableURL(url: exportDir, cleanupRootURL: tempBase)
+        } else {
+            exportItem = SessionExportableURL(url: tempBase, cleanupRootURL: tempBase)
         }
     }
 
@@ -1603,6 +1636,77 @@ extension Array {
 private struct SessionExportableURL: Identifiable {
     let id = UUID()
     let url: URL
+    let cleanupRootURL: URL
+}
+
+private struct SessionExportLoadingState {
+    let title: String
+    let completedCount: Int
+    let totalCount: Int
+
+    var fractionCompleted: Double {
+        guard totalCount > 0 else { return 0 }
+        return min(max(Double(completedCount) / Double(totalCount), 0), 1)
+    }
+
+    var progressText: String {
+        "\(min(completedCount, max(totalCount, 1))) / \(max(totalCount, 1))"
+    }
+}
+
+private struct ExportLoadingView: View {
+    let state: SessionExportLoadingState
+
+    private func scaled(_ value: CGFloat) -> CGFloat {
+        Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
+
+    var body: some View {
+        CustomZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: scaled(20)) {
+                Spacer()
+
+                ProgressView(value: state.fractionCompleted)
+                    .progressViewStyle(.linear)
+                    .frame(width: scaled(200))
+
+                Text(state.title)
+                    .font(Constants.Fonts.body)
+
+                Text(state.progressText)
+                    .font(Constants.Fonts.headline)
+                    .foregroundColor(.blue)
+                    .monospacedDigit()
+
+                Spacer()
+            }
+        }
+    }
+}
+
+private struct ExportShareSheet: View {
+    let item: SessionExportableURL
+    let onFinish: (Bool) -> Void
+
+    var body: some View {
+        ShareSheetView(activityItems: [item.url], onComplete: onFinish)
+            .onDisappear {
+                Self.scheduleExportCleanup(for: item.cleanupRootURL)
+            }
+    }
+
+    private static func scheduleExportCleanup(for rootURL: URL) {
+        let delay: TimeInterval = 600
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) {
+            guard FileManager.default.fileExists(atPath: rootURL.path) else {
+                return
+            }
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+    }
 }
 
 // MARK: - SessionRecord扩展
