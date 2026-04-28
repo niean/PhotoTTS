@@ -25,7 +25,7 @@ description: 知识库回填，支持完整模式（全量扫描一致性）和�
 
 ### 完整模式（mode=full）
 
-人工指令触发。全量扫描知识库与代码的一致性，含 .harness/framework/FRAMEWORK.md/、.harness/PROJECT.md 同步和人工确认。
+人工指令触发。全量扫描知识库与代码的一致性，含 .harness/framework/FRAMEWORK.md、.harness/PROJECT.md 同步和人工确认。
 
 按下方"完整模式步骤"执行。
 

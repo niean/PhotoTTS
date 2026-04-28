@@ -108,7 +108,7 @@ TTS 分段制作：`ImageToSpeechCoordinator.buildTTSSegments` 以单张图片�
 
 ## 模式十：iPad 自适应尺寸（DeviceScale）
 
-Constants.DeviceScale 提供 iPadScale（1.5）和 adaptiveSize(iPhone:) 函数，iPad 上将 iPhone 基准值乘以比例系数。
+Constants.DeviceScale 提供 iPadScale 和 adaptiveSize 函数，iPad 上将 iPhone 基准值乘以比例系数。
 
 每个 UI struct（View/组件）添加私有快捷方法：
 ```swift

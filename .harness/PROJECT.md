@@ -167,7 +167,7 @@ PhotoTTSUITests/       -- UI 测试
 ```
 Layer 0   AGENTS.md -> FRAMEWORK.md（通用规范+注册表） + PROJECT.md（项目配置+规则摘要）
 Layer 1   framework/agents/（5个角色: Orchestrator/Designer/Planner/Coder/Reviewer）
-Layer 1.5 framework/workflows/（迭代功能/修复Bug/迭代文档 + harness-ops/治理类）
+Layer 1.5 framework/workflows/（迭代功能/精调功能/修复Bug/迭代文档 + harness-ops/治理类）
 Layer 2   framework/skills/（harness/ 核心Skill + harness-ops/ 运维Skill + superpowers/ 方法论）
 Layer 3   framework/skills/harness/subskills/（扫描模板）
 数据层    knowledge/（权威知识） + prd/（产品文档，AI只读） + guides/（方法论） + lessons/（教训）
