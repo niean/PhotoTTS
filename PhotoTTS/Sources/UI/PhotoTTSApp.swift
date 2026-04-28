@@ -25,6 +25,10 @@ extension os.Logger {
     static let makeHistory = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeHistory")
     static let llmService = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "LLMService")
     static let peerTransfer = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PeerTransfer")
+    static let readingReport = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "ReadingReport")
+    static let coverEdit = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "CoverEdit")
+    static let coverImage = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "CoverImage")
+    static let performanceMonitor = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PerformanceMonitor")
 }
 
 // MARK: - AppDelegate

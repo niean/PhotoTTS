@@ -422,7 +422,7 @@ class BackgroundMakeManager: ObservableObject {
             // 准备图片数据
             var imageDataList: [Data] = []
             for image in images {
-                if let data = image.jpegData(compressionQuality: 0.8) {
+                if let data = image.jpegData(compressionQuality: Constants.BackgroundMake.jpegCompressionQuality) {
                     imageDataList.append(data)
                 }
             }

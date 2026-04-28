@@ -105,7 +105,7 @@ struct ReadingReportStats {
 // MARK: - 阅读报告管理器
 class ReadingReportManager {
     static let shared = ReadingReportManager()
-    private let logger = os.Logger(subsystem: "com.phototts.app", category: "ReadingReport")
+    private let logger = os.Logger.readingReport
 
     private init() {}
 

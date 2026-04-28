@@ -42,7 +42,7 @@ class PerformanceMonitorManager: ObservableObject {
     private var lastNetworkReceivedBytes: UInt64 = 0
     
     // MARK: - Logger
-    private let logger = Logger(subsystem: "com.photoTTS.PhotoTTS", category: "PerformanceMonitor")
+    private let logger = os.Logger.performanceMonitor
     
     // MARK: - 私有初始化
     private init() {

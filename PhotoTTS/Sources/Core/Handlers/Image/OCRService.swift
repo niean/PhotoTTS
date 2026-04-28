@@ -25,13 +25,13 @@ public protocol OCRServiceDelegate: AnyObject {
 // MARK: - OCR结果
 public struct OCRResult: Codable {
     public let recognizedText: String
-    public let confidence: Float
+    public let confidence: Float?
     public let processingTime: TimeInterval
     public let imageSize: CGSize
     public let modelUsed: String
     public let timestamp: Date
-    
-    public init(recognizedText: String, confidence: Float, processingTime: TimeInterval, imageSize: CGSize, modelUsed: String) {
+
+    public init(recognizedText: String, confidence: Float? = nil, processingTime: TimeInterval, imageSize: CGSize, modelUsed: String) {
         self.recognizedText = recognizedText
         self.confidence = confidence
         self.processingTime = processingTime
@@ -149,7 +149,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
             
             let result = OCRResult(
                 recognizedText: finalText,
-                confidence: 0.95, // 豆包大模型的高置信度
+                confidence: nil, // OCR API不返回置信度
                 processingTime: processingTime,
                 imageSize: imageSize,
                 modelUsed: configuration.modelName

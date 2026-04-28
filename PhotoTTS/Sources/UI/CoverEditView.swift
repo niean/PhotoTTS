@@ -37,7 +37,7 @@ struct CoverEditView: View {
 
     private let coverManager = CoverImageManager()
 
-    private static let logger = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "CoverEditView")
+    private static let logger = os.Logger.coverEdit
 
     private var aspectRatio: CGFloat {
         switch editMode {
@@ -210,7 +210,7 @@ struct CoverEditView: View {
             Button(action: rotateImage) {
                 VStack(spacing: 8) {
                     Image(systemName: "rotate.left")
-                        .font(.system(size: 24))
+                        .font(Constants.Fonts.coverEditIcon)
                         .foregroundColor(.white)
                         .frame(width: 56, height: 56)
                         .background(Color.white.opacity(0.2))
@@ -225,7 +225,7 @@ struct CoverEditView: View {
             Button(action: resetImage) {
                 VStack(spacing: 8) {
                     Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 24))
+                        .font(Constants.Fonts.coverEditIcon)
                         .foregroundColor(.white)
                         .frame(width: 56, height: 56)
                         .background(Color.white.opacity(0.2))

@@ -18,7 +18,7 @@ final class CoverImageManager {
         return documentsPath.appendingPathComponent("Sessions", isDirectory: true)
     }
 
-    private static let logger = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "CoverImageManager")
+    private static let logger = os.Logger.coverImage
 
     // MARK: - Error
 

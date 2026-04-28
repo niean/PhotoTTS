@@ -44,7 +44,7 @@ class SettingsManager {
     private let userDefaults = UserDefaults.standard
     
     /// Keychain服务名称
-    private let keychainService = "com.photoTTS.PhotoTTS"
+    private let keychainService = Constants.KeychainKeys.serviceName
     
     // MARK: - 初始化
     private init() {

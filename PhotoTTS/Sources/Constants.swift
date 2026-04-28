@@ -106,6 +106,8 @@ extension Constants {
         static let resourceTimeout: TimeInterval = 60
         static let maxRetryCount = 3
         static let retryDelay: TimeInterval = 1.0
+        /// 连接测试超时时间
+        static let testConnectionTimeout: TimeInterval = 10
     }
     
     // MARK: - 传输
@@ -138,6 +140,8 @@ extension Constants {
     
     // MARK: - 服务默认配置
     struct ServiceDefaults {
+        /// OCR图片大小上限（10MB）
+        static let ocrMaxImageSize = 10 * 1024 * 1024
         static let ttsBaseURL = "https://openspeech.bytedance.com/api/v1/tts"
         static let ocrBaseURL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
         static let ttsCluster = "volcano_tts"
@@ -296,6 +300,8 @@ extension Constants {
 
     // MARK: - 钥匙串键值
     struct KeychainKeys {
+        /// Keychain服务名称
+        static let serviceName = "com.photoTTS.PhotoTTS"
         static let doubaoAPIKey = "doubao_api_key"
         static let openaiOCRAPIKey = "openai_ocr_api_key"
         static let ttsAccessKey = "tts_access_key"
@@ -382,6 +388,8 @@ extension Constants {
     struct BackgroundMake {
         /// 后台制作并发任务上限（受 OCR API 配额与设备资源约束）
         static let maxConcurrentTasks: Int = 3
+        /// JPEG压缩质量
+        static let jpegCompressionQuality: CGFloat = 0.8
     }
 
     // MARK: - 内置默认会话
@@ -430,6 +438,12 @@ extension Constants {
     struct LLM {
         /// 触发LLM绘本分析的最小图片数量
         static let minImageCountForAnalysis = 2
+        /// LLM默认请求温度参数
+        static let defaultTemperature: Double = 0.7
+        /// LLM默认最大输出token数
+        static let defaultMaxTokens = 256
+        /// LLM默认供应商
+        static let defaultProvider = "doubao"
     }
 
     // MARK: - 要点图片配置（EndPicts）
@@ -538,6 +552,12 @@ extension Constants {
         static var emptyStateIcon: Font { .system(size: s(60)) }
         /// 制作页大图标: 80pt
         static var makeLargeIcon: Font { .system(size: s(80)) }
+        /// 封面编辑旋转/重置按钮图标: 24pt
+        static var coverEditIcon: Font { .system(size: s(24)) }
+        /// 记录分析大数字: 48pt bold
+        static var analysisHeroNumber: Font { .system(size: s(48), weight: .bold) }
+        /// 要点图片队列序号: 12pt semibold
+        static var endPictQueueNumber: Font { .system(size: s(12), weight: .semibold) }
 
         // MARK: 固定字体 (不随设备缩放)
 

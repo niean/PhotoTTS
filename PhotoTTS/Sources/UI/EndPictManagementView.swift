@@ -522,7 +522,7 @@ private struct EndPictQueueItemView: View {
                     .fill(isPlayed ? Color.gray : Color.blue)
                     .frame(width: scaled(24), height: scaled(24))
                 Text("\(queueNumber)")
-                    .font(.system(size: scaled(12), weight: .semibold))
+                    .font(Constants.Fonts.endPictQueueNumber)
                     .foregroundColor(.white)
             }
             .offset(x: scaled(4), y: scaled(4))

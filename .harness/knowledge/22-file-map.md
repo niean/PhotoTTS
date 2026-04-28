@@ -65,7 +65,9 @@
 ## 设置与历史
 
 - SettingsView/SettingsManager：PhotoTTS/Sources/UI/SettingsView.swift / PhotoTTS/Sources/Core/Managers/Settings/SettingsManager.swift
-- PlayHistoryManager+View / MakeHistoryManager+View / DebugLogManager+View
+- PlayHistoryManager+View：PhotoTTS/Sources/Core/Managers/PlayHistory/PlayHistoryManager.swift / PhotoTTS/Sources/UI/PlayHistoryView.swift（PlayHistoryView + PlayHistoryViewWithBar）
+- MakeHistoryManager+View：PhotoTTS/Sources/Core/Managers/MakeHistory/MakeHistoryManager.swift / PhotoTTS/Sources/UI/MakeHistoryView.swift（MakeHistoryView + MakeHistoryViewWithBar）
+- DebugLogManager+View：PhotoTTS/Sources/Core/Managers/Debug/DebugLogManager.swift / PhotoTTS/Sources/UI/DebugLogView.swift
 - PerformanceMonitorManager+View（实时监控）：PhotoTTS/Sources/Core/Managers/Monitor/PerformanceMonitorManager.swift / PhotoTTS/Sources/UI/RealTimeMonitorView.swift / PhotoTTS/Sources/UI/RealTimeMonitorChartView.swift（时序图表组件）
 - ChangeLogsView（更新记录）：PhotoTTS/Sources/UI/ChangeLogsView.swift（解析 PhotoTTS/Resources/changelogs.md 渲染）
 - ReadingReportManager（阅读报告数据聚合）：PhotoTTS/Sources/Core/Managers/ReadingReport/ReadingReportManager.swift

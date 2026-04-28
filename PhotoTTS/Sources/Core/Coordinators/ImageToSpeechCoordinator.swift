@@ -149,16 +149,31 @@ enum ImageToSpeechProcessingError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .ocrFailed(let error):
-            return "文字识别失败: \(error.localizedDescription)"
-        case .llmFailed(let error):
-            return "绘本分析失败: \(error.localizedDescription)"
-        case .ttsFailed(let error):
-            return "文字转语音失败: \(error.localizedDescription)"
+        case .ocrFailed:
+            return "文字识别失败，请检查图片质量或重试"
+        case .llmFailed:
+            return "绘本分析失败，请检查网络连接或重试"
+        case .ttsFailed:
+            return "文字转语音失败，请检查文字内容或重试"
         case .partialSuccess:
             return "部分处理成功，部分失败"
         case .cancelled:
             return "处理已取消"
+        }
+    }
+
+    var technicalDescription: String {
+        switch self {
+        case .ocrFailed(let error):
+            return "ImageToSpeechProcessingError.ocrFailed: \(error.localizedDescription)"
+        case .llmFailed(let error):
+            return "ImageToSpeechProcessingError.llmFailed: \(error.localizedDescription)"
+        case .ttsFailed(let error):
+            return "ImageToSpeechProcessingError.ttsFailed: \(error.localizedDescription)"
+        case .partialSuccess(let responses, let errors):
+            return "ImageToSpeechProcessingError.partialSuccess: \(responses.count) succeeded, \(errors.count) failed"
+        case .cancelled:
+            return "ImageToSpeechProcessingError.cancelled"
         }
     }
 

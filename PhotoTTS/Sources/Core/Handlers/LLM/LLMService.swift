@@ -41,7 +41,7 @@ struct LLMConfiguration {
     let retryDelay: TimeInterval
 
     init(
-        provider: String = "doubao",
+        provider: String = Constants.LLM.defaultProvider,
         apiKey: String,
         modelName: String,
         baseURL: String,
@@ -216,8 +216,8 @@ class DoubaoLLMService: LLMServiceProtocol {
                     "content": configuration.promptUser + "\n\n" + ocrText
                 ]
             ],
-            "temperature": 0.7,
-            "max_tokens": 256
+            "temperature": Constants.LLM.defaultTemperature,
+            "max_tokens": Constants.LLM.defaultMaxTokens
         ]
 
         // 调用API（带重试）
@@ -443,8 +443,8 @@ class OpenAILLMService: LLMServiceProtocol {
                     "content": configuration.promptUser + "\n\n" + ocrText
                 ]
             ],
-            "temperature": 0.7,
-            "max_tokens": 256
+            "temperature": Constants.LLM.defaultTemperature,
+            "max_tokens": Constants.LLM.defaultMaxTokens
         ]
 
         // 调用API（带重试）

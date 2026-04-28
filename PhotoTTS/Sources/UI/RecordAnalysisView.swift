@@ -212,7 +212,7 @@ struct RecordAnalysisView: View {
     private var heroCard: some View {
         VStack(spacing: 12) {
             Text("\(snapshot.totalCount)")
-                .font(.system(size: Constants.DeviceScale.adaptiveSize(iPhone: 48), weight: .bold))
+                .font(Constants.Fonts.analysisHeroNumber)
                 .foregroundStyle(.primary)
 
             Text("绘本记录")

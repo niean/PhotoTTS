@@ -164,7 +164,7 @@ class NetworkService: NetworkServiceProtocol {
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 10.0
+        request.timeoutInterval = Constants.Network.testConnectionTimeout
         
         session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
@@ -232,25 +232,25 @@ enum NetworkError: LocalizedError {
     case noTexts
     case tooManyTexts
     case textTooLong
-    
+
     var errorDescription: String? {
         switch self {
-        case .invalidInput(let message):
-            return "输入无效: \(message)"
+        case .invalidInput:
+            return "输入内容有误"
         case .missingAPIKey:
             return "缺少API密钥"
         case .invalidURL:
-            return "无效的URL"
-        case .networkError(let error):
-            return "网络错误: \(error.localizedDescription)"
+            return "请求地址无效"
+        case .networkError:
+            return "网络连接失败"
         case .invalidResponse:
-            return "无效的响应"
-        case .httpError(let code):
-            return "HTTP错误: \(code)"
+            return "服务器响应无效"
+        case .httpError:
+            return "服务器请求失败"
         case .noData:
-            return "响应数据为空"
-        case .batchProcessingFailed(let errors):
-            return "批量处理失败: \(errors.count) 个错误"
+            return "服务器未返回数据"
+        case .batchProcessingFailed:
+            return "批量处理部分失败"
         case .serverError:
             return "服务器错误"
         case .noTexts:
@@ -258,7 +258,36 @@ enum NetworkError: LocalizedError {
         case .tooManyTexts:
             return "文字数量过多"
         case .textTooLong:
-            return "文字内容过长，超过TTS合成限制"
+            return "文字内容过长，超过语音合成限制"
+        }
+    }
+
+    var technicalDescription: String {
+        switch self {
+        case .invalidInput(let message):
+            return "NetworkError.invalidInput: \(message)"
+        case .missingAPIKey:
+            return "NetworkError.missingAPIKey"
+        case .invalidURL:
+            return "NetworkError.invalidURL"
+        case .networkError(let error):
+            return "NetworkError.networkError: \(error.localizedDescription)"
+        case .invalidResponse:
+            return "NetworkError.invalidResponse"
+        case .httpError(let code):
+            return "NetworkError.httpError: HTTP \(code)"
+        case .noData:
+            return "NetworkError.noData"
+        case .batchProcessingFailed(let errors):
+            return "NetworkError.batchProcessingFailed: \(errors.count) errors"
+        case .serverError:
+            return "NetworkError.serverError"
+        case .noTexts:
+            return "NetworkError.noTexts"
+        case .tooManyTexts:
+            return "NetworkError.tooManyTexts"
+        case .textTooLong:
+            return "NetworkError.textTooLong"
         }
     }
 }
