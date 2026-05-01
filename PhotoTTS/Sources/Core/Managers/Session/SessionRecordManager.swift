@@ -22,6 +22,11 @@ private struct SessionIntegrityEntry: Codable {
     let size: Int64
 }
 
+private enum SessionIntegrityVerificationResult: Equatable {
+    case valid
+    case invalid(reason: String)
+}
+
 enum TransferredSessionValidationResult: Equatable {
     case valid(id: String, name: String)
     case invalid(reason: String)
@@ -30,6 +35,72 @@ enum TransferredSessionValidationResult: Equatable {
 enum ExportHistoryMode {
     case trimPlayEvents
     case keepAllEvents
+}
+
+enum SessionImportSkipReason: String, CaseIterable, Hashable {
+    case duplicateID
+    case integrityValidationFailed
+    case manifestSessionDirectoryMissing
+    case manifestRecordIDMismatch
+    case sessionDirectoryInvalid
+    case copyFailed
+
+    var displayName: String {
+        switch self {
+        case .duplicateID:
+            return "ID重复"
+        case .integrityValidationFailed:
+            return "完整性校验失败"
+        case .manifestSessionDirectoryMissing:
+            return "记录目录缺失"
+        case .manifestRecordIDMismatch:
+            return "导出清单ID不一致"
+        case .sessionDirectoryInvalid:
+            return "记录目录不完整"
+        case .copyFailed:
+            return "复制失败"
+        }
+    }
+}
+
+struct SessionImportResult {
+    let success: Bool
+    let importedCount: Int
+    let skippedCount: Int
+    let duplicateCount: Int
+    let totalSize: Int64
+    let errorMessage: String?
+    let skipReasonCounts: [SessionImportSkipReason: Int]
+
+    static func failure(_ message: String) -> SessionImportResult {
+        SessionImportResult(
+            success: false,
+            importedCount: 0,
+            skippedCount: 0,
+            duplicateCount: 0,
+            totalSize: 0,
+            errorMessage: message,
+            skipReasonCounts: [:]
+        )
+    }
+
+    static func success(
+        importedCount: Int,
+        skippedCount: Int,
+        duplicateCount: Int,
+        totalSize: Int64,
+        skipReasonCounts: [SessionImportSkipReason: Int] = [:]
+    ) -> SessionImportResult {
+        SessionImportResult(
+            success: true,
+            importedCount: importedCount,
+            skippedCount: skippedCount,
+            duplicateCount: duplicateCount,
+            totalSize: totalSize,
+            errorMessage: nil,
+            skipReasonCounts: skipReasonCounts
+        )
+    }
 }
 
 struct SessionExportProgress {
@@ -69,6 +140,23 @@ class SessionRecordManager {
         timestamp: ISO8601DateFormatter().date(from: "2026-03-02T20:30:00Z") ?? Date(timeIntervalSince1970: 1772483400),
         identity: "iPad"
     )
+
+    private func incrementSkipReason(
+        _ reason: SessionImportSkipReason,
+        counts: inout [SessionImportSkipReason: Int]
+    ) {
+        counts[reason, default: 0] += 1
+    }
+
+    private func classifyValidationFailure(reason: String) -> SessionImportSkipReason {
+        if reason.hasPrefix("完整性校验失败:") {
+            return .integrityValidationFailed
+        }
+        if reason.contains("ID 不一致") || reason.contains("ID不一致") {
+            return .manifestRecordIDMismatch
+        }
+        return .sessionDirectoryInvalid
+    }
     
     /// 会话记录存储根目录（内部访问）
     var sessionsDirectory: URL {
@@ -286,32 +374,89 @@ class SessionRecordManager {
     }
 
     private func verifySessionIntegrity(sessionDir: URL) -> Bool {
+        if case .valid = verifySessionIntegrityDetailed(sessionDir: sessionDir) {
+            return true
+        }
+        return false
+    }
+
+    private func verifySessionIntegrityDetailed(sessionDir: URL) -> SessionIntegrityVerificationResult {
         let manifestURL = sessionDir.appendingPathComponent(Self.integrityFileName)
-        guard fileManager.fileExists(atPath: manifestURL.path),
-              let data = try? Data(contentsOf: manifestURL),
-              let manifest = try? integrityDecoder.decode(SessionIntegrityManifest.self, from: data) else {
-            return false
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            return .invalid(reason: "缺少 \(Self.integrityFileName)")
+        }
+        guard let data = try? Data(contentsOf: manifestURL) else {
+            return .invalid(reason: "读取 \(Self.integrityFileName) 失败")
+        }
+        guard let manifest = try? integrityDecoder.decode(SessionIntegrityManifest.self, from: data) else {
+            return .invalid(reason: "解析 \(Self.integrityFileName) 失败")
         }
 
         let actualFiles = listFilesForIntegrity(in: sessionDir)
         let actualPaths = Set(actualFiles.map { relativePath(for: $0, under: sessionDir) })
-        let manifestPaths = Set(manifest.files.map(\.path))
+        let manifestPaths = Set(manifest.files.map { normalizedIntegrityEntryPath($0.path, in: sessionDir) })
         guard actualPaths == manifestPaths else {
-            return false
+            let missingPaths = manifestPaths.subtracting(actualPaths).sorted()
+            let unexpectedPaths = actualPaths.subtracting(manifestPaths).sorted()
+            if let missingPath = missingPaths.first {
+                return .invalid(reason: "完整性清单中的文件缺失: \(missingPath)")
+            }
+            if let unexpectedPath = unexpectedPaths.first {
+                return .invalid(reason: "发现未记录到完整性清单的文件: \(unexpectedPath)")
+            }
+            return .invalid(reason: "完整性清单文件列表不一致")
         }
 
         for entry in manifest.files {
-            let fileURL = sessionDir.appendingPathComponent(entry.path)
-            guard fileManager.fileExists(atPath: fileURL.path),
-                  let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
-                  Int64(values.fileSize ?? -1) == entry.size,
-                  let md5 = try? md5Hex(for: fileURL),
-                  md5 == entry.md5 else {
-                return false
+            let fileURL = resolvedIntegrityEntryURL(for: entry.path, in: sessionDir)
+            guard fileManager.fileExists(atPath: fileURL.path) else {
+                return .invalid(reason: "完整性清单中的文件缺失: \(entry.path)")
+            }
+            guard let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]) else {
+                return .invalid(reason: "读取文件大小失败: \(entry.path)")
+            }
+            let actualSize = Int64(values.fileSize ?? -1)
+            guard actualSize == entry.size else {
+                return .invalid(reason: "文件大小不匹配: \(entry.path), expected=\(entry.size), actual=\(actualSize)")
+            }
+            guard let md5 = try? md5Hex(for: fileURL) else {
+                return .invalid(reason: "计算文件 MD5 失败: \(entry.path)")
+            }
+            guard md5 == entry.md5 else {
+                return .invalid(reason: "文件 MD5 不匹配: \(entry.path), expected=\(entry.md5), actual=\(md5)")
             }
         }
 
-        return true
+        return .valid
+    }
+
+    private func resolvedIntegrityEntryURL(for entryPath: String, in sessionDir: URL) -> URL {
+        let normalizedPath = normalizedIntegrityEntryPath(entryPath, in: sessionDir)
+        let directURL = sessionDir.appendingPathComponent(normalizedPath)
+        guard !fileManager.fileExists(atPath: directURL.path) else {
+            return directURL
+        }
+        return directURL
+    }
+
+    private func normalizedIntegrityEntryPath(_ entryPath: String, in sessionDir: URL) -> String {
+        let directURL = sessionDir.appendingPathComponent(entryPath)
+        if fileManager.fileExists(atPath: directURL.path) {
+            return entryPath
+        }
+
+        // 兼容旧/错误的导出清单：图片条目可能遗漏了 images/ 前缀，
+        // 实际文件仍然位于 images/image_*.jpg。
+        if !entryPath.contains("/") {
+            let imagesURL = sessionDir
+                .appendingPathComponent("images", isDirectory: true)
+                .appendingPathComponent(entryPath)
+            if fileManager.fileExists(atPath: imagesURL.path) {
+                return "images/\(entryPath)"
+            }
+        }
+
+        return entryPath
     }
 
     private func writeSessionIntegrityManifest(sessionDir: URL, changedPaths: Set<String>? = nil) {
@@ -446,19 +591,17 @@ class SessionRecordManager {
 
             try fileManager.copyItem(at: childURL, to: targetURL)
 
-            let entryURL: URL
             if relativePath == Self.historyFileName {
                 try sanitizeExportedHistory(in: rootTargetDir, mode: historyMode)
-                entryURL = rootTargetDir.appendingPathComponent(relativePath)
-            } else {
-                entryURL = childURL
             }
 
-            let fileSize = Int64((try entryURL.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0)
+            // 完整性清单必须以导出快照中的实际文件为准，而不是源目录文件。
+            // 这样即使源目录稍后发生异步回写，导出包仍然能保持自洽。
+            let fileSize = Int64((try targetURL.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0)
             manifestEntries.append(
                 SessionIntegrityEntry(
                     path: relativePath,
-                    md5: try md5Hex(for: entryURL),
+                    md5: try md5Hex(for: targetURL),
                     size: fileSize
                 )
             )
@@ -491,9 +634,12 @@ class SessionRecordManager {
     }
 
     private func relativePath(for fileURL: URL, under rootURL: URL) -> String {
-        let prefix = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
-        if fileURL.path.hasPrefix(prefix) {
-            return String(fileURL.path.dropFirst(prefix.count))
+        // 标准化路径，消除 iOS 上 /var 与 /private/var 符号链接差异
+        let filePath = fileURL.standardizedFileURL.path
+        let rootPath = rootURL.standardizedFileURL.path
+        let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        if filePath.hasPrefix(prefix) {
+            return String(filePath.dropFirst(prefix.count))
         }
         return fileURL.lastPathComponent
     }
@@ -691,9 +837,14 @@ class SessionRecordManager {
         metadataCache = nil
     }
 
-    func getAllSessionMetadata(sortMode: HomeSessionSortMode = .list, caller: String = "") -> [SessionRecordMetadata] {
+    func getAllSessionMetadata(
+        sortMode: HomeSessionSortMode = .list,
+        caller: String = "",
+        forceRefresh: Bool = false
+    ) -> [SessionRecordMetadata] {
         // 短时效缓存命中则直接返回，避免 Siri 实体查询等场景重复磁盘扫描
-        if let cached = metadataCache,
+        if !forceRefresh,
+           let cached = metadataCache,
            Date().timeIntervalSince(metadataCacheTime) < Self.metadataCacheTTL {
             return Self.sortSessionMetadata(cached, by: sortMode)
         }
@@ -2047,7 +2198,35 @@ public struct EndPictQueueInfo {
                 let formatter = DateFormatter()
                 formatter.dateFormat = Constants.sessionNameDatePrefixFormat
                 let defaultDatePrefix = formatter.string(from: Date())
-                updatedName = defaultDatePrefix + storyName
+                let normalizedStoryName = SessionRecord(
+                    id: oldRecord.id,
+                    name: storyName,
+                    createdAt: oldRecord.createdAt,
+                    updatedAt: oldRecord.updatedAt,
+                    imageDataList: oldRecord.imageDataList,
+                    ocrText: oldRecord.ocrText,
+                    ocrTextSegments: oldRecord.ocrTextSegments,
+                    audioDataBase64: oldRecord.audioDataBase64,
+                    audioFormat: oldRecord.audioFormat,
+                    audioSegments: oldRecord.audioSegments,
+                    audioDuration: oldRecord.audioDuration,
+                    ocrDuration: oldRecord.ocrDuration,
+                    llmDuration: oldRecord.llmDuration,
+                    ttsDuration: oldRecord.ttsDuration,
+                    validImageCount: oldRecord.validImageCount,
+                    totalImageCount: oldRecord.totalImageCount,
+                    textLength: oldRecord.textLength,
+                    audioSize: oldRecord.audioSize,
+                    voiceSettings: oldRecord.voiceSettings,
+                    avatarImageIndex: oldRecord.avatarImageIndex,
+                    storageSize: oldRecord.storageSize,
+                    makeStatus: oldRecord.makeStatus,
+                    storyHighlights: oldRecord.storyHighlights,
+                    hasVirtualPage: oldRecord.hasVirtualPage,
+                    animationStyle: oldRecord.animationStyle,
+                    coverImagePath: oldRecord.coverImagePath
+                ).nameWithoutDatePrefix
+                updatedName = defaultDatePrefix + normalizedStoryName
             } else {
                 updatedName = oldRecord.name
             }
@@ -2906,7 +3085,7 @@ public struct EndPictQueueInfo {
         return (received, skipped)
     }
 
-    func importTransferredSessionsRecoveringPartials(from unpackedDirectory: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importTransferredSessionsRecoveringPartials(from unpackedDirectory: URL) -> SessionImportResult {
         let sourceSessionsDir: URL
         let candidateSessionsDir = unpackedDirectory.appendingPathComponent("Sessions", isDirectory: true)
         if fileManager.fileExists(atPath: candidateSessionsDir.path) {
@@ -2915,16 +3094,17 @@ public struct EndPictQueueInfo {
             sourceSessionsDir = unpackedDirectory
         }
 
-        let existingMetadata = getAllSessionMetadata(caller: "传输中断恢复")
+        let existingMetadata = getAllSessionMetadata(caller: "传输中断恢复", forceRefresh: true)
         var existingIDs = Set(existingMetadata.map { $0.id })
         var importedCount = 0
         var skippedCount = 0
         var duplicateCount = 0
         var totalSize: Int64 = 0
+        var skipReasonCounts: [SessionImportSkipReason: Int] = [:]
 
         let sessionDirectories = findTransferredSessionDirectories(in: sourceSessionsDir)
         guard !sessionDirectories.isEmpty else {
-            return (false, 0, 0, 0, 0, "未找到可恢复的记录")
+            return .failure("未找到可恢复的记录")
         }
 
         for sourceSessionDir in sessionDirectories {
@@ -2932,6 +3112,7 @@ public struct EndPictQueueInfo {
             guard case .valid(let recoveredId, let recoveredName) = validationResult else {
                 if case .invalid(let reason) = validationResult {
                     logger.warning("跳过恢复传输记录: session=\(sourceSessionDir.lastPathComponent), reason=\(reason)")
+                    incrementSkipReason(classifyValidationFailure(reason: reason), counts: &skipReasonCounts)
                 }
                 skippedCount += 1
                 continue
@@ -2948,6 +3129,7 @@ public struct EndPictQueueInfo {
                 }
                 logger.info("跳过恢复传输记录（ID重复）: \(recoveredRecord.name)")
                 duplicateCount += 1
+                incrementSkipReason(.duplicateID, counts: &skipReasonCounts)
                 continue
             }
 
@@ -2970,11 +3152,18 @@ public struct EndPictQueueInfo {
             } catch {
                 logger.error("恢复已传输会话记录失败: \(recoveredRecord.name), 错误: \(error.localizedDescription)")
                 skippedCount += 1
+                incrementSkipReason(.copyFailed, counts: &skipReasonCounts)
             }
         }
 
         invalidateMetadataCache()
-        return (true, importedCount, skippedCount, duplicateCount, totalSize, nil)
+        return .success(
+            importedCount: importedCount,
+            skippedCount: skippedCount,
+            duplicateCount: duplicateCount,
+            totalSize: totalSize,
+            skipReasonCounts: skipReasonCounts
+        )
     }
 
     private func findTransferredSessionDirectories(in sourceDirectory: URL) -> [URL] {
@@ -2992,9 +3181,14 @@ public struct EndPictQueueInfo {
 
     func validateTransferredSessionDirectory(_ sourceSessionDir: URL) -> TransferredSessionValidationResult {
         let integrityURL = sourceSessionDir.appendingPathComponent(Self.integrityFileName)
-        if fileManager.fileExists(atPath: integrityURL.path),
-           !verifySessionIntegrity(sessionDir: sourceSessionDir) {
-            return .invalid(reason: "完整性校验失败")
+        if fileManager.fileExists(atPath: integrityURL.path) {
+            switch verifySessionIntegrityDetailed(sessionDir: sourceSessionDir) {
+            case .valid:
+                break
+            case .invalid(let reason):
+                logger.warning("传输记录完整性校验失败: session=\(sourceSessionDir.lastPathComponent), detail=\(reason)")
+                return .invalid(reason: "完整性校验失败: \(reason)")
+            }
         }
 
         let recordURL = sourceSessionDir.appendingPathComponent("record.json")
@@ -3053,7 +3247,7 @@ public struct EndPictQueueInfo {
     /// 根据所选目录自动识别并导入：若为导出包(含 export_manifest.json) 则全量导入，若为单个会话目录(含 record.json) 则仅导入该条
     /// - Parameter sourceURL: 用户选择的目录（导出包根目录 或 单个会话目录）
     /// - Returns: 导入结果
-    func importSessions(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importSessions(from sourceURL: URL) -> SessionImportResult {
         let manifestURL = sourceURL.appendingPathComponent("export_manifest.json")
         let recordURL = sourceURL.appendingPathComponent("record.json")
         if fileManager.fileExists(atPath: manifestURL.path) {
@@ -3062,7 +3256,7 @@ public struct EndPictQueueInfo {
         if fileManager.fileExists(atPath: recordURL.path) {
             return importOneSession(from: sourceURL)
         }
-        return (false, 0, 0, 0, 0, "请选择导出包目录(含 export_manifest.json) 或单个会话目录(含 record.json)")
+        return .failure("请选择导出包目录(含 export_manifest.json) 或单个会话目录(含 record.json)")
     }
     
     /// 从导出包目录全量导入会话记录
@@ -3075,13 +3269,13 @@ public struct EndPictQueueInfo {
     ///       - ...
     /// - Parameter sourceURL: 源目录URL（用户选择的导出目录）
     /// - Returns: 导入结果
-    func importAllSessions(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importAllSessions(from sourceURL: URL) -> SessionImportResult {
         // 注意：调用此方法前，调用方应该已经获取了sourceURL的安全作用域资源访问权限
         do {
             // 检查是否存在export_manifest.json
             let manifestURL = sourceURL.appendingPathComponent("export_manifest.json")
             guard fileManager.fileExists(atPath: manifestURL.path) else {
-                return (false, 0, 0, 0, 0, "未找到导出清单文件(export_manifest.json)，请确保选择了正确的导出目录")
+                return .failure("未找到导出清单文件(export_manifest.json)，请确保选择了正确的导出目录")
             }
             
             // 解析导出清单
@@ -3093,17 +3287,18 @@ public struct EndPictQueueInfo {
             // 检查Sessions目录是否存在
             let sourceSessionsDir = sourceURL.appendingPathComponent("Sessions", isDirectory: true)
             guard fileManager.fileExists(atPath: sourceSessionsDir.path) else {
-                return (false, 0, 0, 0, 0, "未找到Sessions目录，导出包可能已损坏")
+                return .failure("未找到Sessions目录，导出包可能已损坏")
             }
             
             // 获取所有现有会话ID，用于去重检测
-            let existingMetadata = getAllSessionMetadata(caller: "全量导入")
+            let existingMetadata = getAllSessionMetadata(caller: "全量导入", forceRefresh: true)
             let existingIDs = Set(existingMetadata.map { $0.id })
             
             var importedCount = 0
             var skippedCount = 0
             var duplicateCount = 0
             var totalSize: Int64 = 0
+            var skipReasonCounts: [SessionImportSkipReason: Int] = [:]
             
             // 导入每个会话记录（folderName 为实际目录名；旧版包无此字段时回退为 id）
             for sessionInfo in manifest.sessions {
@@ -3113,6 +3308,7 @@ public struct EndPictQueueInfo {
                 guard fileManager.fileExists(atPath: sourceSessionDir.path) else {
                     logger.warning("跳过会话记录（目录不存在）: \(sessionInfo.name), 文件夹: \(sessionInfo.folderName)")
                     skippedCount += 1
+                    incrementSkipReason(.manifestSessionDirectoryMissing, counts: &skipReasonCounts)
                     continue
                 }
 
@@ -3128,6 +3324,11 @@ public struct EndPictQueueInfo {
                     }
                     logger.warning("跳过会话记录: \(sessionInfo.name), 文件夹: \(sessionInfo.folderName), 原因: \(reason)")
                     skippedCount += 1
+                    if case .valid = validationResult {
+                        incrementSkipReason(.manifestRecordIDMismatch, counts: &skipReasonCounts)
+                    } else {
+                        incrementSkipReason(classifyValidationFailure(reason: reason), counts: &skipReasonCounts)
+                    }
                     continue
                 }
                 
@@ -3143,6 +3344,7 @@ public struct EndPictQueueInfo {
                         logger.info("已覆盖播放记录（ID重复）: \(sessionInfo.name)")
                     }
                     duplicateCount += 1
+                    incrementSkipReason(.duplicateID, counts: &skipReasonCounts)
                     continue
                 }
                 
@@ -3173,6 +3375,7 @@ public struct EndPictQueueInfo {
                 } catch {
                     logger.error("导入会话记录失败: \(sessionInfo.name), 错误: \(error.localizedDescription)")
                     skippedCount += 1
+                    incrementSkipReason(.copyFailed, counts: &skipReasonCounts)
                 }
             }
             
@@ -3180,25 +3383,31 @@ public struct EndPictQueueInfo {
             invalidateMetadataCache()
             logger.info("导入完成: 共 \(totalCount) 个，导入 \(importedCount) 个，ID重复跳过 \(duplicateCount) 个，其他跳过 \(skippedCount) 个，总大小: \(self.formatStorageSize(totalSize))")
             
-            return (true, importedCount, skippedCount, duplicateCount, totalSize, nil)
+            return .success(
+                importedCount: importedCount,
+                skippedCount: skippedCount,
+                duplicateCount: duplicateCount,
+                totalSize: totalSize,
+                skipReasonCounts: skipReasonCounts
+            )
             
         } catch let error as DecodingError {
             let errorMessage = "解析导出清单失败: \(error.localizedDescription)"
             logger.error("导入失败，\(errorMessage)")
-            return (false, 0, 0, 0, 0, errorMessage)
+            return .failure(errorMessage)
         } catch {
             logger.error("导入会话记录失败: \(error.localizedDescription)")
-            return (false, 0, 0, 0, 0, error.localizedDescription)
+            return .failure(error.localizedDescription)
         }
     }
     
     /// 导入单个会话记录（用户选择的目录须直接包含 record.json）
     /// - Parameter sourceURL: 单个会话目录的 URL（其下含 record.json、可选 audio.*、images/）
     /// - Returns: 导入结果
-    func importOneSession(from sourceURL: URL) -> (success: Bool, importedCount: Int, skippedCount: Int, duplicateCount: Int, totalSize: Int64, errorMessage: String?) {
+    func importOneSession(from sourceURL: URL) -> SessionImportResult {
         let recordURL = sourceURL.appendingPathComponent("record.json")
         guard fileManager.fileExists(atPath: recordURL.path) else {
-            return (false, 0, 0, 0, 0, "该目录下未找到 record.json，请选择单个会话目录")
+            return .failure("该目录下未找到 record.json，请选择单个会话目录")
         }
         do {
             let validationResult = validateTransferredSessionDirectory(sourceURL)
@@ -3206,16 +3415,36 @@ public struct EndPictQueueInfo {
                 if case .invalid(let reason) = validationResult {
                     logger.warning("跳过单条会话记录导入: 目录=\(sourceURL.lastPathComponent), 原因: \(reason)")
                 }
-                return (false, 0, 1, 0, 0, "该记录目录不完整或已损坏")
+                let reason = {
+                    if case .invalid(let invalidReason) = validationResult {
+                        return invalidReason
+                    }
+                    return ""
+                }()
+                return SessionImportResult(
+                    success: false,
+                    importedCount: 0,
+                    skippedCount: 1,
+                    duplicateCount: 0,
+                    totalSize: 0,
+                    errorMessage: "该记录目录不完整或已损坏",
+                    skipReasonCounts: [classifyValidationFailure(reason: reason): 1]
+                )
             }
             
-            let existingMetadata = getAllSessionMetadata(caller: "单条导入")
+            let existingMetadata = getAllSessionMetadata(caller: "单条导入", forceRefresh: true)
             let existingIDs = Set(existingMetadata.map { $0.id })
             
             // ID 重复则跳过，不导入
             if existingIDs.contains(sourceID) {
                 logger.info("跳过单条会话记录（ID重复）: \(sessionName)")
-                return (true, 0, 0, 1, 0, nil)
+                return .success(
+                    importedCount: 0,
+                    skippedCount: 0,
+                    duplicateCount: 1,
+                    totalSize: 0,
+                    skipReasonCounts: [.duplicateID: 1]
+                )
             }
             
             let targetSessionDir = sessionsDirectory.appendingPathComponent(sourceID, isDirectory: true)
@@ -3231,10 +3460,18 @@ public struct EndPictQueueInfo {
             updateStorageSizeInFiles(sessionDir: targetSessionDir, size: sessionSize)
             invalidateMetadataCache()
             logger.info("导入单条会话记录: \(sessionName) (\(self.formatStorageSize(sessionSize)))")
-            return (true, 1, 0, 0, sessionSize, nil)
+            return .success(importedCount: 1, skippedCount: 0, duplicateCount: 0, totalSize: sessionSize)
         } catch {
             logger.error("导入单条会话记录失败: \(error.localizedDescription)")
-            return (false, 0, 0, 0, 0, error.localizedDescription)
+            return SessionImportResult(
+                success: false,
+                importedCount: 0,
+                skippedCount: 1,
+                duplicateCount: 0,
+                totalSize: 0,
+                errorMessage: error.localizedDescription,
+                skipReasonCounts: [.copyFailed: 1]
+            )
         }
     }
     

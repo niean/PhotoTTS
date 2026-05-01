@@ -160,6 +160,39 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(record.avatarImageIndex, 0)
         XCTAssertEqual(record.storageSize, 0)
     }
+
+    func testSessionRecordSourceOCRTextExcludesVirtualHighlightsPage() {
+        let record = SessionRecord(
+            id: UUID().uuidString,
+            name: "26.05.01 贝贝熊-刷牙",
+            createdAt: Date(),
+            updatedAt: Date(),
+            imageDataList: [],
+            ocrText: "第一页\(Constants.ocrTextSeparator)第二页\(Constants.ocrTextSeparator)要点总结",
+            ocrTextSegments: ["第一页", "第二页", "要点总结"],
+            audioDataBase64: "",
+            audioFormat: "mp3",
+            audioSegments: [],
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            llmDuration: 0.2,
+            ttsDuration: 0.3,
+            validImageCount: 2,
+            totalImageCount: 2,
+            textLength: 0,
+            audioSize: 0,
+            voiceSettings: nil,
+            avatarImageIndex: 0,
+            storageSize: 0,
+            makeStatus: .completed,
+            storyHighlights: "要点总结",
+            hasVirtualPage: true
+        )
+
+        XCTAssertEqual(record.sourceOCRTextSegments, ["第一页", "第二页"])
+        XCTAssertEqual(record.sourceOCRText, "第一页\(Constants.ocrTextSeparator)第二页")
+        XCTAssertEqual(record.nameWithoutDatePrefix, "贝贝熊-刷牙")
+    }
     
     func testSessionRecordIdentifiable() {
         let record1 = SessionRecord(
@@ -511,6 +544,7 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(importResult.importedCount, 1)
         XCTAssertEqual(importResult.skippedCount, 1)
         XCTAssertEqual(importResult.duplicateCount, 0)
+        XCTAssertEqual(importResult.skipReasonCounts[.sessionDirectoryInvalid], 1)
 
         createdSessionIDs.append(importedSessionID)
         XCTAssertNotNil(SessionRecordManager.shared.loadSession(id: importedSessionID))
@@ -1007,6 +1041,269 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(importResult.importedCount, 0)
         XCTAssertEqual(importResult.skippedCount, 1)
         XCTAssertEqual(importResult.errorMessage, "该记录目录不完整或已损坏")
+        XCTAssertEqual(importResult.skipReasonCounts[.integrityValidationFailed], 1)
+    }
+
+    func testImportOneSessionIgnoresStaleMetadataCacheAfterLocalDeletion() throws {
+        let sessionID = "stale-cache-import-one-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "stale-cache-import-one",
+            images: [makeImage(color: .cyan)],
+            ocrText: "重新传输",
+            ocrTextSegments: ["重新传输"],
+            audioData: Data([0x31, 0x32, 0x33]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stale_cache_import_one_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        _ = SessionRecordManager.shared.getAllSessionMetadata(caller: "test.staleCacheImportOne.warmup")
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        try FileManager.default.removeItem(at: sessionDir)
+        createdSessionIDs.removeAll(where: { $0 == sessionID })
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let importResult = SessionRecordManager.shared.importOneSession(from: exportedSessionDir)
+        XCTAssertTrue(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 1)
+        XCTAssertEqual(importResult.duplicateCount, 0)
+        XCTAssertTrue(importResult.skipReasonCounts.isEmpty)
+
+        createdSessionIDs.append(sessionID)
+        XCTAssertNotNil(SessionRecordManager.shared.loadSession(id: sessionID))
+    }
+
+    func testImportOneSessionReportsDuplicateSkipReason() throws {
+        let sessionID = "duplicate-import-one-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "duplicate-import-one",
+            images: [makeImage(color: .orange)],
+            ocrText: "重复导入",
+            ocrTextSegments: ["重复导入"],
+            audioData: Data([0x61, 0x62, 0x63]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("duplicate_import_one_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let importResult = SessionRecordManager.shared.importOneSession(from: exportedSessionDir)
+        XCTAssertTrue(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 0)
+        XCTAssertEqual(importResult.duplicateCount, 1)
+        XCTAssertEqual(importResult.skipReasonCounts[.duplicateID], 1)
+    }
+
+    func testImportAllSessionsIgnoresStaleMetadataCacheAfterLocalDeletion() throws {
+        let sessionID = "stale-cache-import-all-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "stale-cache-import-all",
+            images: [makeImage(color: .magenta)],
+            ocrText: "再次制作后重传",
+            ocrTextSegments: ["再次制作后重传"],
+            audioData: Data([0x41, 0x42, 0x43]),
+            audioFormat: "mp3",
+            audioDuration: 1.1,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stale_cache_import_all_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSelectedSessions([sessionID], to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        _ = SessionRecordManager.shared.getAllSessionMetadata(caller: "test.staleCacheImportAll.warmup")
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        try FileManager.default.removeItem(at: sessionDir)
+        createdSessionIDs.removeAll(where: { $0 == sessionID })
+
+        let exportPackageDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let importResult = SessionRecordManager.shared.importAllSessions(from: exportPackageDir)
+        XCTAssertTrue(importResult.success)
+        XCTAssertEqual(importResult.importedCount, 1)
+        XCTAssertEqual(importResult.duplicateCount, 0)
+        XCTAssertTrue(importResult.skipReasonCounts.isEmpty)
+
+        createdSessionIDs.append(sessionID)
+        XCTAssertNotNil(SessionRecordManager.shared.loadSession(id: sessionID))
+    }
+
+    func testUpdateSessionWithResultsReplacesLegacyDatePrefixInStoryName() throws {
+        let sessionID = "update-session-results-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let draftRecord = SessionRecord(
+            id: sessionID,
+            name: "26.04.29 贝贝熊-旧名字",
+            images: [makeImage(color: .orange)],
+            ocrText: "旧文本",
+            ocrTextSegments: ["旧文本"],
+            audioData: Data(),
+            audioFormat: "mp3",
+            audioDuration: 0.8,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1,
+            makeStatus: .making
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(draftRecord).success)
+
+        let response = AudioResponse(
+            id: sessionID,
+            audioURL: "",
+            text: "新文本",
+            language: "zh",
+            duration: 1.2,
+            format: "mp3",
+            quality: "high",
+            timestamp: Date(),
+            voiceSettings: nil,
+            audioData: Data([0x01, 0x02, 0x03]),
+            validImageCount: 1,
+            recognizedTexts: ["新文本"],
+            audioSegments: [],
+            storyName: "26.04.29 贝贝熊-新名字",
+            storyHighlights: "新的要点",
+            hasVirtualPage: true
+        )
+
+        XCTAssertTrue(
+            SessionRecordManager.shared.updateSessionWithResults(
+                id: sessionID,
+                audioResponse: response,
+                ocrDuration: 0.3,
+                llmDuration: 0.4,
+                ttsDuration: 0.5
+            )
+        )
+
+        let updatedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
+        let formatter = DateFormatter()
+        formatter.dateFormat = Constants.sessionNameDatePrefixFormat
+        let expectedPrefix = formatter.string(from: Date())
+
+        XCTAssertEqual(updatedRecord.name, expectedPrefix + "贝贝熊-新名字")
+        XCTAssertFalse(updatedRecord.name.contains("26.04.29 贝贝熊-新名字"))
+    }
+
+    func testExportedSnapshotFromRemadeSessionPassesIntegrityValidation() throws {
+        let sessionID = "remade-export-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let initialRecord = SessionRecord(
+            id: sessionID,
+            name: "remade-export-initial",
+            images: [
+                makeImage(color: .red, size: CGSize(width: 120, height: 120)),
+                makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+            ],
+            ocrText: "旧文本",
+            ocrTextSegments: ["旧", "文本"],
+            audioData: Data([0x01, 0x02, 0x03, 0x04]),
+            audioFormat: "mp3",
+            audioDuration: 1.5,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 2
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord).success)
+
+        let coverData = try XCTUnwrap(makeImage(color: .green, size: CGSize(width: 160, height: 90)).jpegData(compressionQuality: 1.0))
+        let coverPath = try SessionRecordManager.shared.saveCoverImage(data: coverData, sessionId: sessionID)
+        let initialWithCover = initialRecord.withCoverImagePath(coverPath)
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialWithCover).success)
+
+        let remadeRecord = SessionRecord(
+            id: sessionID,
+            name: "remade-export-final",
+            createdAt: initialWithCover.createdAt,
+            updatedAt: Date(),
+            images: [makeImage(color: .purple, size: CGSize(width: 140, height: 140))],
+            ocrText: "再次制作后的文本",
+            ocrTextSegments: ["再次制作后的文本"],
+            audioData: Data([0x11, 0x12, 0x13]),
+            audioFormat: "mp3",
+            audioDuration: 2.0,
+            ocrDuration: 0.3,
+            ttsDuration: 0.4,
+            validImageCount: 1,
+            avatarImageIndex: 0,
+            storyHighlights: "要点",
+            hasVirtualPage: true
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(remadeRecord).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remade_export_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSelectedSessions([sessionID], to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportPackageDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+        let sessionsDir = exportPackageDir.appendingPathComponent("Sessions", isDirectory: true)
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        XCTAssertEqual(
+            SessionRecordManager.shared.validateTransferredSessionDirectory(exportedSessionDir),
+            .valid(id: sessionID, name: "remade-export-final")
+        )
     }
 
     func testValidateTransferredSessionDirectoryReportsMissingImageReason() throws {
@@ -1047,6 +1344,106 @@ final class PhotoTTSAppTests: XCTestCase {
 
         let result = SessionRecordManager.shared.validateTransferredSessionDirectory(exportedSessionDir)
         XCTAssertEqual(result, .invalid(reason: "缺少图片文件 image_0.jpg"))
+    }
+
+    func testValidateTransferredSessionDirectoryReportsIntegrityFailureFileDetail() throws {
+        let sessionID = "integrity-detail-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-detail",
+            images: [makeImage(color: .cyan)],
+            ocrText: "校验明细",
+            ocrTextSegments: ["校验明细"],
+            audioData: Data([0x61, 0x62, 0x63, 0x64]),
+            audioFormat: "mp3",
+            audioDuration: 1.2,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("integrity_detail_export_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let imageURL = exportedSessionDir.appendingPathComponent("images/image_0.jpg")
+        try Data([0x00, 0x01, 0x02]).write(to: imageURL, options: .atomic)
+
+        let result = SessionRecordManager.shared.validateTransferredSessionDirectory(exportedSessionDir)
+        guard case .invalid(let reason) = result else {
+            return XCTFail("Expected integrity validation to fail")
+        }
+        XCTAssertTrue(reason.contains("完整性校验失败:"))
+        XCTAssertTrue(reason.contains("images/image_0.jpg"))
+        XCTAssertTrue(reason.contains("文件大小不匹配") || reason.contains("文件 MD5 不匹配"))
+    }
+
+    func testValidateTransferredSessionDirectoryAcceptsLegacyImagePathInIntegrityManifest() throws {
+        let sessionID = "integrity-legacy-image-path-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "integrity-legacy-image-path",
+            images: [makeImage(color: .brown)],
+            ocrText: "兼容旧图片路径",
+            ocrTextSegments: ["兼容旧图片路径"],
+            audioData: Data([0x21, 0x22, 0x23]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let exportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("integrity_legacy_image_path_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportRoot) }
+
+        let exportResult = SessionRecordManager.shared.exportSession(id: sessionID, to: exportRoot)
+        XCTAssertTrue(exportResult.success)
+
+        let exportedSessionDir = try XCTUnwrap(
+            try FileManager.default.contentsOfDirectory(at: exportRoot, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true })
+        )
+
+        let integrityURL = exportedSessionDir.appendingPathComponent("integrity.json")
+        let integrityData = try Data(contentsOf: integrityURL)
+        let jsonObject = try XCTUnwrap(JSONSerialization.jsonObject(with: integrityData) as? [String: Any])
+        let files = try XCTUnwrap(jsonObject["files"] as? [[String: Any]])
+        let mutatedFiles = files.map { file -> [String: Any] in
+            guard let path = file["path"] as? String, path == "images/image_0.jpg" else {
+                return file
+            }
+            var mutated = file
+            mutated["path"] = "image_0.jpg"
+            return mutated
+        }
+
+        var mutatedObject = jsonObject
+        mutatedObject["files"] = mutatedFiles
+        let mutatedData = try JSONSerialization.data(withJSONObject: mutatedObject, options: [.prettyPrinted, .sortedKeys])
+        try mutatedData.write(to: integrityURL, options: .atomic)
+
+        XCTAssertEqual(
+            SessionRecordManager.shared.validateTransferredSessionDirectory(exportedSessionDir),
+            .valid(id: sessionID, name: "integrity-legacy-image-path")
+        )
     }
     
     // MARK: - Constants 测试

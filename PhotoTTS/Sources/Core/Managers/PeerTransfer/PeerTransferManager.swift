@@ -1159,7 +1159,10 @@ extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
         }
 
         // 检查本地已存在哪些重复 session
-        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "PeerTransfer.邀请检查")
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+            caller: "PeerTransfer.邀请检查",
+            forceRefresh: true
+        )
         let localIDs = Set(allMetadata.map(\.id))
         let duplicateIDs = invitationContext.sessionIDs.filter { localIDs.contains($0) }
 

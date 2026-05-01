@@ -462,6 +462,37 @@ struct SessionRecord: Codable, Identifiable, Hashable {
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter.string(from: createdAt)
     }
+
+    /// 去掉名称中的日期前缀，仅保留标题部分。
+    var nameWithoutDatePrefix: String {
+        let prefixLen = Constants.sessionNameDatePrefixFormat.count
+        guard name.count >= prefixLen else { return name }
+
+        let prefixWithSpace = String(name.prefix(prefixLen))
+        let prefixDateStr = prefixWithSpace.trimmingCharacters(in: .whitespaces)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yy.MM.dd"
+        formatter.locale = Locale(identifier: "zh_CN")
+
+        guard formatter.date(from: prefixDateStr) != nil else { return name }
+
+        let suffix = String(name.dropFirst(prefixLen))
+        return suffix.isEmpty ? name : suffix
+    }
+
+    /// 用于再次制作时恢复的 OCR 分段，不包含 LLM 追加的虚拟要点页。
+    var sourceOCRTextSegments: [String] {
+        guard totalImageCount > 0 else { return ocrTextSegments }
+        guard ocrTextSegments.count > totalImageCount else { return ocrTextSegments }
+        return Array(ocrTextSegments.prefix(totalImageCount))
+    }
+
+    /// 用于再次制作时恢复的 OCR 原文，不包含 LLM 追加的虚拟要点页。
+    var sourceOCRText: String {
+        let segments = sourceOCRTextSegments
+        guard !segments.isEmpty else { return ocrText }
+        return segments.joined(separator: Constants.ocrTextSeparator)
+    }
 }
 
 // MARK: - 会话记录元数据（用于列表展示，不包含完整数据）

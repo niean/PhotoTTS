@@ -375,11 +375,11 @@ struct MakeView: View {
         isLoadingRecord = true
 
         // 还原制作状态数据（同步，不依赖图片加载）
-        ocrResult = record.ocrText
+        ocrResult = record.sourceOCRText
         ocrDuration = record.ocrDuration
         llmDuration = record.llmDuration
         ttsDuration = record.ttsDuration
-        ocrTextSegments = record.ocrTextSegments
+        ocrTextSegments = record.sourceOCRTextSegments
 
         // 还原音频数据
         if !record.audioDataBase64.isEmpty,
@@ -388,7 +388,7 @@ struct MakeView: View {
             audioResponse = AudioResponse(
                 id: record.id,
                 audioURL: "",
-                text: record.ocrText,
+                text: record.sourceOCRText,
                 language: "",
                 duration: record.audioDuration,
                 format: record.audioFormat,
@@ -397,9 +397,9 @@ struct MakeView: View {
                 voiceSettings: nil,
                 audioData: data,
                 validImageCount: record.validImageCount,
-                recognizedTexts: record.ocrTextSegments,
+                recognizedTexts: record.sourceOCRTextSegments,
                 audioSegments: record.audioSegments,
-                storyName: record.name,
+                storyName: record.nameWithoutDatePrefix,
                 storyHighlights: record.storyHighlights,
                 hasVirtualPage: record.hasVirtualPage
             )
@@ -415,11 +415,11 @@ struct MakeView: View {
         intermediate.ocrCharCount = record.textLength
         intermediate.ocrCompletedCount = record.totalImageCount
         intermediate.ocrDuration = record.ocrDuration
-        intermediate.ocrTexts = record.ocrTextSegments
-        intermediate.llmStoryName = record.storyHighlights != nil ? record.name : nil
+        intermediate.ocrTexts = record.sourceOCRTextSegments
+        intermediate.llmStoryName = record.storyHighlights != nil ? record.nameWithoutDatePrefix : nil
         intermediate.llmHighlights = record.storyHighlights
         intermediate.llmDuration = record.llmDuration
-        intermediate.llmCharCount = (record.storyHighlights != nil) ? (record.name.count + (record.storyHighlights?.count ?? 0)) : 0
+        intermediate.llmCharCount = (record.storyHighlights != nil) ? (record.nameWithoutDatePrefix.count + (record.storyHighlights?.count ?? 0)) : 0
         intermediate.llmStatus = record.llmDuration > 0 ? .completed : (record.ocrDuration > 0 ? .skipped : .notStarted)
         intermediate.ttsDuration = record.ttsDuration
         intermediate.ttsCharCount = record.textLength
@@ -429,7 +429,7 @@ struct MakeView: View {
         intermediate.ttsCompletedSegmentCount = max(record.audioSegments.count > 0 ? record.audioSegments.count : (audioData != nil ? 1 : 0), 0)
         intermediate.ttsCurrentSegmentNumber = record.audioSegments.last?.sequenceNumber ?? (audioData != nil ? 1 : 0)
         intermediate.ttsCurrentSegmentImageStartIndex = record.audioSegments.last?.imageStartIndex ?? 0
-        intermediate.ttsCurrentSegmentImageEndIndex = record.audioSegments.last?.imageEndIndex ?? max(0, record.ocrTextSegments.count - 1)
+        intermediate.ttsCurrentSegmentImageEndIndex = record.audioSegments.last?.imageEndIndex ?? max(0, record.sourceOCRTextSegments.count - 1)
         if audioData != nil {
             intermediate.ttsStatus = .completed
         } else {

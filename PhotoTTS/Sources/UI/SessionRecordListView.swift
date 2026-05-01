@@ -1138,11 +1138,9 @@ struct SessionRecordListView: View {
                     let formattedSize = self.formatStorageSize(result.totalSize)
                     
                     var msg = "共 \(total) 个，导入 \(imported) 个"
-                    if duplicate > 0 {
-                        msg += "\nID重复跳过 \(duplicate) 个"
-                    }
-                    if skipped > 0 {
-                        msg += "\n其他原因跳过 \(skipped) 个"
+                    let skipSummaryLines = self.formatSkipReasonSummary(result.skipReasonCounts)
+                    if !skipSummaryLines.isEmpty {
+                        msg += "\n" + skipSummaryLines.joined(separator: "\n")
                     }
                     if imported > 0 {
                         msg += "\n总大小: \(formattedSize)"
@@ -1156,6 +1154,13 @@ struct SessionRecordListView: View {
                     self.showMessage = true
                 }
             }
+        }
+    }
+
+    private func formatSkipReasonSummary(_ skipReasonCounts: [SessionImportSkipReason: Int]) -> [String] {
+        SessionImportSkipReason.allCases.compactMap { reason in
+            guard let count = skipReasonCounts[reason], count > 0 else { return nil }
+            return "\(reason.displayName) \(count) 条"
         }
     }
     
