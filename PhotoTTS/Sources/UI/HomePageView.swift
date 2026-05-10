@@ -107,6 +107,7 @@ struct HomePageView: View {
     @State private var searchText: String = ""
     @State private var playStatsMap: [String: PlayStatInfo] = [:]
     @State private var selectedSeries: String? = nil  // nil 表示不限
+    @State private var selectedReadStatus: SessionReadStatusFilter? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
     @State private var todoRecordIds: Set<String> = []
 
@@ -185,7 +186,10 @@ struct HomePageView: View {
                     ProgressView("加载中...")
                         .scaleEffect(scaled(1.0))
                     Spacer()
-                } else if totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                } else if totalCount == 0
+                    && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && selectedSeries == nil
+                    && selectedReadStatus == nil {
                     Spacer()
                     VStack(spacing: scaled(20)) {
                         Image(systemName: "book.closed")
@@ -297,6 +301,9 @@ struct HomePageView: View {
         .onChange(of: selectedSeries) {
             refreshFirstBatch()
         }
+        .onChange(of: selectedReadStatus) {
+            refreshFirstBatch()
+        }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
             checkAndMarkTodoDateIfNeeded()
         }
@@ -308,9 +315,8 @@ struct HomePageView: View {
         SessionSearchBar(
             searchText: $searchText,
             selectedSeries: $selectedSeries,
+            selectedReadStatus: $selectedReadStatus,
             seriesOptions: seriesOptions,
-            unselectedButtonLabel: "系列",
-            unselectedMenuLabel: "不限",
             onSearchSubmit: {
                 refreshFirstBatch()
             }
@@ -385,6 +391,7 @@ struct HomePageView: View {
         guard loadedPageCount == 0,
               searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               selectedSeries == nil,
+              selectedReadStatus == nil,
               let snapshot = appState.consumeHomePageStartupPreloadSnapshot() else {
             return false
         }
@@ -426,6 +433,7 @@ struct HomePageView: View {
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
         let series = selectedSeries
+        let readStatus = selectedReadStatus
         let requestedSortMode: HomeSessionSortMode = .list
         let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
             ? true
@@ -439,6 +447,7 @@ struct HomePageView: View {
                 let allItems = SessionRecordManager.shared.getFilteredSessionMetadata(
                     searchKeyword: keyword,
                     seriesFilter: series,
+                    readStatusFilter: readStatus,
                     completedOnly: true,
                     sortMode: requestedSortMode,
                     caller: "首页卡片"
@@ -466,6 +475,7 @@ struct HomePageView: View {
                     pageSize: pageSize,
                     searchKeyword: keyword,
                     seriesFilter: series,
+                    readStatusFilter: readStatus,
                     completedOnly: true,
                     sortMode: requestedSortMode,
                     caller: "首页卡片"
@@ -485,7 +495,8 @@ struct HomePageView: View {
                 }
 
                 guard self.searchText == keyword,
-                      self.selectedSeries == series else {
+                      self.selectedSeries == series,
+                      self.selectedReadStatus == readStatus else {
                     return
                 }
 

@@ -58,6 +58,21 @@ struct PlayStatInfo {
     let playCount: Int
 }
 
+// MARK: - 阅读状态筛选
+enum SessionReadStatusFilter: String, CaseIterable {
+    case read
+    case unread
+
+    var label: String {
+        switch self {
+        case .read:
+            return "已读"
+        case .unread:
+            return "未读"
+        }
+    }
+}
+
 // MARK: - 会话记录数据模型
 /// 会话记录数据模型，用于存储一次完整的OCR+TTS处理会话
 /// 包含时间、图片、文字、语音、状态信息等

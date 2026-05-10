@@ -18,14 +18,12 @@ private enum GroupMode: CaseIterable {
     case flat       // 平铺（list.bullet）
     case bySeries   // 按系列（square.grid.2x2）
     case byMonth    // 按月份（calendar）
-    case byReadStatus // 按未读/已读（book.closed）
 
     var iconName: String {
         switch self {
         case .flat: return "list.bullet"
         case .bySeries: return "square.grid.2x2"
         case .byMonth: return "calendar"
-        case .byReadStatus: return "book.closed"
         }
     }
 
@@ -33,8 +31,7 @@ private enum GroupMode: CaseIterable {
         switch self {
         case .flat: return .bySeries
         case .bySeries: return .byMonth
-        case .byMonth: return .byReadStatus
-        case .byReadStatus: return .flat
+        case .byMonth: return .flat
         }
     }
 }
@@ -70,6 +67,7 @@ struct SessionRecordListView: View {
     @State private var showDeleteSelectedConfirmation = false  // 显示批量删除确认弹窗
     @State private var searchText: String = ""  // 搜索关键词
     @State private var selectedSeries: String? = nil  // nil 表示不限
+    @State private var selectedReadStatus: SessionReadStatusFilter? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
     
     // 滚动位置追踪（首页嵌入模式用）
@@ -146,9 +144,6 @@ struct SessionRecordListView: View {
                 return item.seriesName
             case .byMonth:
                 return item.monthKey
-            case .byReadStatus:
-                let playCount = playStatsMap[item.id]?.playCount ?? 0
-                return playCount > 0 ? "已读" : "未读"
             }
         }
 
@@ -161,17 +156,6 @@ struct SessionRecordListView: View {
         let uncategorized = Constants.GroupDisplay.uncategorizedLabel
         let sorted = groups.map { (key: $0.key, items: $0.value.sorted { $0.namePrefixDate > $1.namePrefixDate }) }
             .sorted { lhs, rhs in
-                if groupMode == .byReadStatus {
-                    let order = ["未读": 0, "已读": 1]
-                    let lhsOrder = order[lhs.key] ?? Int.max
-                    let rhsOrder = order[rhs.key] ?? Int.max
-                    if lhsOrder != rhsOrder {
-                        return lhsOrder < rhsOrder
-                    }
-                    let lhsDate = lhs.items.first?.namePrefixDate ?? Date.distantPast
-                    let rhsDate = rhs.items.first?.namePrefixDate ?? Date.distantPast
-                    return lhsDate > rhsDate
-                }
                 if lhs.key == uncategorized { return false }
                 if rhs.key == uncategorized { return true }
                 if groupMode == .bySeries {
@@ -229,9 +213,8 @@ struct SessionRecordListView: View {
         SessionSearchBar(
             searchText: $searchText,
             selectedSeries: $selectedSeries,
+            selectedReadStatus: $selectedReadStatus,
             seriesOptions: seriesOptions,
-            unselectedButtonLabel: "系列",
-            unselectedMenuLabel: "不限",
             onSearchSubmit: {
                 if isGroupedMode {
                     loadAllMetadata()
@@ -344,7 +327,11 @@ struct SessionRecordListView: View {
             ProgressView("加载中...")
                 .scaleEffect(scaled(1.0))
             Spacer()
-        } else if !isGroupedMode && totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        } else if !isGroupedMode
+            && totalCount == 0
+            && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && selectedSeries == nil
+            && selectedReadStatus == nil {
             Spacer()
             VStack(spacing: scaled(20)) {
                 Image(systemName: "book.closed")
@@ -667,6 +654,14 @@ struct SessionRecordListView: View {
                 loadPage()
             }
         }
+        .onChange(of: selectedReadStatus) {
+            if isGroupedMode {
+                loadAllMetadata()
+            } else {
+                currentPage = 1
+                loadPage()
+            }
+        }
         .alert("删除会话记录", isPresented: $showDeleteConfirmation) {
             Button("取消", role: .cancel) {
                 sessionToDelete = nil
@@ -925,6 +920,7 @@ struct SessionRecordListView: View {
         let requestPageSize = pageSizeOverride ?? pageSize
         let keyword = searchText
         let series = selectedSeries
+        let readStatus = selectedReadStatus
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = SessionRecordManager.shared.getSessionMetadataPage(
@@ -932,6 +928,7 @@ struct SessionRecordListView: View {
                 pageSize: requestPageSize,
                 searchKeyword: keyword,
                 seriesFilter: series,
+                readStatusFilter: readStatus,
                 caller: "记录列表"
             )
             let statsMap = mode == .manage
@@ -947,7 +944,8 @@ struct SessionRecordListView: View {
                 }
 
                 guard self.searchText == keyword,
-                      self.selectedSeries == series else {
+                      self.selectedSeries == series,
+                      self.selectedReadStatus == readStatus else {
                     return
                 }
 
@@ -977,15 +975,14 @@ struct SessionRecordListView: View {
         isLoading = true
         let keyword = searchText
         let seriesFilter = selectedSeries
+        let readStatusFilter = selectedReadStatus
         DispatchQueue.global(qos: .userInitiated).async {
-            var list = SessionRecordManager.shared.getAllSessionMetadata(caller: "分组列表")
-            let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                list = list.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
-            }
-            if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
-                list = list.filter { $0.seriesName == seriesFilter }
-            }
+            let list = SessionRecordManager.shared.getFilteredSessionMetadata(
+                searchKeyword: keyword,
+                seriesFilter: seriesFilter,
+                readStatusFilter: readStatusFilter,
+                caller: "分组列表"
+            )
             let statsMap = mode == .manage
                 ? SessionRecordManager.shared.loadPlayStats(sessionIds: list.map(\.id))
                 : [:]

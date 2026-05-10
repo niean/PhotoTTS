@@ -893,11 +893,19 @@ class SessionRecordManager {
     /// - Parameters:
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
+    ///   - readStatusFilter: 阅读状态筛选（按播放历史判断，nil 表示不过滤）
     ///   - completedOnly: 是否仅保留已完成记录
     ///   - sortMode: 首页排序模式
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 匹配的元数据列表
-    func getFilteredSessionMetadata(searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> [SessionRecordMetadata] {
+    func getFilteredSessionMetadata(
+        searchKeyword: String = "",
+        seriesFilter: String? = nil,
+        readStatusFilter: SessionReadStatusFilter? = nil,
+        completedOnly: Bool = false,
+        sortMode: HomeSessionSortMode = .list,
+        caller: String = ""
+    ) -> [SessionRecordMetadata] {
         var metadataList: [SessionRecordMetadata] = []
 
         do {
@@ -938,6 +946,19 @@ class SessionRecordManager {
             metadataList = metadataList.filter { $0.seriesName == seriesFilter }
         }
 
+        if let readStatusFilter {
+            let playStatsMap = loadPlayStats(sessionIds: metadataList.map(\.id))
+            metadataList = metadataList.filter { metadata in
+                let hasPlayed = playStatsMap[metadata.id] != nil
+                switch readStatusFilter {
+                case .read:
+                    return hasPlayed
+                case .unread:
+                    return !hasPlayed
+                }
+            }
+        }
+
         // 仅保留已完成记录（首页不展示制作中和未完成记录）
         if completedOnly {
             metadataList = metadataList.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
@@ -955,12 +976,23 @@ class SessionRecordManager {
     ///   - pageSize: 每页条数
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
+    ///   - readStatusFilter: 阅读状态筛选（按播放历史判断，nil 表示不过滤）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 当前页的元数据列表 + 匹配总数
-    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+    func getSessionMetadataPage(
+        page: Int,
+        pageSize: Int,
+        searchKeyword: String = "",
+        seriesFilter: String? = nil,
+        readStatusFilter: SessionReadStatusFilter? = nil,
+        completedOnly: Bool = false,
+        sortMode: HomeSessionSortMode = .list,
+        caller: String = ""
+    ) -> (items: [SessionRecordMetadata], totalCount: Int) {
         let metadataList = getFilteredSessionMetadata(
             searchKeyword: searchKeyword,
             seriesFilter: seriesFilter,
+            readStatusFilter: readStatusFilter,
             completedOnly: completedOnly,
             sortMode: sortMode,
             caller: caller
