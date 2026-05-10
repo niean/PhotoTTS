@@ -95,32 +95,6 @@ enum HomePagePlayPlanHelper {
 
 // MARK: - 首页
 struct HomePageView: View {
-    private enum SortMode: CaseIterable {
-        case list
-        case series
-
-        var iconName: String {
-            switch self {
-            case .list: return "list.bullet"
-            case .series: return "square.grid.2x2"
-            }
-        }
-
-        var next: SortMode {
-            switch self {
-            case .list: return .series
-            case .series: return .list
-            }
-        }
-
-        var sessionSortMode: HomeSessionSortMode {
-            switch self {
-            case .list: return .list
-            case .series: return .series
-            }
-        }
-    }
-
     @ObservedObject var appState: AppState
     @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
 
@@ -135,7 +109,6 @@ struct HomePageView: View {
     @State private var selectedSeries: String? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
     @State private var todoRecordIds: Set<String> = []
-    @State private var sortMode: SortMode = .list
 
     // MARK: - 播放计划每日限制
 
@@ -292,20 +265,7 @@ struct HomePageView: View {
             .padding(.top, scaled(45))
 
             // 顶导
-            TopAndLeftSideNavigationBar(
-                title: "首页",
-                leading: {
-                    Button(action: {
-                        sortMode = sortMode.next
-                    }) {
-                        Image(systemName: sortMode.iconName)
-                            .symbolRenderingMode(.monochrome)
-                            .font(Constants.Fonts.navAction)
-                            .frame(width: scaled(20), height: scaled(20))
-                            .foregroundStyle(.primary)
-                    }
-                }
-            )
+            TopAndLeftSideNavigationBar(title: "首页")
         }
         .fullScreenCover(item: $sessionToPlayFromHome) { item in
             PlayView(recordId: item.id, queueRecordIds: item.queueRecordIds, onDismiss: {
@@ -335,9 +295,6 @@ struct HomePageView: View {
             }
         }
         .onChange(of: selectedSeries) {
-            refreshFirstBatch()
-        }
-        .onChange(of: sortMode) {
             refreshFirstBatch()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
@@ -383,13 +340,13 @@ struct HomePageView: View {
             : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
 
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
-            sortMode: sortMode.sessionSortMode,
+            sortMode: .list,
             caller: "HomePageView.连播队列"
         )
         let queue: [String]
 
         if HomePagePlayPlanHelper.shouldUsePlanQueue(
-            sortMode: sortMode.sessionSortMode,
+            sortMode: .list,
             playPlanEnabled: playPlanEnabled,
             isTodoRecord: todoRecordIds.contains(id)
         ) {
@@ -432,7 +389,6 @@ struct HomePageView: View {
             return false
         }
 
-        sortMode = snapshot.sortMode == .series ? .series : .list
         let (sortedItems, todoIds) = applyPlayPlanSort(to: snapshot.items, statsMap: snapshot.playStatsMap)
         pagedMetadataList = sortedItems
         todoRecordIds = todoIds
@@ -470,7 +426,7 @@ struct HomePageView: View {
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
         let series = selectedSeries
-        let requestedSortMode = sortMode
+        let requestedSortMode: HomeSessionSortMode = .list
         let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
             ? true
             : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
@@ -484,14 +440,14 @@ struct HomePageView: View {
                     searchKeyword: keyword,
                     seriesFilter: series,
                     completedOnly: true,
-                    sortMode: requestedSortMode.sessionSortMode,
+                    sortMode: requestedSortMode,
                     caller: "首页卡片"
                 )
                 let allStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: allItems.map(\.id))
                 let (visibleItems, allTodoIds) = HomePagePlayPlanHelper.applySort(
                     to: allItems,
                     statsMap: allStatsMap,
-                    sortMode: requestedSortMode.sessionSortMode,
+                    sortMode: requestedSortMode,
                     playPlanEnabled: isPlanEnabled,
                     isTodayProcessed: hasTodayProcessed,
                     todayProcessedTodoDate: processedTodoDate
@@ -511,7 +467,7 @@ struct HomePageView: View {
                     searchKeyword: keyword,
                     seriesFilter: series,
                     completedOnly: true,
-                    sortMode: requestedSortMode.sessionSortMode,
+                    sortMode: requestedSortMode,
                     caller: "首页卡片"
                 )
                 batchTodoIds = []
@@ -529,8 +485,7 @@ struct HomePageView: View {
                 }
 
                 guard self.searchText == keyword,
-                      self.selectedSeries == series,
-                      self.sortMode == requestedSortMode else {
+                      self.selectedSeries == series else {
                     return
                 }
 
@@ -587,7 +542,7 @@ struct HomePageView: View {
         return HomePagePlayPlanHelper.applySort(
             to: items,
             statsMap: statsMap,
-            sortMode: sortMode.sessionSortMode,
+            sortMode: .list,
             playPlanEnabled: playPlanEnabled,
             isTodayProcessed: isTodayProcessed,
             todayProcessedTodoDate: todayProcessedTodoDate

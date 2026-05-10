@@ -39,7 +39,6 @@ struct HomePageStartupPreloadSnapshot {
     let totalCount: Int
     let playStatsMap: [String: PlayStatInfo]
     let seriesOptions: [String]
-    let sortMode: HomeSessionSortMode
 }
 
 // MARK: - 应用状态管理
@@ -114,8 +113,7 @@ class AppState: ObservableObject {
                 items: result.items,
                 totalCount: result.totalCount,
                 playStatsMap: playStatsMap,
-                seriesOptions: seriesOptions,
-                sortMode: sortMode
+                seriesOptions: seriesOptions
             )
 
             DispatchQueue.main.async {
