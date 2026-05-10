@@ -25,18 +25,13 @@ struct SessionSearchBar: View {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
 
-    private func filterMenuLabel(title: String, isSelected: Bool, width: CGFloat) -> some View {
-        HStack(spacing: scaled(4)) {
-            Text(title)
-                .font(Constants.Fonts.searchInput)
-                .foregroundColor(isSelected ? .blue : .primary)
-                .lineLimit(1)
-            Image(systemName: "chevron.down")
-                .font(Constants.Fonts.searchIcon)
-                .foregroundColor(isSelected ? .blue : .gray)
-        }
+    private func filterMenuLabel(title: String, isSelected _: Bool, width: CGFloat) -> some View {
+        Text(title)
+            .font(Constants.Fonts.searchInput)
+            .foregroundColor(.gray)
+            .lineLimit(1)
         .frame(width: scaled(width), height: Constants.SearchBar.rowMinHeight, alignment: .center)
-        .padding(.horizontal, scaled(10))
+        .padding(.horizontal, scaled(6))
         .contentShape(Rectangle())
     }
 
@@ -63,7 +58,7 @@ struct SessionSearchBar: View {
                     }
                 }
             } label: {
-                filterMenuLabel(title: selectedSeries ?? "系列", isSelected: selectedSeries != nil, width: 54)
+                filterMenuLabel(title: selectedSeries ?? "系列", isSelected: selectedSeries != nil, width: 34)
             }
             .buttonStyle(.plain)
 
@@ -94,7 +89,7 @@ struct SessionSearchBar: View {
                     }
                 }
             } label: {
-                filterMenuLabel(title: selectedReadStatus?.label ?? "状态", isSelected: selectedReadStatus != nil, width: 54)
+                filterMenuLabel(title: selectedReadStatus?.label ?? "状态", isSelected: selectedReadStatus != nil, width: 34)
             }
             .buttonStyle(.plain)
 
