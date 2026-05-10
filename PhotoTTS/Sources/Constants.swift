@@ -387,7 +387,7 @@ extension Constants {
     // MARK: - 后台制作
     struct BackgroundMake {
         /// 后台制作并发任务上限（受 OCR API 配额与设备资源约束）
-        static let maxConcurrentTasks: Int = 3
+        static let maxConcurrentTasks: Int = 10
         /// JPEG压缩质量
         static let jpegCompressionQuality: CGFloat = 0.8
     }

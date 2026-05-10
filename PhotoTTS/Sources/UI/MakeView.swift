@@ -53,6 +53,7 @@ struct MakeView: View {
     @State private var observingTaskId: String? = nil
     // 后台制作：失败任务的 sessionId（重试时复用草稿记录）
     @State private var failedSessionId: String? = nil
+    @State private var isSavingDeferredDraft: Bool = false
 
     // 记录再制作：图片加载中状态
     @State private var isLoadingRecord: Bool = false
@@ -338,6 +339,7 @@ struct MakeView: View {
         // 清理后台制作观察
         observingTaskId = nil
         failedSessionId = nil
+        isSavingDeferredDraft = false
 
         // 清理记录加载状态
         isLoadingRecord = false
@@ -692,11 +694,34 @@ struct MakeView: View {
             processImages(startingFrom: .ocr)
         } else if !selectedImages.isEmpty {
             os.Logger.makeView.warning("onImagesChanged: 已达并发上限，跳过自动启动；activeCount=\(bgMakeManager.activeTaskCount)")
+            persistDeferredDraftForCapacityLimit()
             error = NSError(
                 domain: Constants.ErrorInfo.domain,
                 code: Constants.ErrorInfo.defaultCode,
-                userInfo: [NSLocalizedDescriptionKey: "已达到同时制作上限（\(Constants.BackgroundMake.maxConcurrentTasks) 个），请等待其它任务完成后再试"]
+                userInfo: [NSLocalizedDescriptionKey: "已达到同时制作上限（\(Constants.BackgroundMake.maxConcurrentTasks) 个），当前内容已保存到管理页，可稍后继续制作"]
             )
+        }
+    }
+
+    private func persistDeferredDraftForCapacityLimit() {
+        guard !selectedImages.isEmpty else { return }
+        guard !isSavingDeferredDraft else { return }
+        guard failedSessionId == nil else { return }
+
+        isSavingDeferredDraft = true
+        let images = selectedImages
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let sessionId = bgMakeManager.saveDeferredDraft(images: images)
+            DispatchQueue.main.async {
+                self.isSavingDeferredDraft = false
+                if let sessionId {
+                    self.failedSessionId = sessionId
+                    os.Logger.makeView.info("超并发草稿已保存，可稍后继续制作: sessionId=\(sessionId)")
+                } else {
+                    os.Logger.makeView.error("超并发时草稿保存失败")
+                }
+            }
         }
     }
 
@@ -842,9 +867,13 @@ struct MakeView: View {
             os.Logger.makeView.info("processImages: startMaking 返回成功，sessionId=\(sessionId)")
         } else {
             isProcessing = false
-            let message = bgMakeManager.hasCapacity
-                ? "启动制作失败，请重试"
-                : "已达到同时制作上限（\(Constants.BackgroundMake.maxConcurrentTasks) 个），请等待其它任务完成后再试"
+            let isCapacityLimited = !bgMakeManager.hasCapacity
+            if isCapacityLimited {
+                persistDeferredDraftForCapacityLimit()
+            }
+            let message = isCapacityLimited
+                ? "已达到同时制作上限（\(Constants.BackgroundMake.maxConcurrentTasks) 个），当前内容已保存到管理页，可稍后继续制作"
+                : "启动制作失败，请重试"
             error = NSError(domain: Constants.ErrorInfo.domain, code: Constants.ErrorInfo.defaultCode, userInfo: [NSLocalizedDescriptionKey: message])
             os.Logger.makeView.error("processImages: startMaking 返回失败，原因：\(message)")
         }

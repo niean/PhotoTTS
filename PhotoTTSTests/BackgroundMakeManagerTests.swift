@@ -7,6 +7,7 @@ import UIKit
 final class BackgroundMakeManagerTests: XCTestCase {
 
     private let manager = BackgroundMakeManager.shared
+    private var deferredDraftIDs: [String] = []
 
     override func setUp() {
         super.setUp()
@@ -20,6 +21,10 @@ final class BackgroundMakeManagerTests: XCTestCase {
         for (id, _) in manager.tasks {
             manager.removeTask(sessionId: id)
         }
+        for id in deferredDraftIDs {
+            _ = SessionRecordManager.shared.deleteSession(id: id)
+        }
+        deferredDraftIDs.removeAll()
         super.tearDown()
     }
 
@@ -116,8 +121,31 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertEqual(task.intermediateResults?.ocrTexts, ["第一页", "第二页"])
     }
 
-    /// 并发上限常量符合 spec 约定（3）
+    /// 并发上限常量符合 spec 约定（10）
     func testConcurrencyLimitConstant() {
-        XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 3, "spec contract: maxConcurrentTasks == 3")
+        XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 10, "spec contract: maxConcurrentTasks == 10")
+    }
+
+    /// 超出并发时也应保存草稿记录，供管理页可见和后续继续制作
+    func testSaveDeferredDraftPersistsIncompleteRecord() {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        let image = renderer.image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+
+        guard let sessionId = manager.saveDeferredDraft(images: [image]) else {
+            XCTFail("saveDeferredDraft should persist a draft session")
+            return
+        }
+        deferredDraftIDs.append(sessionId)
+
+        let metadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "BackgroundMakeManagerTests", forceRefresh: true)
+            .first(where: { $0.id == sessionId })
+
+        XCTAssertNotNil(metadata, "deferred draft should be discoverable in metadata list")
+        XCTAssertEqual(metadata?.makeStatus, .incomplete, "deferred draft should be marked incomplete instead of making")
+        XCTAssertEqual(metadata?.totalImageCount, 1, "deferred draft should preserve image count")
+        XCTAssertNil(manager.task(for: sessionId), "saving deferred draft should not create a running background task")
     }
 }
