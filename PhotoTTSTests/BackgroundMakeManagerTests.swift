@@ -35,24 +35,32 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertFalse(manager.hasAnyActiveTask, "initial should have no active task")
     }
 
-    /// 手动注入 3 个未完成任务后应达到上限，第 4 个 hasCapacity 返回 false
-    func testCapacityLimitAtThreeTasks() {
-        // 手动注入：模拟 3 个未完成任务（直接写 tasks 字典）
+    /// 手动注入达到并发上限数量的未完成任务后，hasCapacity 应返回 false
+    func testCapacityLimitAtConfiguredTaskCount() {
+        // 手动注入：模拟达到并发上限数量的未完成任务（直接写 tasks 字典）
         // 避免走 startMaking 的磁盘 I/O，仅验证容量门
-        let ids = ["unit-task-1", "unit-task-2", "unit-task-3"]
+        let ids = (1...Constants.BackgroundMake.maxConcurrentTasks).map { "unit-task-\($0)" }
         for id in ids {
             let t = MakeTask(sessionId: id, imageCount: 1)
             manager.tasks[id] = t
         }
-        XCTAssertEqual(manager.activeTaskCount, 3, "after inject 3 tasks, activeCount == 3")
-        XCTAssertFalse(manager.hasCapacity, "3 active tasks should fill capacity")
+        XCTAssertEqual(
+            manager.activeTaskCount,
+            Constants.BackgroundMake.maxConcurrentTasks,
+            "after inject maxConcurrentTasks, activeCount should reach the configured limit"
+        )
+        XCTAssertFalse(manager.hasCapacity, "active tasks at the configured limit should fill capacity")
         XCTAssertTrue(manager.hasAnyActiveTask)
 
         // 标记 1 个完成，容量恢复
         if let t = manager.tasks[ids[0]] {
             t.markFailed(error: NSError(domain: "unit", code: -1))
         }
-        XCTAssertEqual(manager.activeTaskCount, 2, "failed task should not count as active")
+        XCTAssertEqual(
+            manager.activeTaskCount,
+            Constants.BackgroundMake.maxConcurrentTasks - 1,
+            "failed task should not count as active"
+        )
         XCTAssertTrue(manager.hasCapacity, "after one completed, capacity should recover")
     }
 
@@ -146,6 +154,10 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertNotNil(metadata, "deferred draft should be discoverable in metadata list")
         XCTAssertEqual(metadata?.makeStatus, .incomplete, "deferred draft should be marked incomplete instead of making")
         XCTAssertEqual(metadata?.totalImageCount, 1, "deferred draft should preserve image count")
+        XCTAssertTrue(
+            metadata?.name.range(of: #"^\d{2}\.\d{2}\.\d{2} 未命名-\d{6}$"#, options: .regularExpression) != nil,
+            "deferred draft name should use yy.MM.dd 未命名-hhmmss format"
+        )
         XCTAssertNil(manager.task(for: sessionId), "saving deferred draft should not create a running background task")
     }
 }

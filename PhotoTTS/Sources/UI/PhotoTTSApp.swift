@@ -90,12 +90,16 @@ class AppState: ObservableObject {
                 page: 1,
                 pageSize: pageSize,
                 completedOnly: true,
+                excludeUnnamed: true,
                 sortMode: sortMode,
                 caller: "启动预加载-首页首屏"
             )
             let playStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: result.items.map(\.id))
             let uncategorized = Constants.GroupDisplay.uncategorizedLabel
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "启动预加载-首页系列")
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+                excludeUnnamed: true,
+                caller: "启动预加载-首页系列"
+            )
                 .filter { !$0.isMaking && !$0.isIncomplete }
             let seriesOptions = Array(Set(allMetadata.map(\.seriesName)).filter { $0 != uncategorized })
                 .sorted { $0.localizedCompare($1) == .orderedAscending }

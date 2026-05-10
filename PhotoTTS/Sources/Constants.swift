@@ -421,8 +421,10 @@ extension Constants {
     // MARK: - 会话命名
     /// 会话名称日期前缀格式（2 位年份.2 位月份.2 位日期 + 空格）
     static let sessionNameDatePrefixFormat = "yy.MM.dd "
-    /// 草稿会话默认名称后缀（前缀为日期格式）
-    static let draftSessionNameSuffix = "未命名"
+    /// 制作中/等待中草稿会话名称前缀
+    static let draftSessionNamePrefix = "未命名-"
+    /// 制作中/等待中草稿会话时间后缀格式（时分秒）
+    static let draftSessionTimeSuffixFormat = "HHmmss"
 
     // MARK: - 分组展示
     struct GroupDisplay {

@@ -331,9 +331,14 @@ class BackgroundMakeManager: ObservableObject {
     }
 
     private func makeDraftName() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yy.MM.dd "
-        return formatter.string(from: Date()) + Constants.draftSessionNameSuffix
+        let now = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = Constants.sessionNameDatePrefixFormat
+
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = Constants.draftSessionTimeSuffixFormat
+
+        return dateFormatter.string(from: now) + Constants.draftSessionNamePrefix + timeFormatter.string(from: now)
     }
 
     // MARK: - 启动制作

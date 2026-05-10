@@ -148,7 +148,10 @@ struct HomePageView: View {
         let todoDate = Calendar.current.startOfDay(for: metadata.namePrefixDate)
 
         // 获取所有该日期的记录
-        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "HomePageView.检查待办完成")
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+            excludeUnnamed: true,
+            caller: "HomePageView.检查待办完成"
+        )
         let todoDateRecords = allMetadata.filter {
             Calendar.current.isDate($0.namePrefixDate, inSameDayAs: todoDate)
         }
@@ -347,6 +350,7 @@ struct HomePageView: View {
 
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
             sortMode: .list,
+            excludeUnnamed: true,
             caller: "HomePageView.连播队列"
         )
         let queue: [String]
@@ -368,7 +372,10 @@ struct HomePageView: View {
 
     private func loadSeriesOptions() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "首页系列选项")
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+                excludeUnnamed: true,
+                caller: "首页系列选项"
+            )
             let uncategorized = Constants.GroupDisplay.uncategorizedLabel
             let seriesSet = Set(allMetadata.map { $0.seriesName })
                 .filter { $0 != uncategorized }
@@ -449,6 +456,7 @@ struct HomePageView: View {
                     seriesFilter: series,
                     readStatusFilter: readStatus,
                     completedOnly: true,
+                    excludeUnnamed: true,
                     sortMode: requestedSortMode,
                     caller: "首页卡片"
                 )
@@ -477,6 +485,7 @@ struct HomePageView: View {
                     seriesFilter: series,
                     readStatusFilter: readStatus,
                     completedOnly: true,
+                    excludeUnnamed: true,
                     sortMode: requestedSortMode,
                     caller: "首页卡片"
                 )

@@ -157,6 +157,10 @@ class SessionRecordManager {
         }
         return .sessionDirectoryInvalid
     }
+
+    private func shouldExcludeFromHome(_ metadata: SessionRecordMetadata) -> Bool {
+        metadata.name.contains("未命名")
+    }
     
     /// 会话记录存储根目录（内部访问）
     var sessionsDirectory: URL {
@@ -839,6 +843,7 @@ class SessionRecordManager {
 
     func getAllSessionMetadata(
         sortMode: HomeSessionSortMode = .list,
+        excludeUnnamed: Bool = false,
         caller: String = "",
         forceRefresh: Bool = false
     ) -> [SessionRecordMetadata] {
@@ -881,6 +886,10 @@ class SessionRecordManager {
             metadataList.append(bundledMetadata)
             logger.info("用户无记录，展示内置默认会话")
         }
+
+        if excludeUnnamed {
+            metadataList.removeAll(where: shouldExcludeFromHome)
+        }
         
         // 写入短时效缓存
         metadataCache = metadataList
@@ -903,6 +912,7 @@ class SessionRecordManager {
         seriesFilter: String? = nil,
         readStatusFilter: SessionReadStatusFilter? = nil,
         completedOnly: Bool = false,
+        excludeUnnamed: Bool = false,
         sortMode: HomeSessionSortMode = .list,
         caller: String = ""
     ) -> [SessionRecordMetadata] {
@@ -933,6 +943,10 @@ class SessionRecordManager {
         // 用户无记录时，展示内置默认会话
         if metadataList.isEmpty, let bundledMetadata = loadBundledDefaultSessionMetadata() {
             metadataList.append(bundledMetadata)
+        }
+
+        if excludeUnnamed {
+            metadataList.removeAll(where: shouldExcludeFromHome)
         }
 
         // 按搜索关键词过滤
@@ -986,6 +1000,7 @@ class SessionRecordManager {
         seriesFilter: String? = nil,
         readStatusFilter: SessionReadStatusFilter? = nil,
         completedOnly: Bool = false,
+        excludeUnnamed: Bool = false,
         sortMode: HomeSessionSortMode = .list,
         caller: String = ""
     ) -> (items: [SessionRecordMetadata], totalCount: Int) {
@@ -994,6 +1009,7 @@ class SessionRecordManager {
             seriesFilter: seriesFilter,
             readStatusFilter: readStatusFilter,
             completedOnly: completedOnly,
+            excludeUnnamed: excludeUnnamed,
             sortMode: sortMode,
             caller: caller
         )
@@ -1987,7 +2003,7 @@ public struct EndPictQueueInfo {
     /// 保存草稿会话记录（仅落盘图片和 metadata，makeStatus=making，无 OCR/音频结果）
     /// - Parameters:
     ///   - id: 会话ID（由调用方生成，保证与 BackgroundMakeManager 任务对应）
-    ///   - name: 草稿名称（如 "25.03.04 未命名"）
+    ///   - name: 草稿名称（如 "25.03.04 未命名-153045"）
     ///   - images: 已降采样的图片数组
     /// - Returns: 是否保存成功
     func saveDraftSession(id: String, name: String, images: [UIImage]) -> Bool {
