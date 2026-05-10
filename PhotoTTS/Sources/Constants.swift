@@ -344,6 +344,8 @@ extension Constants {
         static let playPlanTodayProcessedForDate = "play_plan_today_processed_for_date"
         // 播放计划：是否开启播放计划功能
         static let playPlanEnabled = "play_plan_enabled"
+        // 播放计划：默认关闭，用户显式开启后再生效
+        static let playPlanEnabledDefault = false
     }
     
     // MARK: - 通知名
@@ -351,6 +353,8 @@ extension Constants {
         static let updateImageCount = NSNotification.Name("UpdateImageCount")
         static let configUpdated = NSNotification.Name("ConfigUpdated")
         static let sessionsDidImport = NSNotification.Name("SessionsDidImport")
+        /// 会话元数据已更新（如后台制作完成/失败落盘、名称变化），userInfo["sessionId"]: String
+        static let sessionMetadataDidUpdate = NSNotification.Name("SessionMetadataDidUpdate")
         /// 封面图片已更新，userInfo["sessionId"]: String
         static let coverImageDidUpdate = NSNotification.Name("CoverImageDidUpdate")
         /// 头像图片已更新，userInfo["sessionId"]: String

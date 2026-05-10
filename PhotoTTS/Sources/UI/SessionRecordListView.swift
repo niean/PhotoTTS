@@ -625,6 +625,13 @@ struct SessionRecordListView: View {
             loadPage()
             loadSeriesOptions()
         }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionMetadataDidUpdate)) { notification in
+            if let sessionId = notification.userInfo?["sessionId"] as? String {
+                handleSessionMetadataUpdate(sessionId: sessionId)
+            } else {
+                handleSessionMetadataUpdate(sessionId: nil)
+            }
+        }
         .onChange(of: appState.selectedTab) { _, newTab in
             if newTab == 2 {
                 handlePendingEditRequest()
@@ -904,6 +911,18 @@ struct SessionRecordListView: View {
     private func refreshLoadedPages(showLoading: Bool = false) {
         let loadedPageCount = max(1, currentPage)
         loadBatch(page: 1, append: false, showLoading: showLoading, pageSizeOverride: Constants.Pagination.pageSize * loadedPageCount)
+    }
+
+    private func handleSessionMetadataUpdate(sessionId: String?) {
+        loadSeriesOptions()
+
+        if isGroupedMode {
+            guard sessionId == nil || allMetadataList.contains(where: { $0.id == sessionId }) else { return }
+            loadAllMetadata()
+        } else {
+            guard sessionId == nil || pagedMetadataList.contains(where: { $0.id == sessionId }) else { return }
+            refreshLoadedPages(showLoading: false)
+        }
     }
 
     private func loadBatch(page: Int, append: Bool, showLoading: Bool = true, pageSizeOverride: Int? = nil) {

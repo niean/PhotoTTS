@@ -310,6 +310,13 @@ struct HomePageView: View {
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
             checkAndMarkTodoDateIfNeeded()
         }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionMetadataDidUpdate)) { notification in
+            if let sessionId = notification.userInfo?["sessionId"] as? String {
+                handleSessionMetadataUpdate(sessionId: sessionId)
+            } else {
+                handleSessionMetadataUpdate(sessionId: nil)
+            }
+        }
     }
 
     // MARK: - Subviews
@@ -344,9 +351,8 @@ struct HomePageView: View {
         appState.isPlayViewActive = true
 
         // 检查播放计划开关
-        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
 
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
             sortMode: .list,
@@ -387,9 +393,8 @@ struct HomePageView: View {
     }
 
     private func applyStartupPreloadIfAvailable() -> Bool {
-        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
         guard !playPlanEnabled else {
             _ = appState.consumeHomePageStartupPreloadSnapshot()
             return false
@@ -419,6 +424,12 @@ struct HomePageView: View {
         loadBatch(page: 1, append: false)
     }
 
+    private func handleSessionMetadataUpdate(sessionId: String?) {
+        loadSeriesOptions()
+        guard sessionId == nil || pagedMetadataList.contains(where: { $0.id == sessionId }) else { return }
+        refreshFirstBatch()
+    }
+
     private func loadNextBatchIfNeeded(currentItem: SessionRecordMetadata) {
         guard currentItem.id == pagedMetadataList.last?.id,
               hasMoreItems,
@@ -442,9 +453,8 @@ struct HomePageView: View {
         let series = selectedSeries
         let readStatus = selectedReadStatus
         let requestedSortMode: HomeSessionSortMode = .list
-        let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
         let hasTodayProcessed = isTodayProcessed
         let processedTodoDate = todayProcessedTodoDate
         DispatchQueue.global(qos: .userInitiated).async {
@@ -556,9 +566,8 @@ struct HomePageView: View {
     ///   - statsMap: 播放统计字典
     /// - Returns: (排序后的列表, 置顶记录ID集合)
     private func applyPlayPlanSort(to items: [SessionRecordMetadata], statsMap: [String: PlayStatInfo]) -> ([SessionRecordMetadata], Set<String>) {
-        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
         return HomePagePlayPlanHelper.applySort(
             to: items,
             statsMap: statsMap,

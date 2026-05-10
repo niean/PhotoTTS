@@ -129,6 +129,40 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertEqual(task.intermediateResults?.ocrTexts, ["第一页", "第二页"])
     }
 
+    /// 并发排队时保持 0%，真正进入 OCR 后立即显示 1%，便于 UI 区分等待与制作中
+    func testMakeTaskProgressSeparatesQueuedAndOCRStarted() {
+        let task = MakeTask(sessionId: "ocr-progress-start", imageCount: 3)
+
+        XCTAssertEqual(task.progress, 0, accuracy: 0.0001, "queued task should stay at 0% before OCR starts")
+
+        task.updateProgress(
+            ProcessingProgress(
+                stage: .ocr,
+                currentStep: 1,
+                totalSteps: 100,
+                message: "OCR识别进度: 0/3",
+                percentage: 1,
+                stageResults: StageResults(
+                    ocrTexts: [],
+                    validImageCount: nil,
+                    llmStoryName: nil,
+                    llmHighlights: nil,
+                    totalImageCount: 3,
+                    ocrCompletedCount: 0,
+                    ocrCharCount: nil,
+                    ocrDuration: nil,
+                    llmCharCount: nil,
+                    llmDuration: nil,
+                    llmStatus: nil
+                )
+            )
+        )
+
+        XCTAssertEqual(task.progress, 0.01, accuracy: 0.0001, "task should move to 1% once OCR actually starts")
+        XCTAssertEqual(task.intermediateResults?.totalImageCount, 3)
+        XCTAssertEqual(task.intermediateResults?.ocrCompletedCount, 0)
+    }
+
     /// 并发上限常量符合 spec 约定（10）
     func testConcurrencyLimitConstant() {
         XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 10, "spec contract: maxConcurrentTasks == 10")

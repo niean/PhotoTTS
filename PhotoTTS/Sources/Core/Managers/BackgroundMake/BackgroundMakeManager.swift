@@ -240,7 +240,8 @@ class MakeTask: ObservableObject, Identifiable {
 
     /// 标记开始处理
     func markStarted() {
-        ocrStartTime = Date()
+        // 制作任务创建时可能仍在等待 OCR 串行闸门，不能把排队时间计入 OCR 耗时。
+        // 实际 OCR 开始时间由首个 OCR 进度事件写入。
     }
 
     /// 标记处理完成
@@ -503,6 +504,13 @@ class BackgroundMakeManager: ObservableObject {
                                 let identity = SettingsManager.shared.identityName
                                 SessionRecordManager.shared.addMakeEvent(sessionId: sessionId, timestamp: Date(), identity: identity)
                                 self.logger.info("制作历史事件已记录: sessionId=\(sessionId), 身份: \(identity)")
+                                DispatchQueue.main.async {
+                                    NotificationCenter.default.post(
+                                        name: Constants.NotificationNames.sessionMetadataDidUpdate,
+                                        object: nil,
+                                        userInfo: ["sessionId": sessionId]
+                                    )
+                                }
                             } else {
                                 self.logger.error("后台制作结果持久化失败: sessionId=\(sessionId)")
                             }
@@ -538,8 +546,23 @@ class BackgroundMakeManager: ObservableObject {
                                 let updated = SessionRecordManager.shared.updateDraftMakeStatus(id: sessionId, status: .incomplete)
                                 if updated {
                                     self.logger.info("草稿已标记为未完成: sessionId=\(sessionId)")
+                                    DispatchQueue.main.async {
+                                        NotificationCenter.default.post(
+                                            name: Constants.NotificationNames.sessionMetadataDidUpdate,
+                                            object: nil,
+                                            userInfo: ["sessionId": sessionId]
+                                        )
+                                    }
                                 } else {
                                     self.logger.error("草稿状态更新失败，保留 making 状态: sessionId=\(sessionId)")
+                                }
+                            } else {
+                                DispatchQueue.main.async {
+                                    NotificationCenter.default.post(
+                                        name: Constants.NotificationNames.sessionMetadataDidUpdate,
+                                        object: nil,
+                                        userInfo: ["sessionId": sessionId]
+                                    )
                                 }
                             }
                         }
