@@ -39,7 +39,6 @@ struct HomePageStartupPreloadSnapshot {
     let totalCount: Int
     let playStatsMap: [String: PlayStatInfo]
     let seriesOptions: [String]
-    let sortMode: HomeSessionSortMode
 }
 
 // MARK: - 应用状态管理
@@ -91,12 +90,16 @@ class AppState: ObservableObject {
                 page: 1,
                 pageSize: pageSize,
                 completedOnly: true,
+                excludeUnnamed: true,
                 sortMode: sortMode,
                 caller: "启动预加载-首页首屏"
             )
             let playStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: result.items.map(\.id))
             let uncategorized = Constants.GroupDisplay.uncategorizedLabel
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "启动预加载-首页系列")
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+                excludeUnnamed: true,
+                caller: "启动预加载-首页系列"
+            )
                 .filter { !$0.isMaking && !$0.isIncomplete }
             let seriesOptions = Array(Set(allMetadata.map(\.seriesName)).filter { $0 != uncategorized })
                 .sorted { $0.localizedCompare($1) == .orderedAscending }
@@ -114,8 +117,7 @@ class AppState: ObservableObject {
                 items: result.items,
                 totalCount: result.totalCount,
                 playStatsMap: playStatsMap,
-                seriesOptions: seriesOptions,
-                sortMode: sortMode
+                seriesOptions: seriesOptions
             )
 
             DispatchQueue.main.async {

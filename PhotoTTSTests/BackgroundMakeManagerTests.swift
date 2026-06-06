@@ -7,6 +7,7 @@ import UIKit
 final class BackgroundMakeManagerTests: XCTestCase {
 
     private let manager = BackgroundMakeManager.shared
+    private var deferredDraftIDs: [String] = []
 
     override func setUp() {
         super.setUp()
@@ -20,6 +21,10 @@ final class BackgroundMakeManagerTests: XCTestCase {
         for (id, _) in manager.tasks {
             manager.removeTask(sessionId: id)
         }
+        for id in deferredDraftIDs {
+            _ = SessionRecordManager.shared.deleteSession(id: id)
+        }
+        deferredDraftIDs.removeAll()
         super.tearDown()
     }
 
@@ -30,24 +35,32 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertFalse(manager.hasAnyActiveTask, "initial should have no active task")
     }
 
-    /// 手动注入 3 个未完成任务后应达到上限，第 4 个 hasCapacity 返回 false
-    func testCapacityLimitAtThreeTasks() {
-        // 手动注入：模拟 3 个未完成任务（直接写 tasks 字典）
+    /// 手动注入达到并发上限数量的未完成任务后，hasCapacity 应返回 false
+    func testCapacityLimitAtConfiguredTaskCount() {
+        // 手动注入：模拟达到并发上限数量的未完成任务（直接写 tasks 字典）
         // 避免走 startMaking 的磁盘 I/O，仅验证容量门
-        let ids = ["unit-task-1", "unit-task-2", "unit-task-3"]
+        let ids = (1...Constants.BackgroundMake.maxConcurrentTasks).map { "unit-task-\($0)" }
         for id in ids {
             let t = MakeTask(sessionId: id, imageCount: 1)
             manager.tasks[id] = t
         }
-        XCTAssertEqual(manager.activeTaskCount, 3, "after inject 3 tasks, activeCount == 3")
-        XCTAssertFalse(manager.hasCapacity, "3 active tasks should fill capacity")
+        XCTAssertEqual(
+            manager.activeTaskCount,
+            Constants.BackgroundMake.maxConcurrentTasks,
+            "after inject maxConcurrentTasks, activeCount should reach the configured limit"
+        )
+        XCTAssertFalse(manager.hasCapacity, "active tasks at the configured limit should fill capacity")
         XCTAssertTrue(manager.hasAnyActiveTask)
 
         // 标记 1 个完成，容量恢复
         if let t = manager.tasks[ids[0]] {
             t.markFailed(error: NSError(domain: "unit", code: -1))
         }
-        XCTAssertEqual(manager.activeTaskCount, 2, "failed task should not count as active")
+        XCTAssertEqual(
+            manager.activeTaskCount,
+            Constants.BackgroundMake.maxConcurrentTasks - 1,
+            "failed task should not count as active"
+        )
         XCTAssertTrue(manager.hasCapacity, "after one completed, capacity should recover")
     }
 
@@ -116,8 +129,69 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertEqual(task.intermediateResults?.ocrTexts, ["第一页", "第二页"])
     }
 
-    /// 并发上限常量符合 spec 约定（3）
+    /// 并发排队时保持 0%，真正进入 OCR 后立即显示 1%，便于 UI 区分等待与制作中
+    func testMakeTaskProgressSeparatesQueuedAndOCRStarted() {
+        let task = MakeTask(sessionId: "ocr-progress-start", imageCount: 3)
+
+        XCTAssertEqual(task.progress, 0, accuracy: 0.0001, "queued task should stay at 0% before OCR starts")
+
+        task.updateProgress(
+            ProcessingProgress(
+                stage: .ocr,
+                currentStep: 1,
+                totalSteps: 100,
+                message: "OCR识别进度: 0/3",
+                percentage: 1,
+                stageResults: StageResults(
+                    ocrTexts: [],
+                    validImageCount: nil,
+                    llmStoryName: nil,
+                    llmHighlights: nil,
+                    totalImageCount: 3,
+                    ocrCompletedCount: 0,
+                    ocrCharCount: nil,
+                    ocrDuration: nil,
+                    llmCharCount: nil,
+                    llmDuration: nil,
+                    llmStatus: nil
+                )
+            )
+        )
+
+        XCTAssertEqual(task.progress, 0.01, accuracy: 0.0001, "task should move to 1% once OCR actually starts")
+        XCTAssertEqual(task.intermediateResults?.totalImageCount, 3)
+        XCTAssertEqual(task.intermediateResults?.ocrCompletedCount, 0)
+    }
+
+    /// 并发上限常量符合 spec 约定（10）
     func testConcurrencyLimitConstant() {
-        XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 3, "spec contract: maxConcurrentTasks == 3")
+        XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 10, "spec contract: maxConcurrentTasks == 10")
+    }
+
+    /// 超出并发时也应保存草稿记录，供管理页可见和后续继续制作
+    func testSaveDeferredDraftPersistsIncompleteRecord() {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        let image = renderer.image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+
+        guard let sessionId = manager.saveDeferredDraft(images: [image]) else {
+            XCTFail("saveDeferredDraft should persist a draft session")
+            return
+        }
+        deferredDraftIDs.append(sessionId)
+
+        let metadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "BackgroundMakeManagerTests", forceRefresh: true)
+            .first(where: { $0.id == sessionId })
+
+        XCTAssertNotNil(metadata, "deferred draft should be discoverable in metadata list")
+        XCTAssertEqual(metadata?.makeStatus, .incomplete, "deferred draft should be marked incomplete instead of making")
+        XCTAssertEqual(metadata?.totalImageCount, 1, "deferred draft should preserve image count")
+        XCTAssertTrue(
+            metadata?.name.range(of: #"^\d{2}\.\d{2}\.\d{2} 未命名-\d{6}$"#, options: .regularExpression) != nil,
+            "deferred draft name should use yy.MM.dd 未命名-hhmmss format"
+        )
+        XCTAssertNil(manager.task(for: sessionId), "saving deferred draft should not create a running background task")
     }
 }

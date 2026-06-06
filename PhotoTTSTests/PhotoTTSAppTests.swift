@@ -193,6 +193,77 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertEqual(record.sourceOCRText, "第一页\(Constants.ocrTextSeparator)第二页")
         XCTAssertEqual(record.nameWithoutDatePrefix, "贝贝熊-刷牙")
     }
+
+    func testHomeMetadataQueryExcludesUnnamedSessionsOnlyWhenRequested() {
+        let unnamedId = UUID().uuidString
+        let namedId = UUID().uuidString
+        createdSessionIDs += [unnamedId, namedId]
+
+        let unnamedRecord = SessionRecord(
+            id: unnamedId,
+            name: "26.05.10 未命名-101010",
+            createdAt: Date(),
+            updatedAt: Date(),
+            imageDataList: [],
+            ocrText: "draft",
+            ocrTextSegments: ["draft"],
+            audioDataBase64: "",
+            audioFormat: "mp3",
+            audioSegments: [],
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1,
+            totalImageCount: 1,
+            textLength: 5,
+            audioSize: 0,
+            voiceSettings: nil,
+            avatarImageIndex: 0,
+            storageSize: 0,
+            makeStatus: .completed
+        )
+        let namedRecord = SessionRecord(
+            id: namedId,
+            name: "26.05.10 贝贝熊-刷牙",
+            createdAt: Date(),
+            updatedAt: Date(),
+            imageDataList: [],
+            ocrText: "named",
+            ocrTextSegments: ["named"],
+            audioDataBase64: "",
+            audioFormat: "mp3",
+            audioSegments: [],
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 1,
+            totalImageCount: 1,
+            textLength: 5,
+            audioSize: 0,
+            voiceSettings: nil,
+            avatarImageIndex: 0,
+            storageSize: 0,
+            makeStatus: .completed
+        )
+
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(unnamedRecord).success)
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(namedRecord).success)
+
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+            caller: "test.allMetadata",
+            forceRefresh: true
+        )
+        XCTAssertTrue(allMetadata.contains(where: { $0.id == unnamedId }))
+        XCTAssertTrue(allMetadata.contains(where: { $0.id == namedId }))
+
+        let homeMetadata = SessionRecordManager.shared.getFilteredSessionMetadata(
+            completedOnly: true,
+            excludeUnnamed: true,
+            caller: "test.homeMetadata"
+        )
+        XCTAssertFalse(homeMetadata.contains(where: { $0.id == unnamedId }))
+        XCTAssertTrue(homeMetadata.contains(where: { $0.id == namedId }))
+    }
     
     func testSessionRecordIdentifiable() {
         let record1 = SessionRecord(

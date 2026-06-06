@@ -157,6 +157,10 @@ class SessionRecordManager {
         }
         return .sessionDirectoryInvalid
     }
+
+    private func shouldExcludeFromHome(_ metadata: SessionRecordMetadata) -> Bool {
+        metadata.name.contains("未命名")
+    }
     
     /// 会话记录存储根目录（内部访问）
     var sessionsDirectory: URL {
@@ -839,6 +843,7 @@ class SessionRecordManager {
 
     func getAllSessionMetadata(
         sortMode: HomeSessionSortMode = .list,
+        excludeUnnamed: Bool = false,
         caller: String = "",
         forceRefresh: Bool = false
     ) -> [SessionRecordMetadata] {
@@ -881,6 +886,10 @@ class SessionRecordManager {
             metadataList.append(bundledMetadata)
             logger.info("用户无记录，展示内置默认会话")
         }
+
+        if excludeUnnamed {
+            metadataList.removeAll(where: shouldExcludeFromHome)
+        }
         
         // 写入短时效缓存
         metadataCache = metadataList
@@ -893,11 +902,20 @@ class SessionRecordManager {
     /// - Parameters:
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
+    ///   - readStatusFilter: 阅读状态筛选（按播放历史判断，nil 表示不过滤）
     ///   - completedOnly: 是否仅保留已完成记录
     ///   - sortMode: 首页排序模式
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 匹配的元数据列表
-    func getFilteredSessionMetadata(searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> [SessionRecordMetadata] {
+    func getFilteredSessionMetadata(
+        searchKeyword: String = "",
+        seriesFilter: String? = nil,
+        readStatusFilter: SessionReadStatusFilter? = nil,
+        completedOnly: Bool = false,
+        excludeUnnamed: Bool = false,
+        sortMode: HomeSessionSortMode = .list,
+        caller: String = ""
+    ) -> [SessionRecordMetadata] {
         var metadataList: [SessionRecordMetadata] = []
 
         do {
@@ -927,6 +945,10 @@ class SessionRecordManager {
             metadataList.append(bundledMetadata)
         }
 
+        if excludeUnnamed {
+            metadataList.removeAll(where: shouldExcludeFromHome)
+        }
+
         // 按搜索关键词过滤
         let trimmed = searchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
@@ -936,6 +958,19 @@ class SessionRecordManager {
         // 按系列筛选
         if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
             metadataList = metadataList.filter { $0.seriesName == seriesFilter }
+        }
+
+        if let readStatusFilter {
+            let playStatsMap = loadPlayStats(sessionIds: metadataList.map(\.id))
+            metadataList = metadataList.filter { metadata in
+                let hasPlayed = playStatsMap[metadata.id] != nil
+                switch readStatusFilter {
+                case .read:
+                    return hasPlayed
+                case .unread:
+                    return !hasPlayed
+                }
+            }
         }
 
         // 仅保留已完成记录（首页不展示制作中和未完成记录）
@@ -955,13 +990,26 @@ class SessionRecordManager {
     ///   - pageSize: 每页条数
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
+    ///   - readStatusFilter: 阅读状态筛选（按播放历史判断，nil 表示不过滤）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 当前页的元数据列表 + 匹配总数
-    func getSessionMetadataPage(page: Int, pageSize: Int, searchKeyword: String = "", seriesFilter: String? = nil, completedOnly: Bool = false, sortMode: HomeSessionSortMode = .list, caller: String = "") -> (items: [SessionRecordMetadata], totalCount: Int) {
+    func getSessionMetadataPage(
+        page: Int,
+        pageSize: Int,
+        searchKeyword: String = "",
+        seriesFilter: String? = nil,
+        readStatusFilter: SessionReadStatusFilter? = nil,
+        completedOnly: Bool = false,
+        excludeUnnamed: Bool = false,
+        sortMode: HomeSessionSortMode = .list,
+        caller: String = ""
+    ) -> (items: [SessionRecordMetadata], totalCount: Int) {
         let metadataList = getFilteredSessionMetadata(
             searchKeyword: searchKeyword,
             seriesFilter: seriesFilter,
+            readStatusFilter: readStatusFilter,
             completedOnly: completedOnly,
+            excludeUnnamed: excludeUnnamed,
             sortMode: sortMode,
             caller: caller
         )
@@ -1955,7 +2003,7 @@ public struct EndPictQueueInfo {
     /// 保存草稿会话记录（仅落盘图片和 metadata，makeStatus=making，无 OCR/音频结果）
     /// - Parameters:
     ///   - id: 会话ID（由调用方生成，保证与 BackgroundMakeManager 任务对应）
-    ///   - name: 草稿名称（如 "25.03.04 未命名"）
+    ///   - name: 草稿名称（如 "25.03.04 未命名-153045"）
     ///   - images: 已降采样的图片数组
     /// - Returns: 是否保存成功
     func saveDraftSession(id: String, name: String, images: [UIImage]) -> Bool {

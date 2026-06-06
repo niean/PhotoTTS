@@ -41,11 +41,8 @@ struct MeTabView: View {
     private let horizontalPadding: CGFloat = 16
 
     private var playPlanEnabled: Bool {
-        let key = Constants.UserDefaultsKeys.playPlanEnabled
-        if UserDefaults.standard.object(forKey: key) == nil {
-            return true
-        }
-        return UserDefaults.standard.bool(forKey: key)
+        UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
     }
 
     /// 检查今天是否已经处理过某个待办日期

@@ -344,6 +344,8 @@ extension Constants {
         static let playPlanTodayProcessedForDate = "play_plan_today_processed_for_date"
         // 播放计划：是否开启播放计划功能
         static let playPlanEnabled = "play_plan_enabled"
+        // 播放计划：默认关闭，用户显式开启后再生效
+        static let playPlanEnabledDefault = false
     }
     
     // MARK: - 通知名
@@ -351,6 +353,8 @@ extension Constants {
         static let updateImageCount = NSNotification.Name("UpdateImageCount")
         static let configUpdated = NSNotification.Name("ConfigUpdated")
         static let sessionsDidImport = NSNotification.Name("SessionsDidImport")
+        /// 会话元数据已更新（如后台制作完成/失败落盘、名称变化），userInfo["sessionId"]: String
+        static let sessionMetadataDidUpdate = NSNotification.Name("SessionMetadataDidUpdate")
         /// 封面图片已更新，userInfo["sessionId"]: String
         static let coverImageDidUpdate = NSNotification.Name("CoverImageDidUpdate")
         /// 头像图片已更新，userInfo["sessionId"]: String
@@ -387,7 +391,7 @@ extension Constants {
     // MARK: - 后台制作
     struct BackgroundMake {
         /// 后台制作并发任务上限（受 OCR API 配额与设备资源约束）
-        static let maxConcurrentTasks: Int = 3
+        static let maxConcurrentTasks: Int = 10
         /// JPEG压缩质量
         static let jpegCompressionQuality: CGFloat = 0.8
     }
@@ -421,8 +425,10 @@ extension Constants {
     // MARK: - 会话命名
     /// 会话名称日期前缀格式（2 位年份.2 位月份.2 位日期 + 空格）
     static let sessionNameDatePrefixFormat = "yy.MM.dd "
-    /// 草稿会话默认名称后缀（前缀为日期格式）
-    static let draftSessionNameSuffix = "未命名"
+    /// 制作中/等待中草稿会话名称前缀
+    static let draftSessionNamePrefix = "未命名-"
+    /// 制作中/等待中草稿会话时间后缀格式（时分秒）
+    static let draftSessionTimeSuffixFormat = "HHmmss"
 
     // MARK: - 分组展示
     struct GroupDisplay {

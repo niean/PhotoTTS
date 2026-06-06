@@ -44,11 +44,8 @@ struct PlaybackSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showResetConfirm = false
     @State private var playPlanEnabled: Bool = {
-        let key = Constants.UserDefaultsKeys.playPlanEnabled
-        if UserDefaults.standard.object(forKey: key) == nil {
-            return true
-        }
-        return UserDefaults.standard.bool(forKey: key)
+        UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
     }()
     @State private var todayPlanSummary: TodayPlanSummary = .empty
 

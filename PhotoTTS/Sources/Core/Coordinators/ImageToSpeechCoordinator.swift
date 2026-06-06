@@ -1169,6 +1169,32 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         let totalImages = images.count
 
         logInfo("开始并发OCR识别，图片数量: \(totalImages)，并发数: \(concurrentCount)，taskId: \(gateTaskId)")
+
+        // 进度语义：
+        // - 排队等待 OCR 闸门时保持 0%
+        // - 一旦真正进入 OCR 阶段，立即推进到 1%，便于 UI 区分"排队中"与"正在制作"
+        await MainActor.run {
+            progressHandler(ProcessingProgress(
+                stage: .ocr,
+                currentStep: 1,
+                totalSteps: 100,
+                message: "OCR识别进度: 0/\(totalImages)",
+                percentage: 1,
+                stageResults: StageResults(
+                    ocrTexts: [],
+                    validImageCount: nil,
+                    llmStoryName: nil,
+                    llmHighlights: nil,
+                    totalImageCount: totalImages,
+                    ocrCompletedCount: 0,
+                    ocrCharCount: nil,
+                    ocrDuration: nil,
+                    llmCharCount: nil,
+                    llmDuration: nil,
+                    llmStatus: nil
+                )
+            ))
+        }
         
         // 分批处理图片，每批的并发数不超过配置的并发数
         let batchSize = concurrentCount

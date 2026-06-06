@@ -95,32 +95,6 @@ enum HomePagePlayPlanHelper {
 
 // MARK: - 首页
 struct HomePageView: View {
-    private enum SortMode: CaseIterable {
-        case list
-        case series
-
-        var iconName: String {
-            switch self {
-            case .list: return "list.bullet"
-            case .series: return "square.grid.2x2"
-            }
-        }
-
-        var next: SortMode {
-            switch self {
-            case .list: return .series
-            case .series: return .list
-            }
-        }
-
-        var sessionSortMode: HomeSessionSortMode {
-            switch self {
-            case .list: return .list
-            case .series: return .series
-            }
-        }
-    }
-
     @ObservedObject var appState: AppState
     @ObservedObject private var bgMakeManager = BackgroundMakeManager.shared
 
@@ -133,9 +107,9 @@ struct HomePageView: View {
     @State private var searchText: String = ""
     @State private var playStatsMap: [String: PlayStatInfo] = [:]
     @State private var selectedSeries: String? = nil  // nil 表示不限
+    @State private var selectedReadStatus: SessionReadStatusFilter? = nil  // nil 表示不限
     @State private var seriesOptions: [String] = []   // 所有系列选项
     @State private var todoRecordIds: Set<String> = []
-    @State private var sortMode: SortMode = .list
 
     // MARK: - 播放计划每日限制
 
@@ -174,7 +148,10 @@ struct HomePageView: View {
         let todoDate = Calendar.current.startOfDay(for: metadata.namePrefixDate)
 
         // 获取所有该日期的记录
-        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "HomePageView.检查待办完成")
+        let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+            excludeUnnamed: true,
+            caller: "HomePageView.检查待办完成"
+        )
         let todoDateRecords = allMetadata.filter {
             Calendar.current.isDate($0.namePrefixDate, inSameDayAs: todoDate)
         }
@@ -212,7 +189,10 @@ struct HomePageView: View {
                     ProgressView("加载中...")
                         .scaleEffect(scaled(1.0))
                     Spacer()
-                } else if totalCount == 0 && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                } else if totalCount == 0
+                    && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && selectedSeries == nil
+                    && selectedReadStatus == nil {
                     Spacer()
                     VStack(spacing: scaled(20)) {
                         Image(systemName: "book.closed")
@@ -292,20 +272,7 @@ struct HomePageView: View {
             .padding(.top, scaled(45))
 
             // 顶导
-            TopAndLeftSideNavigationBar(
-                title: "首页",
-                leading: {
-                    Button(action: {
-                        sortMode = sortMode.next
-                    }) {
-                        Image(systemName: sortMode.iconName)
-                            .symbolRenderingMode(.monochrome)
-                            .font(Constants.Fonts.navAction)
-                            .frame(width: scaled(20), height: scaled(20))
-                            .foregroundStyle(.primary)
-                    }
-                }
-            )
+            TopAndLeftSideNavigationBar(title: "首页")
         }
         .fullScreenCover(item: $sessionToPlayFromHome) { item in
             PlayView(recordId: item.id, queueRecordIds: item.queueRecordIds, onDismiss: {
@@ -337,11 +304,18 @@ struct HomePageView: View {
         .onChange(of: selectedSeries) {
             refreshFirstBatch()
         }
-        .onChange(of: sortMode) {
+        .onChange(of: selectedReadStatus) {
             refreshFirstBatch()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
             checkAndMarkTodoDateIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionMetadataDidUpdate)) { notification in
+            if let sessionId = notification.userInfo?["sessionId"] as? String {
+                handleSessionMetadataUpdate(sessionId: sessionId)
+            } else {
+                handleSessionMetadataUpdate(sessionId: nil)
+            }
         }
     }
 
@@ -351,9 +325,8 @@ struct HomePageView: View {
         SessionSearchBar(
             searchText: $searchText,
             selectedSeries: $selectedSeries,
+            selectedReadStatus: $selectedReadStatus,
             seriesOptions: seriesOptions,
-            unselectedButtonLabel: "系列",
-            unselectedMenuLabel: "不限",
             onSearchSubmit: {
                 refreshFirstBatch()
             }
@@ -378,18 +351,18 @@ struct HomePageView: View {
         appState.isPlayViewActive = true
 
         // 检查播放计划开关
-        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
 
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
-            sortMode: sortMode.sessionSortMode,
+            sortMode: .list,
+            excludeUnnamed: true,
             caller: "HomePageView.连播队列"
         )
         let queue: [String]
 
         if HomePagePlayPlanHelper.shouldUsePlanQueue(
-            sortMode: sortMode.sessionSortMode,
+            sortMode: .list,
             playPlanEnabled: playPlanEnabled,
             isTodoRecord: todoRecordIds.contains(id)
         ) {
@@ -405,7 +378,10 @@ struct HomePageView: View {
 
     private func loadSeriesOptions() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "首页系列选项")
+            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(
+                excludeUnnamed: true,
+                caller: "首页系列选项"
+            )
             let uncategorized = Constants.GroupDisplay.uncategorizedLabel
             let seriesSet = Set(allMetadata.map { $0.seriesName })
                 .filter { $0 != uncategorized }
@@ -417,9 +393,8 @@ struct HomePageView: View {
     }
 
     private func applyStartupPreloadIfAvailable() -> Bool {
-        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
         guard !playPlanEnabled else {
             _ = appState.consumeHomePageStartupPreloadSnapshot()
             return false
@@ -428,11 +403,11 @@ struct HomePageView: View {
         guard loadedPageCount == 0,
               searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               selectedSeries == nil,
+              selectedReadStatus == nil,
               let snapshot = appState.consumeHomePageStartupPreloadSnapshot() else {
             return false
         }
 
-        sortMode = snapshot.sortMode == .series ? .series : .list
         let (sortedItems, todoIds) = applyPlayPlanSort(to: snapshot.items, statsMap: snapshot.playStatsMap)
         pagedMetadataList = sortedItems
         todoRecordIds = todoIds
@@ -447,6 +422,12 @@ struct HomePageView: View {
 
     private func refreshFirstBatch() {
         loadBatch(page: 1, append: false)
+    }
+
+    private func handleSessionMetadataUpdate(sessionId: String?) {
+        loadSeriesOptions()
+        guard sessionId == nil || pagedMetadataList.contains(where: { $0.id == sessionId }) else { return }
+        refreshFirstBatch()
     }
 
     private func loadNextBatchIfNeeded(currentItem: SessionRecordMetadata) {
@@ -470,10 +451,10 @@ struct HomePageView: View {
         let pageSize = Constants.Pagination.pageSize
         let keyword = searchText
         let series = selectedSeries
-        let requestedSortMode = sortMode
-        let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let readStatus = selectedReadStatus
+        let requestedSortMode: HomeSessionSortMode = .list
+        let isPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
         let hasTodayProcessed = isTodayProcessed
         let processedTodoDate = todayProcessedTodoDate
         DispatchQueue.global(qos: .userInitiated).async {
@@ -483,15 +464,17 @@ struct HomePageView: View {
                 let allItems = SessionRecordManager.shared.getFilteredSessionMetadata(
                     searchKeyword: keyword,
                     seriesFilter: series,
+                    readStatusFilter: readStatus,
                     completedOnly: true,
-                    sortMode: requestedSortMode.sessionSortMode,
+                    excludeUnnamed: true,
+                    sortMode: requestedSortMode,
                     caller: "首页卡片"
                 )
                 let allStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: allItems.map(\.id))
                 let (visibleItems, allTodoIds) = HomePagePlayPlanHelper.applySort(
                     to: allItems,
                     statsMap: allStatsMap,
-                    sortMode: requestedSortMode.sessionSortMode,
+                    sortMode: requestedSortMode,
                     playPlanEnabled: isPlanEnabled,
                     isTodayProcessed: hasTodayProcessed,
                     todayProcessedTodoDate: processedTodoDate
@@ -510,8 +493,10 @@ struct HomePageView: View {
                     pageSize: pageSize,
                     searchKeyword: keyword,
                     seriesFilter: series,
+                    readStatusFilter: readStatus,
                     completedOnly: true,
-                    sortMode: requestedSortMode.sessionSortMode,
+                    excludeUnnamed: true,
+                    sortMode: requestedSortMode,
                     caller: "首页卡片"
                 )
                 batchTodoIds = []
@@ -530,7 +515,7 @@ struct HomePageView: View {
 
                 guard self.searchText == keyword,
                       self.selectedSeries == series,
-                      self.sortMode == requestedSortMode else {
+                      self.selectedReadStatus == readStatus else {
                     return
                 }
 
@@ -581,13 +566,12 @@ struct HomePageView: View {
     ///   - statsMap: 播放统计字典
     /// - Returns: (排序后的列表, 置顶记录ID集合)
     private func applyPlayPlanSort(to items: [SessionRecordMetadata], statsMap: [String: PlayStatInfo]) -> ([SessionRecordMetadata], Set<String>) {
-        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.playPlanEnabled)
+        let playPlanEnabled = UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.playPlanEnabled) as? Bool
+            ?? Constants.UserDefaultsKeys.playPlanEnabledDefault
         return HomePagePlayPlanHelper.applySort(
             to: items,
             statsMap: statsMap,
-            sortMode: sortMode.sessionSortMode,
+            sortMode: .list,
             playPlanEnabled: playPlanEnabled,
             isTodayProcessed: isTodayProcessed,
             todayProcessedTodoDate: todayProcessedTodoDate

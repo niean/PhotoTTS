@@ -3,29 +3,36 @@ import SwiftUI
 struct SessionSearchBar: View {
     @Binding var searchText: String
     @Binding var selectedSeries: String?
+    @Binding var selectedReadStatus: SessionReadStatusFilter?
     let seriesOptions: [String]
-    let unselectedButtonLabel: String
-    let unselectedMenuLabel: String
     let onSearchSubmit: (() -> Void)?
 
     init(
         searchText: Binding<String>,
         selectedSeries: Binding<String?>,
+        selectedReadStatus: Binding<SessionReadStatusFilter?>,
         seriesOptions: [String],
-        unselectedButtonLabel: String = "系列",
-        unselectedMenuLabel: String = "不限",
         onSearchSubmit: (() -> Void)? = nil
     ) {
         self._searchText = searchText
         self._selectedSeries = selectedSeries
+        self._selectedReadStatus = selectedReadStatus
         self.seriesOptions = seriesOptions
-        self.unselectedButtonLabel = unselectedButtonLabel
-        self.unselectedMenuLabel = unselectedMenuLabel
         self.onSearchSubmit = onSearchSubmit
     }
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
+
+    private func filterMenuLabel(title: String, isSelected _: Bool, width: CGFloat) -> some View {
+        Text(title)
+            .font(Constants.Fonts.searchInput)
+            .foregroundColor(.gray)
+            .lineLimit(1)
+        .frame(width: scaled(width), height: Constants.SearchBar.rowMinHeight, alignment: .center)
+        .padding(.horizontal, scaled(6))
+        .contentShape(Rectangle())
     }
 
     var body: some View {
@@ -34,7 +41,7 @@ struct SessionSearchBar: View {
             Menu {
                 Button(action: { selectedSeries = nil }) {
                     HStack {
-                        Text(unselectedMenuLabel)
+                        Text("不限")
                         if selectedSeries == nil {
                             Image(systemName: "checkmark")
                         }
@@ -51,20 +58,41 @@ struct SessionSearchBar: View {
                     }
                 }
             } label: {
-                HStack(spacing: scaled(4)) {
-                    Text(selectedSeries ?? unselectedButtonLabel)
-                        .font(Constants.Fonts.searchInput)
-                        .foregroundColor(selectedSeries == nil ? .primary : .blue)
-                    Image(systemName: "chevron.down")
-                        .font(Constants.Fonts.searchIcon)
-                        .foregroundColor(selectedSeries == nil ? .gray : .blue)
-                }
-                .padding(.horizontal, scaled(10))
-                .padding(.vertical, Constants.SearchBar.innerVerticalPadding)
+                filterMenuLabel(title: selectedSeries ?? "系列", isSelected: selectedSeries != nil, width: 34)
             }
             .buttonStyle(.plain)
 
             // 分隔线
+            Rectangle()
+                .fill(Color(.systemGray4))
+                .frame(width: 0.5)
+                .padding(.vertical, 8)
+
+            // 状态筛选（中间）
+            Menu {
+                Button(action: { selectedReadStatus = nil }) {
+                    HStack {
+                        Text("不限")
+                        if selectedReadStatus == nil {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                ForEach(SessionReadStatusFilter.allCases, id: \.rawValue) { filter in
+                    Button(action: { selectedReadStatus = filter }) {
+                        HStack {
+                            Text(filter.label)
+                            if selectedReadStatus == filter {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                filterMenuLabel(title: selectedReadStatus?.label ?? "状态", isSelected: selectedReadStatus != nil, width: 34)
+            }
+            .buttonStyle(.plain)
+
             Rectangle()
                 .fill(Color(.systemGray4))
                 .frame(width: 0.5)
@@ -95,6 +123,7 @@ struct SessionSearchBar: View {
             .padding(.horizontal, Constants.SearchBar.innerHorizontalPadding)
             .padding(.vertical, Constants.SearchBar.innerVerticalPadding)
         }
+        .frame(minHeight: Constants.SearchBar.rowMinHeight)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: Constants.SearchBar.cornerRadius))
     }
