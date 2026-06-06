@@ -329,13 +329,7 @@ public class OCRService: OCRServiceProtocol, ObservableObject {
     }
     
     private func postprocessText(_ text: String) -> String {
-        // 清理和格式化识别的文本
-        var cleanedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // 移除多余的换行符
-        cleanedText = cleanedText.replacingOccurrences(of: "\n\n+", with: "\n", options: .regularExpression)
-        
-        return cleanedText
+        OCRTextProcessor.process(text)
     }
     
     private func createImage(from data: Data) -> CIImage? {
