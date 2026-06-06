@@ -1,4 +1,5 @@
 import XCTest
+import MultipeerConnectivity
 @testable import PhotoTTS
 
 final class PeerTransferManagerTests: XCTestCase {
@@ -41,6 +42,121 @@ final class PeerTransferManagerTests: XCTestCase {
         XCTAssertEqual(decoded.totalSize, 0)
         XCTAssertEqual(decoded.deviceName, "")
         XCTAssertEqual(decoded.sessionIDs, [])
+    }
+
+    // MARK: - Storage Precheck
+
+    func testStorageInsufficientControlMessageCoding() throws {
+        let message = TransferControlMessage.storageInsufficient(
+            requiredBytes: 2_000,
+            availableBytes: 1_000,
+            isAvailableSpaceUnknown: false,
+            message: "接收方剩余空间 1 KB，不足以接收本次传输（需要 2 KB）"
+        )
+        let data = try JSONEncoder().encode(message)
+        let decoded = try JSONDecoder().decode(TransferControlMessage.self, from: data)
+
+        XCTAssertEqual(decoded, message)
+    }
+
+    func testStorageCheckResult() {
+        let enough = StorageCheckResult(requiredBytes: 2_000, availableBytes: 3_000)
+        XCTAssertTrue(enough.isEnough)
+        XCTAssertFalse(enough.isAvailableSpaceUnknown)
+
+        let insufficient = StorageCheckResult(requiredBytes: 2_000, availableBytes: 1_000)
+        XCTAssertFalse(insufficient.isEnough)
+        XCTAssertFalse(insufficient.isAvailableSpaceUnknown)
+
+        let unknown = StorageCheckResult(requiredBytes: 2_000, availableBytes: nil)
+        XCTAssertTrue(unknown.isEnough)
+        XCTAssertTrue(unknown.isAvailableSpaceUnknown)
+    }
+
+    func testStorageInsufficientControlMessageDoesNotDecodeAsConflictDecision() throws {
+        let message = TransferControlMessage.storageInsufficient(
+            requiredBytes: 2_000,
+            availableBytes: 1_000,
+            isAvailableSpaceUnknown: false,
+            message: "空间不足"
+        )
+        let data = try JSONEncoder().encode(message)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(TransferConflictDecision.self, from: data))
+    }
+
+    func testBuildInvitationContextIncludesEstimatedSizeAndMode() {
+        let full = PeerTransferManager.shared.buildInvitationContext(sessionIDs: ["missing"], mode: .full)
+        XCTAssertEqual(full.sessionCount, 1)
+        XCTAssertEqual(full.totalSize, 0)
+        XCTAssertEqual(full.sessionIDs, ["missing"])
+        XCTAssertEqual(full.mode, .full)
+
+        let playOnly = PeerTransferManager.shared.buildInvitationContext(sessionIDs: ["missing"], mode: .playOnly)
+        XCTAssertEqual(playOnly.mode, .playOnly)
+    }
+
+    func testMakeStorageCheck() {
+        XCTAssertTrue(PeerTransferManager.shared.makeStorageCheck(requiredBytes: 2_000, availableBytes: 3_000).isEnough)
+        XCTAssertFalse(PeerTransferManager.shared.makeStorageCheck(requiredBytes: 2_000, availableBytes: 1_000).isEnough)
+        let unknown = PeerTransferManager.shared.makeStorageCheck(requiredBytes: 2_000, availableBytes: nil)
+        XCTAssertTrue(unknown.isEnough)
+        XCTAssertTrue(unknown.isAvailableSpaceUnknown)
+    }
+
+    func testHandleStorageInsufficientControlMessageFailsAndClearsPendingSend() throws {
+        let manager = PeerTransferManager.shared
+        manager.reset()
+        let receiver = MCPeerID(displayName: "Receiver")
+        manager.setPendingSendForTesting(ids: ["id-1"], peer: receiver)
+        let message = TransferControlMessage.storageInsufficient(
+            requiredBytes: 2_000,
+            availableBytes: 1_000,
+            isAvailableSpaceUnknown: false,
+            message: "空间不足"
+        )
+        let data = try JSONEncoder().encode(message)
+
+        XCTAssertTrue(manager.handleControlMessageData(data, from: receiver))
+        XCTAssertEqual(manager.pendingSendIDs, [])
+        XCTAssertNil(manager.pendingSendPeer)
+        XCTAssertEqual(manager.transferState, .failed("空间不足"))
+    }
+
+    func testHandleStorageInsufficientControlMessageIgnoresUnexpectedPeer() throws {
+        let manager = PeerTransferManager.shared
+        manager.reset()
+        let receiver = MCPeerID(displayName: "Receiver")
+        manager.setPendingSendForTesting(ids: ["id-1"], peer: receiver)
+        let message = TransferControlMessage.storageInsufficient(
+            requiredBytes: 2_000,
+            availableBytes: 1_000,
+            isAvailableSpaceUnknown: false,
+            message: "空间不足"
+        )
+        let data = try JSONEncoder().encode(message)
+
+        XCTAssertTrue(manager.handleControlMessageData(data, from: MCPeerID(displayName: "Other")))
+        XCTAssertEqual(manager.pendingSendIDs, ["id-1"])
+        XCTAssertEqual(manager.pendingSendPeer, receiver)
+        XCTAssertNotEqual(manager.transferState, .failed("空间不足"))
+    }
+
+    func testConfirmInsufficientStorageInvitationAcceptsForControlMessage() {
+        let accepted = expectation(description: "accepted")
+        let invitation = TransferInvitation(
+            peerID: MCPeerID(displayName: "Sender"),
+            context: TransferInvitationContext(sessionCount: 1, totalSize: 2_000, deviceName: "Sender", sessionIDs: ["id-1"]),
+            existingIDs: [],
+            storageCheck: StorageCheckResult(requiredBytes: 2_000, availableBytes: 1_000),
+            handler: { accept in
+                XCTAssertTrue(accept)
+                accepted.fulfill()
+            }
+        )
+
+        PeerTransferManager.shared.confirmInsufficientStorageInvitation(invitation)
+        wait(for: [accepted], timeout: 1)
     }
 
     // MARK: - Archive / Unarchive
@@ -89,29 +205,7 @@ final class PeerTransferManagerTests: XCTestCase {
     }
 
     func testArchiveEmptyDirectory() throws {
-        // [SKIP] 临时跳过：空目录归档测试存在已知问题，待后续修复
         throw XCTSkip("临时跳过：空目录归档测试存在已知问题，待后续修复")
-
-        let manager = PeerTransferManager.shared
-
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("empty_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        let archiveURL = try manager.archiveDirectory(source: tempDir)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: archiveURL.path))
-
-        let unpackDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("empty_unpack_\(UUID().uuidString)")
-        try manager.unarchiveFile(source: archiveURL, destination: unpackDir)
-
-        // 空目录解压后应该创建目标目录但无文件
-        let contents = try FileManager.default.contentsOfDirectory(at: unpackDir, includingPropertiesForKeys: nil)
-        XCTAssertEqual(contents.count, 0)
-
-        try? FileManager.default.removeItem(at: tempDir)
-        try? FileManager.default.removeItem(at: archiveURL)
-        try? FileManager.default.removeItem(at: unpackDir)
     }
 
     func testUnarchiveFileAllowingPartialRecoversCompleteEntries() throws {

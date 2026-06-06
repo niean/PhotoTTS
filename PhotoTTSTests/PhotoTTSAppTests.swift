@@ -1566,8 +1566,96 @@ final class PhotoTTSAppTests: XCTestCase {
         }
     }
     
+    // MARK: - 传输大小估算测试
+
+    func testTransferEstimatedSizeForFullRecordUsesSessionDirectorySize() throws {
+        let sessionID = "transfer-size-full-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "transfer-size-full",
+            images: [makeImage(color: .red)],
+            ocrText: "测试",
+            ocrTextSegments: ["测试"],
+            audioData: Data([0x01, 0x02, 0x03]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0,
+            ttsDuration: 0,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let expectedSize = directorySize(sessionDir)
+
+        XCTAssertEqual(
+            SessionRecordManager.shared.transferEstimatedSize(sessionIDs: [sessionID], mode: .full),
+            expectedSize
+        )
+        XCTAssertEqual(
+            SessionRecordManager.shared.transferEstimatedSize(sessionIDs: [sessionID], mode: .fullWithStats),
+            expectedSize
+        )
+    }
+
+    func testTransferEstimatedSizeForPlayOnlyUsesHistoryFilesOnly() throws {
+        let sessionID = "transfer-size-play-\(UUID().uuidString)"
+        let missingHistoryID = "transfer-size-missing-\(UUID().uuidString)"
+        createdSessionIDs += [sessionID, missingHistoryID]
+
+        let record = SessionRecord(
+            id: sessionID,
+            name: "transfer-size-play",
+            images: [makeImage(color: .blue)],
+            ocrText: "测试",
+            ocrTextSegments: ["测试"],
+            audioData: Data([0x01, 0x02, 0x03, 0x04]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0,
+            ttsDuration: 0,
+            validImageCount: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(record).success)
+        SessionRecordManager.shared.saveSessionHistory(
+            sessionId: sessionID,
+            history: SessionHistory(makeEvents: [], playEvents: [SessionHistoryEvent(timestamp: Date(), identity: "iPhone")])
+        )
+
+        let missingRecord = SessionRecord(
+            id: missingHistoryID,
+            name: "transfer-size-missing",
+            images: [],
+            ocrText: "测试",
+            ocrTextSegments: ["测试"],
+            audioData: Data(),
+            audioFormat: "mp3",
+            audioDuration: 0,
+            ocrDuration: 0,
+            ttsDuration: 0,
+            validImageCount: 0
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(missingRecord).success)
+        let missingHistoryURL = SessionRecordManager.shared.sessionsDirectory
+            .appendingPathComponent(missingHistoryID, isDirectory: true)
+            .appendingPathComponent("history.json")
+        try? FileManager.default.removeItem(at: missingHistoryURL)
+
+        let historyURL = SessionRecordManager.shared.sessionsDirectory
+            .appendingPathComponent(sessionID, isDirectory: true)
+            .appendingPathComponent("history.json")
+        let expectedSize = Int64(try historyURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+
+        XCTAssertEqual(
+            SessionRecordManager.shared.transferEstimatedSize(sessionIDs: [sessionID, missingHistoryID], mode: .playOnly),
+            expectedSize
+        )
+    }
+
     // MARK: - 相机组件测试
-    
+
     func testCustomCameraViewControllerCreation() {
         let cameraVC = CustomCameraViewController()
         XCTAssertNotNil(cameraVC, "CustomCameraViewController should be created successfully")
@@ -1810,6 +1898,20 @@ final class PhotoTTSAppTests: XCTestCase {
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter.date(from: value)!
+    }
+
+    private func directorySize(_ url: URL) -> Int64 {
+        guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey]) else {
+            return 0
+        }
+
+        return enumerator.reduce(Int64(0)) { total, item in
+            guard let fileURL = item as? URL,
+                  let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
+                return total
+            }
+            return total + Int64(fileSize)
+        }
     }
 
     private func loadHistory(from url: URL) throws -> SessionHistory {

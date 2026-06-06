@@ -70,6 +70,10 @@ struct DeviceTransferView: View {
                         invitation.handler(false)
                         transferManager.pendingInvitation = nil
                     }
+                } else if !invitation.storageCheck.isEnough {
+                    Button("确定") {
+                        transferManager.confirmInsufficientStorageInvitation(invitation)
+                    }
                 } else {
                     Button("接收") {
                         handleInvitationDecision(invitation: invitation)
@@ -87,10 +91,12 @@ struct DeviceTransferView: View {
                 let modeLabel = invitation.context.mode == .playOnly ? "播放" : ""
                 if invitation.context.mode.isFullRecordTransfer && existing == total {
                     Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，全部已存在无需传输")
+                } else if !invitation.storageCheck.isEnough {
+                    Text(invitation.storageCheck.message)
                 } else if invitation.context.mode.isFullRecordTransfer && existing > 0 {
-                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条已存在将自动跳过，实际传输 \(total - existing) 条")
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条记录，其中 \(existing) 条已存在将自动跳过，实际传输 \(total - existing) 条" + (invitation.storageCheck.isAvailableSpaceUnknown ? "\n\(invitation.storageCheck.message)" : ""))
                 } else {
-                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条\(modeLabel)记录")
+                    Text("发送方「\(invitation.context.deviceName)」欲传输 \(total) 条\(modeLabel)记录" + (invitation.storageCheck.isAvailableSpaceUnknown ? "\n\(invitation.storageCheck.message)" : ""))
                 }
             }
         }

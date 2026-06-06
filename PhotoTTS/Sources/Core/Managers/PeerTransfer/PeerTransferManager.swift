@@ -89,11 +89,81 @@ struct TransferConflictDecision: Codable {
     let existingIDs: [String]
 }
 
+struct StorageCheckResult: Equatable {
+    let requiredBytes: Int64
+    let availableBytes: Int64?
+
+    var isEnough: Bool {
+        guard let availableBytes else { return true }
+        return availableBytes >= requiredBytes
+    }
+
+    var isAvailableSpaceUnknown: Bool {
+        availableBytes == nil
+    }
+
+    var message: String {
+        if isAvailableSpaceUnknown {
+            return "无法确认剩余空间，已跳过可用空间检查（需要 \(Self.formatBytes(requiredBytes))）"
+        }
+        if isEnough {
+            return "接收方剩余空间 \(Self.formatBytes(availableBytes ?? 0))，可接收本次传输（需要 \(Self.formatBytes(requiredBytes))）"
+        }
+        return "接收方剩余空间 \(Self.formatBytes(availableBytes ?? 0))，不足以接收本次传输（需要 \(Self.formatBytes(requiredBytes))）"
+    }
+
+    static func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+}
+
+enum TransferControlMessage: Codable, Equatable {
+    case storageInsufficient(requiredBytes: Int64, availableBytes: Int64?, isAvailableSpaceUnknown: Bool, message: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case type, requiredBytes, availableBytes, isAvailableSpaceUnknown, message
+    }
+
+    private enum MessageType: String, Codable {
+        case storageInsufficient
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(MessageType.self, forKey: .type)
+        switch type {
+        case .storageInsufficient:
+            self = .storageInsufficient(
+                requiredBytes: try container.decode(Int64.self, forKey: .requiredBytes),
+                availableBytes: try container.decodeIfPresent(Int64.self, forKey: .availableBytes),
+                isAvailableSpaceUnknown: try container.decode(Bool.self, forKey: .isAvailableSpaceUnknown),
+                message: try container.decode(String.self, forKey: .message)
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .storageInsufficient(let requiredBytes, let availableBytes, let isAvailableSpaceUnknown, let message):
+            try container.encode(MessageType.storageInsufficient, forKey: .type)
+            try container.encode(requiredBytes, forKey: .requiredBytes)
+            try container.encodeIfPresent(availableBytes, forKey: .availableBytes)
+            try container.encode(isAvailableSpaceUnknown, forKey: .isAvailableSpaceUnknown)
+            try container.encode(message, forKey: .message)
+        }
+    }
+}
+
 struct TransferInvitation: Identifiable {
     let id = UUID()
     let peerID: MCPeerID
     let context: TransferInvitationContext
     let existingIDs: [String]
+    let storageCheck: StorageCheckResult
     let handler: (Bool) -> Void
 }
 
@@ -136,6 +206,7 @@ class PeerTransferManager: NSObject, ObservableObject {
     var pendingDecisionToSend: TransferConflictDecision?
     /// 发送方收到的决策（用于过滤传输内容）
     private(set) var pendingDecision: TransferConflictDecision?
+    private var pendingControlMessageToSend: TransferControlMessage?
     /// 决策等待超时定时器（发送方使用）
     private var decisionTimeoutTimer: Timer?
     /// 当前传输模式（发送方使用）
@@ -247,6 +318,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.pendingSendPeer = nil
             self.pendingDecision = nil
             self.pendingDecisionToSend = nil
+            self.pendingControlMessageToSend = nil
             self.actualSendCount = 0
             self.skippedDuplicateCount = 0
             self.receivedTransferMode = .full
@@ -256,6 +328,34 @@ class PeerTransferManager: NSObject, ObservableObject {
     }
 
     // MARK: - 邀请设备
+
+    func buildInvitationContext(sessionIDs: [String], mode: TransferMode) -> TransferInvitationContext {
+        TransferInvitationContext(
+            sessionCount: sessionIDs.count,
+            totalSize: SessionRecordManager.shared.transferEstimatedSize(sessionIDs: sessionIDs, mode: mode),
+            deviceName: UIDevice.current.name,
+            sessionIDs: sessionIDs,
+            mode: mode
+        )
+    }
+
+    func makeStorageCheck(requiredBytes: Int64, availableBytes: Int64?) -> StorageCheckResult {
+        StorageCheckResult(requiredBytes: requiredBytes, availableBytes: availableBytes)
+    }
+
+    func confirmInsufficientStorageInvitation(_ invitation: TransferInvitation) {
+        pendingControlMessageToSend = .storageInsufficient(
+            requiredBytes: invitation.storageCheck.requiredBytes,
+            availableBytes: invitation.storageCheck.availableBytes,
+            isAvailableSpaceUnknown: invitation.storageCheck.isAvailableSpaceUnknown,
+            message: invitation.storageCheck.message
+        )
+        invitation.handler(true)
+    }
+
+    private func availableStorageBytes() -> Int64? {
+        try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())[.systemFreeSize] as? Int64
+    }
 
     func invitePeer(_ peer: MCPeerID, sessionIDs: [String]) {
         guard let browser, let session else {
@@ -271,12 +371,7 @@ class PeerTransferManager: NSObject, ObservableObject {
         currentTransferMode = .full
         pendingSendPeer = peer
 
-        let context = TransferInvitationContext(
-            sessionCount: sessionIDs.count,
-            totalSize: 0,
-            deviceName: UIDevice.current.name,
-            sessionIDs: sessionIDs
-        )
+        let context = buildInvitationContext(sessionIDs: sessionIDs, mode: .full)
         let contextData = try? JSONEncoder().encode(context)
 
         browser.invitePeer(peer, to: session, withContext: contextData,
@@ -299,13 +394,7 @@ class PeerTransferManager: NSObject, ObservableObject {
         pendingSendIDs = sessionIDs
         pendingSendPeer = peer
 
-        let context = TransferInvitationContext(
-            sessionCount: sessionIDs.count,
-            totalSize: 0,
-            deviceName: UIDevice.current.name,
-            sessionIDs: sessionIDs,
-            mode: .fullWithStats
-        )
+        let context = buildInvitationContext(sessionIDs: sessionIDs, mode: .fullWithStats)
         let contextData = try? JSONEncoder().encode(context)
 
         browser.invitePeer(peer, to: session, withContext: contextData,
@@ -328,13 +417,7 @@ class PeerTransferManager: NSObject, ObservableObject {
         pendingSendIDs = sessionIDs
         pendingSendPeer = peer
 
-        let context = TransferInvitationContext(
-            sessionCount: sessionIDs.count,
-            totalSize: 0,
-            deviceName: UIDevice.current.name,
-            sessionIDs: sessionIDs,
-            mode: .playOnly
-        )
+        let context = buildInvitationContext(sessionIDs: sessionIDs, mode: .playOnly)
         let contextData = try? JSONEncoder().encode(context)
 
         browser.invitePeer(peer, to: session, withContext: contextData,
@@ -538,6 +621,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.discoveredPeers = []
             self.pendingDecision = nil
             self.pendingDecisionToSend = nil
+            self.pendingControlMessageToSend = nil
             self.actualSendCount = 0
             self.skippedDuplicateCount = 0
             self.decisionTimeoutTimer?.invalidate()
@@ -573,6 +657,49 @@ class PeerTransferManager: NSObject, ObservableObject {
         } catch {
             os.Logger.peerTransfer.error("发送决策失败: \(error.localizedDescription)")
         }
+    }
+
+    private func sendControlMessage(_ message: TransferControlMessage, to peer: MCPeerID) {
+        guard let session, session.connectedPeers.contains(peer) else { return }
+        do {
+            let data = try JSONEncoder().encode(message)
+            try session.send(data, toPeers: [peer], with: .reliable)
+            os.Logger.peerTransfer.info("已发送传输控制消息")
+        } catch {
+            os.Logger.peerTransfer.error("发送传输控制消息失败: \(error.localizedDescription)")
+        }
+    }
+
+    @discardableResult
+    func handleControlMessageData(_ data: Data, from peerID: MCPeerID) -> Bool {
+        guard let message = try? JSONDecoder().decode(TransferControlMessage.self, from: data) else {
+            return false
+        }
+
+        guard isSender, let expectedPeer = pendingSendPeer, expectedPeer == peerID, !pendingSendIDs.isEmpty else {
+            os.Logger.peerTransfer.warning("忽略非当前传输对象的控制消息: \(peerID.displayName)")
+            return true
+        }
+
+        switch message {
+        case .storageInsufficient(_, _, _, let message):
+            decisionTimeoutTimer?.invalidate()
+            decisionTimeoutTimer = nil
+            pendingSendIDs = []
+            pendingSendPeer = nil
+            pendingDecision = nil
+            transferState = .failed(message)
+            teardownSession()
+            os.Logger.peerTransfer.info("收到空间不足控制消息: \(peerID.displayName)")
+        }
+        return true
+    }
+
+    func setPendingSendForTesting(ids: [String], peer: MCPeerID) {
+        pendingSendIDs = ids
+        pendingSendPeer = peer
+        isSender = true
+        transferState = .connecting
     }
 
     // MARK: - 归档工具（iOS 兼容，流式写入）
@@ -942,8 +1069,7 @@ extension PeerTransferManager: MCSessionDelegate {
             case .connected:
                 os.Logger.peerTransfer.info("已连接: \(peerID.displayName)")
                 if self.isSender {
-                    // 发送方：设置决策等待超时（10秒）
-                    self.decisionTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+                    self.decisionTimeoutTimer = Timer.scheduledTimer(withTimeInterval: Constants.PeerTransfer.decisionTimeout, repeats: false) { [weak self] _ in
                         guard let self, self.pendingDecision == nil, !self.pendingSendIDs.isEmpty else { return }
                         os.Logger.peerTransfer.warning("等待决策超时，使用默认行为")
                         DispatchQueue.main.async {
@@ -961,6 +1087,14 @@ extension PeerTransferManager: MCSessionDelegate {
                         self.decisionTimeoutTimer = nil
                     }
                 } else {
+                    if let message = self.pendingControlMessageToSend {
+                        self.sendControlMessage(message, to: peerID)
+                        self.pendingControlMessageToSend = nil
+                        self.pendingInvitation = nil
+                        self.transferState = .idle
+                        self.teardownSession()
+                        return
+                    }
                     // 接收方：发送决策到发送方
                     if let decision = self.pendingDecisionToSend {
                         self.sendDecision(decision, to: peerID)
@@ -984,6 +1118,13 @@ extension PeerTransferManager: MCSessionDelegate {
     }
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        if (try? JSONDecoder().decode(TransferControlMessage.self, from: data)) != nil {
+            DispatchQueue.main.async {
+                self.handleControlMessageData(data, from: peerID)
+            }
+            return
+        }
+
         // 解析决策消息
         if let decision = try? JSONDecoder().decode(TransferConflictDecision.self, from: data) {
             os.Logger.peerTransfer.info("收到决策: skipDuplicates=\(decision.skipDuplicates), existingCount=\(decision.existingIDs.count)")
@@ -1165,6 +1306,10 @@ extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
         )
         let localIDs = Set(allMetadata.map(\.id))
         let duplicateIDs = invitationContext.sessionIDs.filter { localIDs.contains($0) }
+        let storageCheck = makeStorageCheck(
+            requiredBytes: invitationContext.totalSize,
+            availableBytes: availableStorageBytes()
+        )
 
         DispatchQueue.main.async {
             // 上次传输已完成/失败时，刷新 session 以确保同一 MCPeerID 能重新连接
@@ -1190,6 +1335,7 @@ extension PeerTransferManager: MCNearbyServiceAdvertiserDelegate {
                 peerID: peerID,
                 context: invitationContext,
                 existingIDs: duplicateIDs,
+                storageCheck: storageCheck,
                 handler: { [weak self] accept in
                     invitationHandler(accept, accept ? self?.session : nil)
                     if !accept {

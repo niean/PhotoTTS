@@ -102,6 +102,14 @@ PhotoTTS_YYYYMMDD/
 
 导入时 ID 重复跳过。
 
+## 设备传输信令
+
+TransferInvitationContext（PeerTransferManager.swift）：Codable，字段为 sessionCount/totalSize/deviceName/sessionIDs/mode。mode 旧版本缺失时默认 full；totalSize 由发送方邀请前按 TransferMode 预估，用于接收方传输前存储空间预检。
+
+TransferConflictDecision：接收方回传 full 模式去重决策，字段为 skipDuplicates/existingIDs。
+
+TransferControlMessage：可靠 data 控制消息，当前用于 storageInsufficient(requiredBytes/availableBytes/isAvailableSpaceUnknown/message)。该消息只在接收方空间不足时短暂建连后发送；发送方处理时必须校验消息来源等于当前 pendingSendPeer。
+
 ## UserDefaults
 
 SettingsManager 通过 UserDefaults 存非敏感配置，键名 Constants.UserDefaultsKeys：identityName（默认设备名，最长 20 字符）、voiceSettings/supportedLanguages/currentLanguage、ttsAppId/ttsCluster/ttsUid、isFirstLaunch/appLaunchCount/lastLaunchDate、maxCacheSize/autoCleanupEnabled。

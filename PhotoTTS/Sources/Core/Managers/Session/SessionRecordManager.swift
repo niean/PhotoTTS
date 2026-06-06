@@ -2554,7 +2554,29 @@ public struct EndPictQueueInfo {
         }
         return calculateDirectorySize(sessionDir)
     }
-    
+
+    func transferEstimatedSize(sessionIDs: [String], mode: TransferMode) -> Int64 {
+        sessionIDs.reduce(Int64(0)) { total, id in
+            switch mode {
+            case .full, .fullWithStats:
+                guard let size = getSessionStorageSize(id: id) else {
+                    logger.warning("传输大小估算跳过不存在记录: \(id)")
+                    return total
+                }
+                return total + size
+            case .playOnly:
+                let historyURL = sessionsDirectory
+                    .appendingPathComponent(id, isDirectory: true)
+                    .appendingPathComponent("history.json")
+                guard let fileSize = try? historyURL.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
+                    logger.warning("播放记录传输大小估算跳过缺失历史: \(id)")
+                    return total
+                }
+                return total + Int64(fileSize)
+            }
+        }
+    }
+
     /// 递归计算目录大小
     private func calculateDirectorySize(_ url: URL) -> Int64 {
         var totalSize: Int64 = 0

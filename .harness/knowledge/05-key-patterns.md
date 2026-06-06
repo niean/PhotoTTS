@@ -1,4 +1,4 @@
-<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输 -->
+<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输/传输空间预检 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -170,8 +170,11 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 调用链：SessionRecordListView "更多" 菜单 -> 选择"传输播放记录" -> 设置 showPlayOnlyTransfer=true -> DeviceTransferView(transferMode: .playOnly) -> PeerTransferManager.invitePeerPlayOnly() -> 发送端打包 history.json（SessionRecordManager.packageHistoryFilesOnly） -> 接收端收到后识别 playOnly 模式 -> 解包覆盖本地 history.json（SessionRecordManager.applyHistoryPackage） -> 完成提示文本按模式区分（TransferReceiverModifier 根据 receivedTransferMode 切换文案）。
 
 关键设计：
-- TransferInvitationContext 携带 mode 字段，随邀请信令传递给接收端，接收端在 didReceiveInvitationFromPeer 中设置 receivedTransferMode
-- full 模式发送端自动去重：接收方通过 TransferConflictDecision 回传 existingIDs，发送方在 didReceive data 回调中过滤后仅打包不存在的记录；全部重复时直接完成不传输；决策超时（10s）回退全量传输
+- TransferInvitationContext 携带 mode、totalSize 和 sessionIDs，随邀请信令传递给接收端；totalSize 由发送方邀请前按 TransferMode 预估，接收端在 didReceiveInvitationFromPeer 中设置 receivedTransferMode 并生成 StorageCheckResult
+- full 模式发送端自动去重：接收方通过 TransferConflictDecision 回传 existingIDs，发送方在 didReceive data 回调中过滤后仅打包不存在的记录；全部重复时直接完成不传输；决策超时（Constants.PeerTransfer.decisionTimeout）回退全量传输
+- 接收方空间预检失败时不走正常接收：UI 只显示“确定”，PeerTransferManager.confirmInsufficientStorageInvitation 会短暂接受 MCSession，发送 TransferControlMessage.storageInsufficient 后 teardown，发送方收到后展示接收方剩余空间 X/需要 Y 并阻断打包
+- 接收方无法读取剩余空间时 availableBytes=nil，StorageCheckResult.isEnough=true，UI 提示“已跳过可用空间检查”并保留正常接收/拒绝按钮
+- 发送方处理 storageInsufficient 控制消息必须校验当前处于发送等待状态，且消息来源等于 pendingSendPeer，避免非当前 peer 终止传输
 - playOnly 模式发送端始终传输所有记录（不跳过重复），由接收端覆盖本地历史
 - 发送端 playOnly 模式下仅打包 .json 文件（不传输图片/音频，体积显著减小）
 - 接收端 didFinishReceivingResourceWithName 中按模式分流：full 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
