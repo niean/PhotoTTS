@@ -64,46 +64,44 @@ struct MeTabView: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                // 顶部
-                Section {
-                    HStack(spacing: 16) {
-                        if let image = IntroAvatarImage.load() {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: avatarSize, height: avatarSize)
-                                .clipShape(Circle())
-                        } else {
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: avatarSize)) // 视图私有：头像占位图标，动态适配 avatarSize
-                                .foregroundColor(Color(.systemGray4))
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 4) {
-                                Text(displayName)
-                                    .font(Constants.Fonts.headline)
-                                    .foregroundStyle(.primary)
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 12)) // 视图私有：编辑铅笔图标，固定 12pt 适配文字
-                                    .foregroundStyle(.secondary)
-                            }
-                            .onTapGesture {
-                                editingName = displayName
-                                showNameEditor = true
-                            }
-                            Text("拍照阅读，让绘本更精彩")
-                                .font(Constants.Fonts.subheadline)
+            VStack(spacing: 0) {
+                HStack(spacing: 16) {
+                    if let image = IntroAvatarImage.load() {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: avatarSize, height: avatarSize)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: avatarSize)) // 视图私有：头像占位图标，动态适配 avatarSize
+                            .foregroundColor(Color(.systemGray4))
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Text(displayName)
+                                .font(Constants.Fonts.headline)
+                                .foregroundStyle(.primary)
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12)) // 视图私有：编辑铅笔图标，固定 12pt 适配文字
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
+                        .onTapGesture {
+                            editingName = displayName
+                            showNameEditor = true
+                        }
+                        Text("拍照阅读，让绘本更精彩")
+                            .font(Constants.Fonts.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    .listRowInsets(EdgeInsets(top: topPadding, leading: horizontalPadding, bottom: topPadding, trailing: horizontalPadding))
-                    .listRowBackground(Color(.systemGroupedBackground))
+                    Spacer()
                 }
+                .padding(EdgeInsets(top: topPadding, leading: horizontalPadding, bottom: topPadding, trailing: horizontalPadding))
+                .background(Color(.systemGroupedBackground))
 
-                // Section 1
-                Section {
+                List {
+                    // Section 1
+                    Section {
                     NavigationLink {
                         ReadingReportViewWithBar()
                     } label: {
@@ -202,6 +200,7 @@ struct MeTabView: View {
                 }
             } message: {
                 Text("最多 \(AppConstants.Identity.nameMaxLength) 个字符，留空则恢复为设备名称")
+            }
             }
         }
     }

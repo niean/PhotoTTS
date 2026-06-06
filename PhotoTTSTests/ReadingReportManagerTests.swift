@@ -45,6 +45,28 @@ final class ReadingReportManagerTests: XCTestCase {
         XCTAssertEqual(ReportPeriod.monthly.rangeDescription, "最近30天")
     }
 
+    func testWeeklyPeriodRangeIncludesSevenDaysAgoThroughToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 5, day: 17, hour: 21, minute: 30))!
+
+        let range = ReadingReportManager.periodRange(period: .weekly, now: now, calendar: calendar)
+
+        XCTAssertEqual(range.start, calendar.date(from: DateComponents(year: 2026, month: 5, day: 10, hour: 0, minute: 0))!)
+        XCTAssertEqual(range.endExclusive, calendar.date(from: DateComponents(year: 2026, month: 5, day: 18, hour: 0, minute: 0))!)
+    }
+
+    func testWeeklyDailyDatesIncludeToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 5, day: 17, hour: 21, minute: 30))!
+
+        let dates = ReadingReportManager.periodDayStarts(period: .weekly, now: now, calendar: calendar)
+
+        XCTAssertEqual(dates.first, calendar.date(from: DateComponents(year: 2026, month: 5, day: 10, hour: 0, minute: 0))!)
+        XCTAssertEqual(dates.last, calendar.date(from: DateComponents(year: 2026, month: 5, day: 17, hour: 0, minute: 0))!)
+    }
+
     // MARK: - TopBookItem Tests
 
     func testTopBookItemIdentifiable() {

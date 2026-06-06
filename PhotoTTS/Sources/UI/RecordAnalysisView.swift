@@ -7,16 +7,18 @@ struct RecordAnalysisSnapshot {
         let totalCount: Int
         let readCount: Int
 
-        var progress: Double {
-            guard totalCount > 0 else { return 0 }
-            return Double(readCount) / Double(totalCount)
+        var unreadCount: Int {
+            max(0, totalCount - readCount)
         }
 
-        var progressColor: Color {
-            if readCount == 0 {
-                return Color(.systemGray3)
-            }
-            return readCount == totalCount ? .green : .blue
+        func totalRatio(maxCount: Int) -> Double {
+            guard maxCount > 0 else { return 0 }
+            return Double(totalCount) / Double(maxCount)
+        }
+
+        var readRatio: Double {
+            guard totalCount > 0 else { return 0 }
+            return Double(readCount) / Double(totalCount)
         }
     }
 
@@ -53,7 +55,7 @@ struct RecordAnalysisSnapshot {
 
     var readProgressText: String {
         let percent = Int((readProgress * 100).rounded())
-        return "已读 \(readCount)/\(totalCount)（\(percent)%）"
+        return "已读 \(readCount) / 未读 \(unreadCount)（\(percent)%）"
     }
 
     var formattedStorageSize: String {
@@ -167,6 +169,7 @@ struct RecordAnalysisSnapshot {
 }
 
 struct RecordAnalysisView: View {
+    private let progressBarHeight: CGFloat = 10
     let snapshot: RecordAnalysisSnapshot
 
     var body: some View {
@@ -215,12 +218,7 @@ struct RecordAnalysisView: View {
                 .font(Constants.Fonts.analysisHeroNumber)
                 .foregroundStyle(.primary)
 
-            Text("绘本记录")
-                .font(Constants.Fonts.subheadline)
-                .foregroundStyle(.secondary)
-
-            ProgressView(value: snapshot.readProgress)
-                .tint(.green)
+            readProgressBar
 
             Text(snapshot.readProgressText)
                 .font(Constants.Fonts.caption)
@@ -235,8 +233,24 @@ struct RecordAnalysisView: View {
         )
     }
 
+    private var readProgressBar: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(.systemGray5))
+                Capsule()
+                    .fill(Color.green)
+                    .frame(width: geometry.size.width * snapshot.readProgress)
+            }
+        }
+        .frame(height: progressBarHeight)
+        .clipShape(Capsule())
+    }
+
     private var seriesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let maxCount = snapshot.seriesItems.map(\.totalCount).max() ?? 0
+
+        return VStack(alignment: .leading, spacing: 12) {
             Text("系列分布")
                 .font(Constants.Fonts.headline)
                 .foregroundStyle(.primary)
@@ -257,21 +271,12 @@ struct RecordAnalysisView: View {
                     }
 
                     HStack(spacing: 10) {
-                        GeometryReader { geometry in
-                            let width = max(0, geometry.size.width)
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color(.systemGray5))
-                                Capsule()
-                                    .fill(item.progressColor)
-                                    .frame(width: width * item.progress)
-                            }
-                        }
-                        .frame(height: 8)
+                        stackedSeriesBar(item: item, maxCount: maxCount)
 
-                        Text("\(item.readCount)/\(item.totalCount)")
+                        Text("\(item.readCount)/\(item.unreadCount)")
                             .font(Constants.Fonts.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
                 .padding(.vertical, 4)
@@ -282,6 +287,43 @@ struct RecordAnalysisView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
+    }
+
+    private func stackedSeriesBar(item: RecordAnalysisSnapshot.SeriesItem, maxCount: Int) -> some View {
+        GeometryReader { geometry in
+            let availableWidth = max(0, geometry.size.width)
+            let totalWidth = availableWidth * item.totalRatio(maxCount: maxCount)
+            let readWidth = totalWidth * item.readRatio
+            let unreadWidth = max(0, totalWidth - readWidth)
+
+            HStack(spacing: 0) {
+                if readWidth > 0 {
+                    Rectangle()
+                        .fill(Color.green)
+                        .frame(width: readWidth)
+                }
+                if unreadWidth > 0 {
+                    Rectangle()
+                        .fill(Color(.systemGray4))
+                        .frame(width: unreadWidth)
+                }
+            }
+            .frame(width: totalWidth, height: progressBarHeight)
+            .clipShape(Capsule())
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: progressBarHeight)
+    }
+
+    private func legendItem(color: Color, title: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .font(Constants.Fonts.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var makeStatusSection: some View {

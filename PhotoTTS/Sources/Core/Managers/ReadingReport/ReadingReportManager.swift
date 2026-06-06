@@ -109,10 +109,33 @@ class ReadingReportManager {
 
     private init() {}
 
+    struct PeriodRange {
+        let start: Date
+        let endExclusive: Date
+    }
+
+    static func periodRange(period: ReportPeriod, now: Date = Date(), calendar: Calendar = .current) -> PeriodRange {
+        let todayStart = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: -period.days, to: todayStart) ?? todayStart
+        let endExclusive = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? now
+        return PeriodRange(start: start, endExclusive: endExclusive)
+    }
+
+    static func periodDayStarts(period: ReportPeriod, now: Date = Date(), calendar: Calendar = .current) -> [Date] {
+        let range = periodRange(period: period, now: now, calendar: calendar)
+        return (0...period.days).compactMap { dayOffset in
+            calendar.date(byAdding: .day, value: dayOffset, to: range.start)
+        }
+    }
+
+    private static func contains(_ timestamp: Date, in range: PeriodRange) -> Bool {
+        timestamp >= range.start && timestamp < range.endExclusive
+    }
+
     func calculateStats(period: ReportPeriod) -> ReadingReportStats {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+        let range = Self.periodRange(period: period, now: now, calendar: calendar)
 
         let allHistories = SessionRecordManager.shared.loadAllSessionHistories()
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "阅读报告")
@@ -129,7 +152,7 @@ class ReadingReportManager {
         var playEventsInPeriod: [(sessionId: String, name: String, timestamp: Date)] = []
         for item in allHistories {
             for event in item.history.playEvents {
-                if event.timestamp >= startDate && event.timestamp <= now {
+                if Self.contains(event.timestamp, in: range) {
                     playEventsInPeriod.append((sessionId: item.id, name: item.name, timestamp: event.timestamp))
                 }
             }
@@ -192,12 +215,12 @@ class ReadingReportManager {
     ) -> Int {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+        let range = Self.periodRange(period: period, now: now, calendar: calendar)
 
         var playDates: Set<Date> = []
         for item in allHistories {
             for event in item.history.playEvents {
-                if durationBySessionId[item.id] != nil && event.timestamp >= startDate && event.timestamp <= now {
+                if durationBySessionId[item.id] != nil && Self.contains(event.timestamp, in: range) {
                     let eventDay = calendar.startOfDay(for: event.timestamp)
                     playDates.insert(eventDay)
                 }
@@ -214,13 +237,13 @@ class ReadingReportManager {
     ) -> TimeInterval {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+        let range = Self.periodRange(period: period, now: now, calendar: calendar)
 
         var totalDuration: TimeInterval = 0
         for item in allHistories {
             guard let duration = durationBySessionId[item.id] else { continue }
             for event in item.history.playEvents {
-                if event.timestamp >= startDate && event.timestamp <= now {
+                if Self.contains(event.timestamp, in: range) {
                     totalDuration += duration
                 }
             }
@@ -234,12 +257,12 @@ class ReadingReportManager {
     ) -> [RecentListeningItem] {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+        let range = Self.periodRange(period: period, now: now, calendar: calendar)
 
         var items: [RecentListeningItem] = []
         for item in allHistories {
             for event in item.history.playEvents {
-                if event.timestamp >= startDate && event.timestamp <= now {
+                if Self.contains(event.timestamp, in: range) {
                     items.append(RecentListeningItem(
                         name: item.name,
                         timestamp: event.timestamp,
@@ -259,17 +282,13 @@ class ReadingReportManager {
     ) -> [DailyBookCount] {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+        let dayStarts = Self.periodDayStarts(period: period, now: now, calendar: calendar)
 
         var result: [DailyBookCount] = []
 
-        // 遍历周期内的每一天
-        for dayOffset in 0..<period.days {
-            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: startDate) else { continue }
-            let dayStart = calendar.startOfDay(for: date)
+        for dayStart in dayStarts {
             guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { continue }
 
-            // 收集当天的 sessionId 集合（去重）
             var sessionIdsOnDay: Set<String> = []
             for item in allHistories {
                 for event in item.history.playEvents {
@@ -291,7 +310,7 @@ class ReadingReportManager {
     ) -> [HourlyBookCount] {
         let now = Date()
         let calendar = Calendar.current
-        let startDate = calendar.date(byAdding: .day, value: -period.days, to: now) ?? now
+        let range = Self.periodRange(period: period, now: now, calendar: calendar)
 
         // 收集周期内所有播放事件，按小时聚合
         var sessionsByHour: [Int: Set<String>] = [:]
@@ -302,7 +321,7 @@ class ReadingReportManager {
 
         for item in allHistories {
             for event in item.history.playEvents {
-                if event.timestamp >= startDate && event.timestamp <= now {
+                if Self.contains(event.timestamp, in: range) {
                     let hour = calendar.component(.hour, from: event.timestamp)
                     sessionsByHour[hour, default: []].insert(item.id)
                 }
