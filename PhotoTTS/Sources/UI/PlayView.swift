@@ -118,7 +118,7 @@ struct PlayView: View {
     /// "同日连播"开关，默认开启（队列有下一条时自动连播）
     @State private var continuousPlayEnabled = true
     /// 护眼模式：开启时使用护眼绿背景，关闭时使用黑色背景
-    @State private var eyeProtectionEnabled = true
+    @State private var eyeProtectionEnabled = false
     /// 撑满全屏：开启时图片 .fit 拉伸填满可用空间（现有行为），关闭时以原尺寸展示（不放大，仅缩小以适屏）
     @State private var fillScreenEnabled = true
     /// 翻页动画样式：从右到左（默认）或从上到下（相对横屏控制层）
