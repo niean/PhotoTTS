@@ -118,6 +118,7 @@ Skill 只定义"做什么"和"怎么做"，不声明自身的触发时机；调�
 | 回填知识库 | Workflow显式调用，或人工指令 | .harness/framework/skills/harness/backfill-knowledge.md |
 | 归档任务文件 | Workflow显式调用，或人工指令 | .harness/framework/skills/harness/archive-task-files.md |
 | 从教训回填知识库 | 人工指令 | .harness/framework/skills/harness-ops/backfill-knowledge-fl.md |
+| 从代码治理知识库 | 人工指令 | .harness/framework/skills/harness-ops/governance-knowledge-fc.md |
 | 回填产品文档 | 人工指令 | .harness/framework/skills/harness-ops/backfill-prd.md |
 | 结果验收 | 功能迭代或Bug修复完成后自动执行，或人工指令 | .harness/framework/skills/harness/verify-acceptance.md |
 | 提取Harness模板 | 人工指令 | .harness/framework/skills/harness-ops/extract-harness-tpl/SKILL.md |
