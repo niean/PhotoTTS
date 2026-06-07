@@ -419,8 +419,7 @@ struct FullScreenEndPictView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 底层：护眼底色（与播放器一致）
-                Constants.Playback.eyeProtectionBackgroundColor
+                Color.black
                     .ignoresSafeArea()
 
                 // 中层：模糊背景（与播放器一致：.fit + scaleEffect）
@@ -461,6 +460,8 @@ struct FullScreenEndPictView: View {
                     }
             )
         }
+        .ignoresSafeArea(.all)
+        .statusBarHidden(true)
         .onAppear { loadImage(for: currentIndex) }
         .onChange(of: currentIndex) { _, newIndex in
             loadImage(for: newIndex)

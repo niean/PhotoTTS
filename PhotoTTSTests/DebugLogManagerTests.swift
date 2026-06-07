@@ -87,31 +87,51 @@ final class DebugLogManagerTests: XCTestCase {
     func testLogsAreInReverseChronologicalOrder() {
         let firstMarker = "FIRST_\(UUID().uuidString)"
         let secondMarker = "SECOND_\(UUID().uuidString)"
-        
+
         DebugLogManager.shared.log(firstMarker)
         // 短暂延迟确保时间戳不同
         Thread.sleep(forTimeInterval: 0.01)
         DebugLogManager.shared.log(secondMarker)
-        
+
         let readExpectation = expectation(description: "flushAndGetLatestLogs")
         var resultLogs = ""
-        
+
         DebugLogManager.shared.flushAndGetLatestLogs(lineCount: 50) { logs, _ in
             resultLogs = logs
             readExpectation.fulfill()
         }
-        
+
         wait(for: [readExpectation], timeout: 5.0)
-        
+
         let firstRange = resultLogs.range(of: firstMarker)
         let secondRange = resultLogs.range(of: secondMarker)
-        
+
         XCTAssertNotNil(firstRange, "应包含第一条日志")
         XCTAssertNotNil(secondRange, "应包含第二条日志")
-        
+
         if let first = firstRange, let second = secondRange {
             // 倒序：第二条（更新）应在第一条（更旧）之前
             XCTAssertTrue(second.lowerBound < first.lowerBound, "最新日志应排在最前面（时间倒序）")
         }
+    }
+
+    func testLatestLogsCanDecodeTailStartingInsideMultibyteCharacter() {
+        let marker = "UTF8_TAIL_MARKER_X_\(UUID().uuidString)"
+        let multibytePayload = String(repeating: "汉", count: 90_000)
+
+        DebugLogManager.shared.directLog(multibytePayload)
+        DebugLogManager.shared.directLog(marker)
+
+        let readExpectation = expectation(description: "flushAndGetLatestLogs")
+        var resultLogs = ""
+
+        DebugLogManager.shared.flushAndGetLatestLogs(lineCount: 50) { logs, _ in
+            resultLogs = logs
+            readExpectation.fulfill()
+        }
+
+        wait(for: [readExpectation], timeout: 5.0)
+
+        XCTAssertTrue(resultLogs.contains(marker), "尾部读取从 UTF-8 多字节字符中间开始时仍应显示后续完整日志")
     }
 }
