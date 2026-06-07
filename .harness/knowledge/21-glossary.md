@@ -1,11 +1,11 @@
 <!-- SUMMARY: 术语表：35个核心术语定义(AppState/SessionRecord/Coordinator/PlayView/BackgroundMakeManager/OCRGlobalSerialGate等) -->
 # 术语表
 
-- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage 等
+- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、tab0ReselectTrigger/tab2ReselectTrigger、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、homePageStartupPreloadSnapshot、loadingProgress/loadingMessage 等
 - fullScreenKind：全屏类型枚举（nil=主界面，.loading=启动页，.imageViewer=全屏大图，.camera=全屏相机）
 - 底导：底部 Tab 栏（首页/制作/管理/我的）；顶导：各 Tab 内顶部导航栏
 - 手势识别：左边缘滑动返回（注释 // 手势识别，参数 Constants.Gesture）
-- SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/ocrDuration/llmDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus/storyHighlights/hasVirtualPage。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
+- SessionRecord：会话记录（Codable/Identifiable/Hashable），字段：id/name/createdAt/updatedAt/imageDataList(Base64)/ocrText/ocrTextSegments/audioDataBase64/audioFormat/audioDuration/audioSegments/ocrDuration/llmDuration/ttsDuration/validImageCount/totalImageCount/textLength/audioSize/voiceSettings/avatarImageIndex/storageSize/makeStatus/storyHighlights/hasVirtualPage/animationStyle/coverImagePath。record.json 中 imageDataList=[] audioDataBase64=""，图片音频独立存储
 - integrity.json：导出包或设备传输快照中的完整性校验文件，记录单条会话目录内全部文件（除自身外）的相对路径/文件大小/MD5；核心用途是供导入、接收时判断“完整记录”，中断恢复沿用同一判断方式；不落到 App 本地磁盘记录
 - storyHighlights：绘本要点（LLM生成的15-30字符摘要），可选字段，播放时作为虚拟页追加到ocrTextSegments末尾
 - hasVirtualPage：是否存在要点图片页（由storyHighlights生成），Bool类型，要点图片从EndPicts资源库随机选取
@@ -30,8 +30,8 @@
 - 会话命名约定：会话名称以日期前缀 `YY.MM.DD ` 开头（如 `26.03.16 `），前缀自动生成且只读，用户只能编辑前缀后的自定义名称部分；格式 `yy.MM.dd 系列-故事名`，系列名通过 SessionRecordMetadata.seriesName 提取（第一个 `-` 前的部分）
 - GroupMode：管理页分组展示模式（private enum，SessionRecordListView.swift 内），flat/bySeries/byMonth 三种模式，顶导左侧图标按钮轮换切换；分组模式全量加载 metadata、手风琴折叠展示
 - PeerTransferManager：E2E设备传输管理器（封装MultipeerConnectivity），支持WiFi/蓝牙自动切换，管理设备发现、连接、数据传输全流程
-- TransferInvitationContext：E2E传输邀请上下文（Codable），字段：sessionCount/totalSize/deviceName/sessionIDs，邀请时携带记录ID列表用于接收方去重判断
+- TransferInvitationContext：E2E传输邀请上下文（Codable），字段：sessionCount/totalSize/deviceName/sessionIDs/mode，邀请时携带记录ID列表用于接收方去重判断；旧版本缺少 mode 时默认 full
 - TransferConflictDecision：E2E传输冲突决策（Codable），字段：skipDuplicates/existingIDs，接收方选择跳过或覆盖重复记录后发送给发送方
-- BackgroundMakeManager：后台制作管理器（单例），以 `tasks: [String: MakeTask]` 字典管理并发任务，按 sessionId 索引；上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 3）；暴露 `hasCapacity/activeTaskCount/hasAnyActiveTask` 供 UI/调度判断；`task(for:)`/`activeTask(for:)` 按 id 精准定位；`startMaking` 超限或 reuseSessionId 指向活跃任务时返回 nil
+- BackgroundMakeManager：后台制作管理器（单例），以 `tasks: [String: MakeTask]` 字典管理并发任务，按 sessionId 索引；上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 10）；暴露 `hasCapacity/activeTaskCount/hasAnyActiveTask` 供 UI/调度判断；`task(for:)`/`activeTask(for:)` 按 id 精准定位；`startMaking` 超限或 reuseSessionId 指向活跃任务时返回 nil
 - MakeTask：单个后台制作任务，ObservableObject + Identifiable，持有独立 ImageToSpeechCoordinator（构造时传入 ownerTaskId=sessionId 供 OCR 闸门识别归属）；发布 progress/operationMessage/isCompleted/isSuccess/error/audioResponse/ocrText/audioData/intermediateResults 等
 - OCRGlobalSerialGate：OCR 跨任务串行闸门（actor 单例，位于 Core/Handlers/Image/OCRGlobalSerialGate.swift）。提供 FIFO 队列：`acquire(taskId:)` 若无持有者立即返回，否则经 CheckedContinuation 挂起；`release(taskId:)` 仅持有者能释放，非持有者调用被忽略；`currentHolder`/`waitingCount` 供诊断。ImageToSpeechCoordinator.performConcurrentOCR 首行 acquire、defer 中 Task async release，确保抛错/取消路径闸门释放，让下一个任务的 OCR 批次可进入

@@ -28,7 +28,7 @@ description: 人工指令触发代码治理
 - Agent: Coder
 - `[GATE-ENTRY]` 前置条件：用户已在上一条消息中明确确认违规清单
 - 按确认清单修复，遵守 coder.md 约束（TDD 适用范围由 coder.md 定义）和 .harness/PROJECT.md 代码生成规范
-- 同步更新 .harness/knowledge/22-file-map.md（如有文件删除）
+- 如有文件删除，按 .harness/PROJECT.md 知识回填文件映射同步更新文件映射
 
 检查点：`[Phase 4 修复] 修复N项, 删除M个废弃项, 更新file-map: 是/否`
 

@@ -44,7 +44,7 @@ AnimationStyle 枚举控制方向（rightToLeft/topToBottom），@State isForwar
 
 ## 模式三：图片按需加载与缓存
 
-用于 PlayView 全屏播放翻页。调用链：FullScreenImageContent(useOnDemand) -> OnDemandImagePage。onAppear 先查 NSCache（countLimit=6），命中同步显示；未命中后台调 loadImage（1024pt），主线程动画更新。切页 preloadAdjacentImages 预加载前后两张。loadImage 内部用 Image I/O 直接生成目标尺寸。
+用于 PlayView 全屏播放翻页。调用链：FullScreenImageContent(useOnDemand) -> OnDemandImagePage。onAppear 先查 NSCache（countLimit=6），命中同步显示；未命中后台调 loadImage（1024pt），主线程动画更新。切页 preloadAdjacentImages 预加载前后一张。loadImage 内部用 Image I/O 直接生成目标尺寸。
 
 新增全屏图片浏览应复用 FullScreenImageContent + OnDemandImagePage。
 
@@ -62,7 +62,7 @@ AppState.fullScreenKind 控制，CustomZStack 根层渲染：fullScreenKind != .
 
 ## 模式七：多任务后台制作 + OCR 跨任务串行闸门
 
-BackgroundMakeManager 以 `tasks: [String: MakeTask]` 字典按 sessionId 索引多个并发任务，上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 3）。`hasCapacity` 判定是否可再启动；`activeTaskCount` 只统计 `!isCompleted` 任务（完成/失败不占额）。`task(for:)` 按 id 精准定位（含已完成供 UI 消费结果），`activeTask(for:)` 仅返回未完成任务，`removeTask/cancelTask` 按 id 原子清理。
+BackgroundMakeManager 以 `tasks: [String: MakeTask]` 字典按 sessionId 索引多个并发任务，上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 10）。`hasCapacity` 判定是否可再启动；`activeTaskCount` 只统计 `!isCompleted` 任务（完成/失败不占额）。`task(for:)` 按 id 精准定位（含已完成供 UI 消费结果），`activeTask(for:)` 仅返回未完成任务，`removeTask/cancelTask` 按 id 原子清理。
 
 启动流程：MakeView.processImages() 调 `startMaking(images:startingFrom:...reuseSessionId:)` 返回 sessionId。startMaking 先校验 `reuseSessionId` 指向的任务是否仍活跃（是则拒绝重入）、再校验 `hasCapacity`，通过后创建 MakeTask（持有独立 Coordinator，`ownerTaskId=sessionId`）写入 tasks 字典；重 I/O（草稿保存 + jpegData 转换 + Coordinator 启动）移到 `DispatchQueue.global(qos: .userInitiated)`，主线程立即返回。
 
@@ -110,7 +110,7 @@ private func scaled(_ value: CGFloat) -> CGFloat {
 - 字体：统一通过 `Constants.Fonts` 引用（详见 ./03-conventions.md 字体章节）。自适应字体内部调 `DeviceScale.adaptiveSize`，固定字体不随设备缩放
 - 全项目无 isPad 三元表达式控制尺寸，统一走 adaptiveSize
 
-覆盖范围：全部 15 个 UI 源文件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView/DeviceTransferView/PaginationControl/LandscapeTipOverlay/EndPictManagementView）。
+覆盖范围：主要 UI 视图和组件（PlayView/MakeView/SettingsView/HomePageView/SessionRecordListView/MakeHistoryView/PlayHistoryView/DebugLogView/CustomNavigationBar/MeTabView/SessionRecordDetailView/DeviceTransferView/TransferReceiverModifier/PaginationControl/LandscapeTipOverlay/EndPictManagementView/PlaybackSettingsView/RecordAnalysisView/RealTimeMonitorView/CoverEditView/SessionSearchBar 等），新增 UI 文件应沿用同一模式。
 
 ## 模式十一：错误分层（Error Layering）
 
@@ -151,25 +151,26 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 
 ## 模式十三：播放记录传输（复用传输基础设施）
 
-设备间传输复用现有 PeerTransferManager 的 MultipeerConnectivity 基础设施，通过 TransferMode 枚举区分 full / playOnly 两种模式，避免新增独立的传输通道。
+设备间传输复用现有 PeerTransferManager 的 MultipeerConnectivity 基础设施，通过 TransferMode 枚举区分 full / fullWithStats / playOnly 三种模式，避免新增独立的传输通道。
 
 调用链：SessionRecordListView "更多" 菜单 -> 选择"传输播放记录" -> 设置 showPlayOnlyTransfer=true -> DeviceTransferView(transferMode: .playOnly) -> PeerTransferManager.invitePeerPlayOnly() -> 发送端打包 history.json（SessionRecordManager.packageHistoryFilesOnly） -> 接收端收到后识别 playOnly 模式 -> 解包覆盖本地 history.json（SessionRecordManager.applyHistoryPackage） -> 完成提示文本按模式区分（TransferReceiverModifier 根据 receivedTransferMode 切换文案）。
 
 关键设计：
 - TransferInvitationContext 携带 mode、totalSize 和 sessionIDs，随邀请信令传递给接收端；totalSize 由发送方邀请前按 TransferMode 预估，接收端在 didReceiveInvitationFromPeer 中设置 receivedTransferMode 并生成 StorageCheckResult
-- full 模式发送端自动去重：接收方通过 TransferConflictDecision 回传 existingIDs，发送方在 didReceive data 回调中过滤后仅打包不存在的记录；全部重复时直接完成不传输；决策超时（Constants.PeerTransfer.decisionTimeout）回退全量传输
+- full/fullWithStats 模式发送端自动去重：接收方通过 TransferConflictDecision 回传 existingIDs，发送方在 didReceive data 回调中过滤后仅打包不存在的记录；全部重复时直接完成不传输；决策超时（Constants.PeerTransfer.decisionTimeout）回退全量传输
 - 接收方空间预检失败时不走正常接收：UI 只显示“确定”，PeerTransferManager.confirmInsufficientStorageInvitation 会短暂接受 MCSession，发送 TransferControlMessage.storageInsufficient 后 teardown，发送方收到后展示接收方剩余空间 X/需要 Y 并阻断打包
 - 接收方无法读取剩余空间时 availableBytes=nil，StorageCheckResult.isEnough=true，UI 提示“已跳过可用空间检查”并保留正常接收/拒绝按钮
 - 发送方处理 storageInsufficient 控制消息必须校验当前处于发送等待状态，且消息来源等于 pendingSendPeer，避免非当前 peer 终止传输
+- full 模式传输完整记录但不保留播放统计；fullWithStats 传输完整记录并保留播放统计；playOnly 仅传输播放历史
 - playOnly 模式发送端始终传输所有记录（不跳过重复），由接收端覆盖本地历史
 - 发送端 playOnly 模式下仅打包 .json 文件（不传输图片/音频，体积显著减小）
-- 接收端 didFinishReceivingResourceWithName 中按模式分流：full 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
-- full 模式的完整记录判断优先依赖导出包或传输快照中的 `integrity.json`：该文件的职责就是供导入、接收时做完整性校验，校验清单覆盖目录内全部文件 MD5（不含自身）；接收到本地后会删除该文件，本地 `Documents/Sessions/{id}/` 仍以结构检查和业务文件为准
+- 接收端 didFinishReceivingResourceWithName 中按模式分流：full/fullWithStats 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
+- full/fullWithStats 模式的完整记录判断优先依赖导出包或传输快照中的 `integrity.json`：该文件的职责就是供导入、接收时做完整性校验，校验清单覆盖目录内全部文件 MD5（不含自身）；接收到本地后会删除该文件，本地 `Documents/Sessions/{id}/` 仍以结构检查和业务文件为准
 - 接收方通过 receiverExistingSessionIDs 在接受邀请时保存本地已有 sessionID，供传输完成后 applyHistoryPackage 使用（pendingInvitation 在接受后即被清除）
 - cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，先 reject 未处理的 pendingInvitation 再置 nil（避免发送方等待超时），同时重置 isIdleTimerDisabled
 - 接收方 didReceiveInvitationFromPeer 中检测 transferState 为 .completed/.failed 时，自动清理 stale 状态（teardownSession + createSession + 状态重置），确保同一 MCPeerID 可重新连接
 - DeviceTransferView.onDisappear 中 reset() 后延迟重启 startAdvertising()，确保设备可被附近设备发现
 
-涉及文件：PeerTransferManager.swift（TransferMode / mode 字段 / invitePeerPlayOnly / sendPlayHistory / 模式分支）、SessionRecordManager.swift（packageHistoryFilesOnly / applyHistoryPackage）、SessionRecordListView.swift（菜单入口）、DeviceTransferView.swift（transferMode 参数）、TransferReceiverModifier.swift（按模式切换 UI 文案）。
+涉及文件：PeerTransferManager.swift（TransferMode / mode 字段 / invitePeerWithStats / invitePeerPlayOnly / sendPlayHistory / 模式分支）、SessionRecordManager.swift（packageHistoryFilesOnly / applyHistoryPackage）、SessionRecordListView.swift（菜单入口）、DeviceTransferView.swift（transferMode 参数）、TransferReceiverModifier.swift（按模式切换 UI 文案）。
 
 新增设备间数据同步场景应优先复用 PeerTransferManager 传输通道，通过扩展 TransferMode 或新增上下文字段区分，避免另起独立的 MCP 连接。

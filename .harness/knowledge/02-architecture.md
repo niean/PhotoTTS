@@ -3,9 +3,9 @@
 
 ## 分层
 
-- 表现层（PhotoTTS/Sources/UI）：SwiftUI+UIKit 封装。主要视图：PhotoTTSApp（根）、MainTabView（底导）、HomePageView、MakeView（含 PhotoProcessingView）、MeTabView、PlayView（全屏播放）、SessionRecordListView、SessionRecordUnifiedView（保存/编辑/查看，位于 SessionRecordDetailView.swift）、AppLoadingView/AppIntroView（位于 AppPagesView.swift）、PaginationControl（分页控件）、ChangeLogsView（更新记录）、RealTimeMonitorChartView（监控图表）、ReadingReportView（阅读报告）
+- 表现层（PhotoTTS/Sources/UI）：SwiftUI+UIKit 封装。主要视图：PhotoTTSApp（根）、MainTabView（底导）、HomePageView、MakeView（含 PhotoProcessingView）、MeTabView、PlayView（全屏播放）、SessionRecordListView、SessionRecordUnifiedView（保存/编辑/查看，位于 SessionRecordDetailView.swift）、AppLoadingView/AppIntroView（位于 AppPagesView.swift）、PaginationControl（分页控件）、ChangeLogsView（更新记录）、RealTimeMonitorView/RealTimeMonitorChartView（实时监控）、ReadingReportView（阅读报告）、DeviceTransferView/TransferReceiverModifier（设备传输）、EndPictManagementView（要点图片管理）、PlaybackSettingsView（播放设置）
 - 协调层（PhotoTTS/Sources/Core/Coordinators）：ImageToSpeechCoordinator 串联 OCR+LLM+TTS 三阶段流程，上报进度与结果
-- 能力层（PhotoTTS/Sources/Core/Handlers+Managers）：OCRService、TTSService、LLMService、NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager、BackgroundMakeManager、OCRGlobalSerialGate、PerformanceMonitorManager、PeerTransferManager、ReadingReportManager。PlayHistoryManager/MakeHistoryManager 将数据存储委托 SessionRecordManager（会话级 history.json）。BackgroundMakeManager 管理多个并发 MakeTask（上限 Constants.BackgroundMake.maxConcurrentTasks=3，每任务持有独立 Coordinator），以 tasks: [String: MakeTask] 字典按 sessionId 索引；同时 OCR 阶段跨任务整体互斥，由独立的 actor OCRGlobalSerialGate 提供 FIFO 闸门（acquire/release）。PerformanceMonitorManager 负责实时监控 CPU、内存、磁盘、网络指标。PeerTransferManager 封装 MultipeerConnectivity 实现设备间直传（WiFi/蓝牙自动切换），支持两种传输模式（TransferMode）：full 模式传输完整会话记录（图片+音频+history.json），playOnly 模式仅传输播放历史（history.json），通过 invitePeerPlayOnly / sendPlayHistory 触发，接收端按模式决定提示文案和落盘行为（playOnly 使用 applyHistoryPackage 覆盖本地 history.json）
+- 能力层（PhotoTTS/Sources/Core/Handlers+Managers）：OCRService、OCRTextProcessor、TTSService、LLMService、NetworkService、SettingsManager、SessionRecordManager、PlayHistoryManager、MakeHistoryManager、DebugLogManager、BackgroundMakeManager、OCRGlobalSerialGate、PerformanceMonitorManager、PeerTransferManager、ReadingReportManager。PlayHistoryManager/MakeHistoryManager 将数据存储委托 SessionRecordManager（会话级 history.json）。BackgroundMakeManager 管理多个并发 MakeTask（上限 Constants.BackgroundMake.maxConcurrentTasks=10，每任务持有独立 Coordinator），以 tasks: [String: MakeTask] 字典按 sessionId 索引；同时 OCR 阶段跨任务整体互斥，由独立的 actor OCRGlobalSerialGate 提供 FIFO 闸门（acquire/release）。PerformanceMonitorManager 负责实时监控 CPU、内存、磁盘、网络指标。PeerTransferManager 封装 MultipeerConnectivity 实现设备间直传（WiFi/蓝牙自动切换），支持三种传输模式（TransferMode）：full 模式传输完整会话记录但不保留播放统计，fullWithStats 模式传输完整会话记录并保留播放统计，playOnly 模式仅传输播放历史（history.json），接收端按模式决定提示文案和落盘行为
 - 数据层（PhotoTTS/Sources/Models）：SessionRecord、APIResponse、VoiceSettings；PhotoTTS/Sources/Constants.swift、config_local.json
 
 ## 模块边界
@@ -14,7 +14,7 @@
 - Coordinator 依赖 NetworkService（协议）、SettingsManager、OCRService；密钥来自 SettingsManager
 - SessionRecord 由 SessionRecordManager 读写；各历史/日志由各自 Manager 管理
 - 跨界面状态集中 AppState，根视图与各 Tab 共享
-- 跨 Tab 协调：HomePageView 写 AppState 标志 -> selectedTab=1 -> MakeView onAppear+onChange 消费
+- 跨 Tab 协调：SessionRecordListView（管理页右上角菜单）写 AppState 标志 -> selectedTab=1 -> MakeView onAppear+onChange 消费
 - Tab 重置：离开 tab0/2/3 时 resetId 自增重建；tab1 不参与
 
 ## 关键约束

@@ -33,9 +33,9 @@ Task Progress:
 
 构建：执行 .harness/PROJECT.md "构建与测试" 中定义的构建命令，确认零警告零错误。
 
-测试：测试命令同样取自 .harness/PROJECT.md "构建与测试"。
+测试：按 .harness/PROJECT.md "构建与测试" 中的单元测试执行策略判断是否运行测试；判定为必须执行时，使用该章节定义的测试命令。
 
-scope=build_only 时，Step 1 完成后输出结果摘要并结束。
+scope=build_only 时，Step 1 完成后输出结果摘要并结束；build_only 仅跳过代码扫描和验收检查，不跳过 PROJECT 判定为必须执行的单元测试。
 
 ### Step 2: 代码扫描
 

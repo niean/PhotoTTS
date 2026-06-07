@@ -74,10 +74,8 @@ MakeHistoryManager/PlayHistoryManager 不维护独立文件，委托 SessionReco
   },
   "llm": {
     "provider": "doubao",
-    "providers": {
-      "doubao": { "base_url": "", "model_name": "", "api_key": "", "prompt_user": "", "timeout": 30, "max_retry_count": 3, "retry_delay": 1 },
-      "openai": { "base_url": "", "model_name": "", "api_key": "", "prompt_user": "", "timeout": 30, "max_retry_count": 3, "retry_delay": 1 }
-    }
+    "doubao": { "base_url": "", "model_name": "", "api_key": "", "prompt_user": "", "timeout": 120, "max_retry_count": 3, "retry_delay": 1.0 },
+    "openai": { "base_url": "", "model_name": "", "api_key": "", "prompt_user": "", "timeout": 120, "max_retry_count": 3, "retry_delay": 1.0 }
   }
 }
 ```

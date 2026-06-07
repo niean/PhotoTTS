@@ -73,7 +73,7 @@
 ## 日志
 
 - 禁止 print()，统一 os.Logger
-- 分类定义在 PhotoTTSApp.swift `extension os.Logger`（app/audioPlayer/camera/makeView/appPages/ttsService/networkService/settingsManager/ocrService/coordinator/debugLog/sessionRecord/playHistory/backgroundMake/makeHistory/llmService/peerTransfer），subsystem "com.photoTTS.PhotoTTS"
+- 分类定义在 PhotoTTSApp.swift `extension os.Logger`（app/audioPlayer/camera/makeView/appPages/ttsService/networkService/settingsManager/ocrService/coordinator/debugLog/sessionRecord/playHistory/backgroundMake/makeHistory/llmService/peerTransfer/readingReport/coverEdit/coverImage/performanceMonitor），subsystem "com.photoTTS.PhotoTTS"
 - 级别：debug/info/warning/error
 - 文本禁用 emoji/加粗/斜体，禁止输出敏感字段
 
@@ -85,7 +85,7 @@
 
 ## 内存与性能
 
-图片缓存：NSCache countLimit=6（当前帧+前后各2+1余量），键 "\(sessionId):\(index):\(maxDimension)"。切页 preloadAdjacentImages 前后两张。PlayView recordId 路径禁止 getImages() 全量加载；仅 preloadedRecord 路径允许一次性加载。
+图片缓存：NSCache countLimit=6，键 "\(sessionId):\(index):\(maxDimension)"。切页 preloadAdjacentImages 预加载前后一张。PlayView recordId 路径禁止 getImages() 全量加载；仅 preloadedRecord 路径允许一次性加载。
 
 图片解码：必须 Image I/O CGImageSourceCreateThumbnailAtIndex 直接目标尺寸，禁止先全尺寸再缩放（IOSurface 限制）。入库上限 2048px。
 

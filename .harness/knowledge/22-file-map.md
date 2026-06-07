@@ -12,7 +12,7 @@
 - 首页：HomePageView（PhotoTTS/Sources/UI/HomePageView.swift，双列卡片网格，含 SessionRecordCard）
 - 制作：MakeView（PhotoTTS/Sources/UI/MakeView.swift）
 - 管理：SessionRecordListView（PhotoTTS/Sources/UI/SessionRecordListView.swift，isRootTab=true，mode=.manage）
-- 我的：MeTabView（PhotoTTS/Sources/UI/MeTabView.swift），自上而下分为播放功能区（阅读报告/播放设置/播放历史）、制作功能区（记录分析/要点图片/制作设置/制作历史）、其它功能区（调试日志/实时监控/更新记录/关于）
+- 我的：MeTabView（PhotoTTS/Sources/UI/MeTabView.swift），自上而下分为播放功能区（阅读报告/播放历史/播放设置）、制作功能区（记录分析/要点图片/制作设置/制作历史）、其它功能区（调试日志/实时监控/更新记录/关于）
 - 记录分析：RecordAnalysisView（PhotoTTS/Sources/UI/RecordAnalysisView.swift），从我的 Tab 进入，展示记录总数、已读未读、系列分布、制作状态、存储空间
 - 消息（预留）：MessageTabView（PhotoTTS/Sources/UI/MessageTabView.swift），未集成到 MainTabView
 - 要点图片管理：EndPictManagementView（PhotoTTS/Sources/UI/EndPictManagementView.swift），从我的 Tab 进入
@@ -47,6 +47,7 @@
 
 - ImageToSpeechCoordinator：PhotoTTS/Sources/Core/Coordinators/ImageToSpeechCoordinator.swift（构造带 ownerTaskId 参数，OCR 阶段通过 OCRGlobalSerialGate 串行化）
 - OCRService/OCRServiceFactory（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/Image/OCRService.swift
+- OCRTextProcessor：PhotoTTS/Sources/Core/Handlers/Image/OCRTextProcessor.swift
 - OCRGlobalSerialGate（actor，跨任务 OCR 串行闸门）：PhotoTTS/Sources/Core/Handlers/Image/OCRGlobalSerialGate.swift
 - TTSServiceProtocol/TTSService（火山）/AliqwenTTSService（阿里千问）/TTSServiceFactory（多 Provider：huoshan/aliqwen）：PhotoTTS/Sources/Core/Handlers/Audio/TTSService.swift
 - LLMServiceProtocol/LLMServiceFactory/DoubaoLLMService/OpenAILLMService（多 Provider：doubao/openai）：PhotoTTS/Sources/Core/Handlers/LLM/LLMService.swift
@@ -77,11 +78,14 @@
 ## 配置与资源
 
 - `PhotoTTS/Resources/config_example.json`（Bundle 内默认配置模板）/ `PhotoTTS/Resources/changelogs.md`（更新记录数据）
+- PhotoTTS/Resources/EndPicts/：系统内置要点图片资源，按 h/z 分组
+- PhotoTTS/Resources/home.jpg：默认头像兜底图
+- PhotoTTS/Assets.xcassets/：AppIcon、AccentColor、home.imageset 等资源
 - PhotoTTS/Resources/DefaultSession/：内置默认绘本（使用介绍），含 default_session_metadata.json/default_session_record.json/default_session_history.json/default_session_audio.mp3/default_session_avatar.jpg/default_session_readme.txt/images/default_session_image_*.jpg；由 SessionRecordManager 在用户无记录时从 Bundle 加载展示
 - locals/（项目根目录，不在 Xcode PBXFileSystemSynchronizedRootGroup 内，不打包到 App Bundle）：存放本地敏感配置（如 `locals/config/config_local.json`）；App 首次启动时 SettingsManager.ensureUserConfigExists() 从 Bundle 的 `PhotoTTS/Resources/config_example.json` 复制配置到应用沙箱 Documents 目录
 
 ## 测试
 
-- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests/ReadingReportManagerTests/OCRGlobalSerialGateTests/BackgroundMakeManagerTests
+- 单元测试（PhotoTTSTests/）：PhotoTTSAppTests/SettingsManagerTests/ImageToSpeechCoordinatorTests/DebugLogManagerTests/ContinuousPlaybackTests/PeerTransferManagerTests/ReadingReportManagerTests/OCRGlobalSerialGateTests/BackgroundMakeManagerTests/OCRTextProcessorTests
 - 功能测试（PhotoTTSTests/FunctionalTests/）：TestPhotoTTSIntegration（真实 API，默认 XCTSkip）、TestAliqwenTTS（阿里千问 TTS 真实 API 测试）
 - UI 测试（PhotoTTSUITests/）：启动验证/性能/截图
