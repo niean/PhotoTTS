@@ -331,7 +331,6 @@ extension Constants {
         static let lastLaunchDate = "last_launch_date"
         static let maxCacheSize = "max_cache_size"
         static let autoCleanupEnabled = "auto_cleanup_enabled"
-        static let siriPendingSessionId = "siriPendingPlaySessionId"
         static let landscapeTipDismissed = "landscape_tip_dismissed"
         // 要点图片轮询队列（横向）
         static let endPictRoundRobinH = "end_pict_round_robin_h"
@@ -360,8 +359,6 @@ extension Constants {
         static let coverImageDidUpdate = NSNotification.Name("CoverImageDidUpdate")
         /// 头像图片已更新，userInfo["sessionId"]: String
         static let avatarImageDidUpdate = NSNotification.Name("AvatarImageDidUpdate")
-        /// 远程播放控制命令（MPRemoteCommandCenter -> PlayView），userInfo["action"]: "play"/"pause"/"toggle"
-        static let remotePlaybackCommand = NSNotification.Name("RemotePlaybackCommand")
         /// 播放历史已更新（记录了一次播放）
         static let playHistoryDidUpdate = NSNotification.Name("PlayHistoryDidUpdate")
     }

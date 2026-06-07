@@ -87,7 +87,7 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -only-testing:Photo
 | .harness/knowledge/02-architecture.md | 涉及模块新增、跨层调用、全屏控制、数据流向时 |
 | .harness/knowledge/03-conventions.md | 涉及编码/UI/质量/安全/文件管理约定细节时 |
 | .harness/knowledge/04-data-boundaries.md | 涉及数据结构、存储格式时 |
-| .harness/knowledge/05-key-patterns.md | 实现跨文件协作模式时（跨Tab/PlayView/图片加载/OCR/Siri/后台制作/iPad适配/错误分层/防息屏等） |
+| .harness/knowledge/05-key-patterns.md | 实现跨文件协作模式时（跨Tab/PlayView/图片加载/OCR/后台制作/iPad适配/错误分层/防息屏等） |
 | .harness/knowledge/21-glossary.md | 对术语不清楚时 |
 | .harness/knowledge/22-file-map.md | 确定功能对应源文件时 |
 | .harness/prd/02-prd-baseline.md | 确认功能需求与产品约束时 |
@@ -154,7 +154,7 @@ CLAUDE.md              -- Claude Code 入口
 PhotoTTS/
   Sources/
     UI/                -- SwiftUI 视图
-    Core/              -- Coordinators、Handlers、Intents、Managers
+    Core/              -- Coordinators、Handlers、Managers
     Models/            -- 数据模型
   Resources/           -- 配置、素材（打包到 App Bundle）
 locals/                -- 本地敏感配置

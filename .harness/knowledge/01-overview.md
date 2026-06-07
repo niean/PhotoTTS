@@ -13,7 +13,7 @@ Swift 5.0+，iOS 18.1+，MVVM+Coordinator，SwiftUI 为主（相机用 UIKit/AVF
 
 - 入口：PhotoTTSApp.swift（@main），初始化：异步配置音频会话（.playback 后台线程）、初始化 SessionRecordManager/DebugLogManager 单例、防息屏
 - 启动页：fullScreenKind 初始 .loading，AppLoadingView 约 1.5s 后置 nil
-- 根状态：AppState（ObservableObject）管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、sessionRecordToPlay（Siri）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage；竖屏 AppDelegate 锁定
+- 根状态：AppState（ObservableObject）管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage；竖屏 AppDelegate 锁定
 
 ## 核心流程
 

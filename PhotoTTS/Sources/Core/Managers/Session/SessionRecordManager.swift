@@ -127,7 +127,7 @@ class SessionRecordManager {
     private let logger = os.Logger.sessionRecord
     private let shanghaiTimeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
 
-    // 元数据短时效缓存：避免 Siri 实体查询等场景短时间内多次磁盘扫描
+    // 元数据短时效缓存：避免短时间内多次磁盘扫描
     private var metadataCache: [SessionRecordMetadata]?
     private var metadataCacheTime: Date = .distantPast
     private static let metadataCacheTTL: TimeInterval = 2 // 缓存有效期 2 秒
@@ -847,7 +847,7 @@ class SessionRecordManager {
         caller: String = "",
         forceRefresh: Bool = false
     ) -> [SessionRecordMetadata] {
-        // 短时效缓存命中则直接返回，避免 Siri 实体查询等场景重复磁盘扫描
+        // 短时效缓存命中则直接返回，避免重复磁盘扫描
         if !forceRefresh,
            let cached = metadataCache,
            Date().timeIntervalSince(metadataCacheTime) < Self.metadataCacheTTL {

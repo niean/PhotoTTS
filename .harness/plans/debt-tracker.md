@@ -11,13 +11,14 @@
 | DEBT002 | 编码约定-compressionQuality: 1.0等图片压缩质量值硬编码，应集中到Constants.swift | low | plan-250319-playback-direction | 2026-03-19 | open |
 | DEBT003 | 编码约定-文件路径字符串"metadata.json"/"record.json"/"Sessions"等散落在20+处硬编码，应集中定义为常量 | low | plan-250319-playback-direction | 2026-03-19 | open |
 | DEBT005 | 图片处理-getImages()使用UIImage(data:)全尺寸解码，未经Image I/O降采样，应标记废弃或改用SessionRecordManager.loadImage | medium | plan-250319-playback-direction | 2026-03-19 | open |
-| DEBT006 | 编码约定-PhotoTTSApp.swift第158行`2.0`（Siri启动延迟秒数）硬编码为魔法值，未收归Constants.swift | low | plan-260320-remove-message-tab | 2026-03-20 | open |
+| DEBT006 | 编码约定-PhotoTTSApp.swift第158行`2.0`（已移除启动延迟秒数）硬编码为魔法值，未收归Constants.swift | low | plan-260320-remove-message-tab | 2026-03-20 | resolved |
 | DEBT007 | 图片处理-PlayerImageView第1194行CGImageSourceCreateImageAtIndex fallback全尺寸解码，未经降采样，违反Image I/O规范 | medium | plan-260324-continuous-playback | 2026-03-24 | open |
 | DEBT008 | 编码约定-PlayView.swift第746行控制条自动隐藏间隔`1.5`秒硬编码；第937-939/1058-1059行padding数值硬编码，未归入Constants.swift | low | plan-260324-progress-drag-while-playing | 2026-03-24 | resolved |
 | DEBT012 | 编码约定-CustomCameraView.swift约30+处UI布局魔法值（圆角/边框/字号/间距等）硬编码，未集中到Constants.swift | low | plan-260329-camera-thumbnail | 2026-03-29 | open |
 | DEBT013 | 编码约定-ImageToSpeechProcessingError.errorDescription包含底层error.localizedDescription可能泄露技术细节给用户；缺少technicalDescription属性；ErrorView直接展示error.localizedDescription | medium | plan-260414-manage-load-only | 2026-04-14 | open |
 | DEBT014 | 测试债-ReadingReportStats签名变更（continuousDays移除/新增listeningDays等4字段，formattedNear30DaysDuration重命名为formattedNearPeriodDuration）时未同步更新ReadingReportManagerTests；本次为让测试target编译通过已最小化修复（补齐参数、改用新方法名、继承等价断言），但部分测试仅验证格式串未验证语义一致性，需后续审视listeningDays vs 原continuousDays语义对齐 | low | plan-260417-parallel-make-ocr-serial | 2026-04-17 | resolved |
 | DEBT015 | 编码约定-SessionRecordManager.swift 既有逻辑会在 Documents/session/export 目录创建 README.txt，与禁止主动创建 README 的项目约定冲突；需评估是否改名或移除说明文件 | low | plan-260606-transfer-storage-precheck | 2026-06-06 | open |
+| DEBT016 | 安全规范-项目仍声明 NSMicrophoneUsageDescription，但代码未发现麦克风使用且公开隐私/适龄文档未披露麦克风权限；需确认是否移除权限声明或补充说明 | medium | plan-260607-remove-siri | 2026-06-07 | open |
 
 ---
 

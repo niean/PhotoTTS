@@ -117,5 +117,5 @@ SettingsManager 通过 UserDefaults 存非敏感配置，键名 Constants.UserDe
 ## 边界约定
 
 - UI 层不直接构造/解析 OCR/TTS HTTP 请求响应
-- 列表只读 metadata.json；分页 getSessionMetadataPage(page:pageSize:searchKeyword:caller:) 返回 items+totalCount，pageSize 见 Constants.Pagination；全量 getAllSessionMetadata() 仅供导出/清空/Siri
+- 列表只读 metadata.json；分页 getSessionMetadataPage(page:pageSize:searchKeyword:caller:) 返回 items+totalCount，pageSize 见 Constants.Pagination；全量 getAllSessionMetadata() 仅供导出/清空等批量场景
 - getImages() 仅兼容旧数据或 preloadedRecord，新代码用 loadImage 按需加载

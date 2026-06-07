@@ -65,7 +65,6 @@ PhotoTTS/
 │   ├── Core/
 │   │   ├── Coordinators/    # 业务编排
 │   │   ├── Handlers/        # OCR / TTS 服务
-│   │   ├── Intents/         # Siri Intents
 │   │   └── Managers/        # 会话、设置、历史、后台制作等
 │   ├── Models/              # 数据模型
 │   └── UI/                  # SwiftUI 视图

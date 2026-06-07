@@ -57,11 +57,6 @@
 - CoverImageManager：PhotoTTS/Sources/Core/Handlers/Image/CoverImageManager.swift（封面生成、裁剪、旋转）
 - CoverEditView：PhotoTTS/Sources/UI/CoverEditView.swift（封面裁剪弹窗）
 
-## Siri
-
-- SessionRecordEntity/Query：PhotoTTS/Sources/Core/Intents/SessionRecordEntity.swift
-- PlaySessionIntent/PhotoTTSShortcuts：PhotoTTS/Sources/Core/Intents/PlaySessionIntent.swift
-
 ## 设置与历史
 
 - SettingsView/SettingsManager：PhotoTTS/Sources/UI/SettingsView.swift / PhotoTTS/Sources/Core/Managers/Settings/SettingsManager.swift

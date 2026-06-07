@@ -1,7 +1,7 @@
 <!-- SUMMARY: 术语表：35个核心术语定义(AppState/SessionRecord/Coordinator/PlayView/BackgroundMakeManager/OCRGlobalSerialGate等) -->
 # 术语表
 
-- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、sessionRecordToPlay（Siri 触发）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage 等
+- AppState：根级 ObservableObject，管理 fullScreenKind、selectedTab、全屏大图/相机数据、tabXResetId（tab0/2/3）、跨 Tab 协调标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear/sessionIdToLoadIntoMake）、isPlayViewActive（播放互斥）、makeTaskIdToReconnect、recordIdToEditInManageTab、loadingProgress/loadingMessage 等
 - fullScreenKind：全屏类型枚举（nil=主界面，.loading=启动页，.imageViewer=全屏大图，.camera=全屏相机）
 - 底导：底部 Tab 栏（首页/制作/管理/我的）；顶导：各 Tab 内顶部导航栏
 - 手势识别：左边缘滑动返回（注释 // 手势识别，参数 Constants.Gesture）

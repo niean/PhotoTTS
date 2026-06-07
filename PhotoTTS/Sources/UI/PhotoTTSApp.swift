@@ -8,7 +8,6 @@ import os.log
 // MARK: - 日志记录器
 extension os.Logger {
     static let app = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "App")
-    static let siri = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "Siri")
     static let audioPlayer = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "AudioPlayer")
     static let camera = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "Camera")
     static let makeView = os.Logger(subsystem: "com.photoTTS.PhotoTTS", category: "MakeView")
@@ -61,8 +60,6 @@ class AppState: ObservableObject {
     @Published var openPhotoPickerOnNextRecordAppear: Bool = false
     /// 记录管理里「加载到制作」时写入，制作页 onAppear 消费后置 nil
     @Published var sessionIdToLoadIntoMake: String? = nil
-    /// Siri 触发播放的会话记录，PlayView 消费后置 nil
-    @Published var sessionRecordToPlay: SessionRecord? = nil
     /// 从记录列表点击制作中记录时写入，制作页消费后置 nil
     @Published var makeTaskIdToReconnect: String? = nil
     /// 播放互斥：当前是否有 PlayView 处于活跃状态，任意时刻只允许一个记录播放
@@ -175,10 +172,7 @@ struct PhotoTTSApp: App {
         DispatchQueue.global(qos: .utility).async {
             SessionRecordManager.shared.backfillLegacyUnreadHistoryIfNeeded()
         }
-        
-        // Siri App Shortcuts 注册由 scenePhase == .active 统一处理，
-        // 首次启动和每次回到前台都会触发，无需在 init() 中重复注册
-    }
+            }
     
     var body: some Scene {
         WindowGroup {
@@ -193,21 +187,11 @@ struct PhotoTTSApp: App {
                 }
             }
             .statusBarHidden(appState.fullScreenKind != nil)
-            // Siri 触发播放：根级 PlayView（PlayView 例外，允许 fullScreenCover）
-            .fullScreenCover(item: $appState.sessionRecordToPlay) { record in
-                PlayView(recordId: record.id, onDismiss: {
-                    appState.sessionRecordToPlay = nil
-                    appState.isPlayViewActive = false
-                })
-            }
-            // 监听 App 进入前台（包含 Siri 拉起场景）
+            // 监听 App 进入前台
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     // 防息屏：每次回前台重新设置，防止系统重置
                     UIApplication.shared.isIdleTimerDisabled = true
-                    // 每次回到前台重新注册 Siri Shortcuts，防止系统索引丢失
-                    Self.registerAppShortcuts(caller: "foreground")
-                    loadPendingSiriSession()
                     // 设备传输：前台时开始广播，可被附近设备发现
                     PeerTransferManager.shared.startAdvertising()
                     // 性能监控：前台且非启动页时启动监控
@@ -230,46 +214,6 @@ struct PhotoTTSApp: App {
             }
             // 设备传输：接收方公共 UI（PlayView 活跃时由 PlayView 实例展示）
             .transferReceiver(isActive: !appState.isPlayViewActive)
-        }
-    }
-
-    // MARK: - Siri Shortcuts 注册
-
-    /// 向系统注册 App Shortcuts，供 Siri 发现和调用
-    /// - Parameter caller: 调用来源标识（init / foreground / manual），用于日志区分
-    static func registerAppShortcuts(caller: String) {
-        PhotoTTSShortcuts.updateAppShortcutParameters()
-        os.Logger.siri.info("App Shortcuts 注册成功 (caller=\(caller))")
-    }
-
-    // Siri 待播放：App 激活时检查 UserDefaults，有则加载并触发 PlayView
-    private func loadPendingSiriSession() {
-        guard let sessionId = UserDefaults.standard.string(forKey: kSiriPendingSessionId) else { return }
-        // 立即清除，防止重复触发
-        UserDefaults.standard.removeObject(forKey: kSiriPendingSessionId)
-
-        let tryLoad = {
-            DispatchQueue.global(qos: .userInitiated).async {
-                guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else {
-                    os.Logger.siri.warning("播放: 未找到会话 \(sessionId)")
-                    return
-                }
-                DispatchQueue.main.async {
-                    guard !appState.isPlayViewActive else {
-                        os.Logger.audioPlayer.warning("播放互斥: 已有播放中，拒绝Siri触发播放 sessionId=\(sessionId)")
-                        return
-                    }
-                    appState.isPlayViewActive = true
-                    appState.sessionRecordToPlay = record
-                }
-            }
-        }
-
-        if appState.fullScreenKind == .loading {
-            // 启动页还未结束，延迟等待
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { tryLoad() }
-        } else {
-            tryLoad()
         }
     }
     

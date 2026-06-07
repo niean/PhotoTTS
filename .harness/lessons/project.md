@@ -28,7 +28,7 @@ AI 自主维护，人工可通过提示或建议触发新增/修正。
 现象：发送方再次制作后沿用原 session ID，接收方即使已经删除旧记录，重新传输时仍可能被判定为“ID 重复”并直接跳过。
 
 根因：
-1. `SessionRecordManager.getAllSessionMetadata()` 有 2 秒短时缓存，适合首页/Siri 等读多写少场景
+1. `SessionRecordManager.getAllSessionMetadata()` 有 2 秒短时缓存，适合首页等读多写少场景
 2. `PeerTransferManager` 邀请阶段的重复检查，以及导入阶段的 ID 判重，直接复用了这层缓存
 3. 当本地删除刚发生、磁盘已变化但缓存尚未刷新时，传输链路会把已删除记录误判成仍然存在
 

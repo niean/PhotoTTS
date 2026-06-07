@@ -1,4 +1,4 @@
-<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/Siri/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输/传输空间预检 -->
+<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输/传输空间预检 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -31,7 +31,7 @@ PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），�
 queueRecordIds 参数（默认空），由 HomePageView 根据播放计划开关和记录是否在计划内选择不同策略：
 - 播放计划关闭或记录不在计划内：queueRecordIds = [id]（仅单条播放）
 - 播放计划开启且记录在计划内：通过 buildPlanQueue 构建（仅包含排序在起始记录之后的播放计划内记录，todoRecordIds 来自首页播放计划排序逻辑）
-播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。Siri/MakeView 不传队列。UI 文本显示为"计划内连播"。
+播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。MakeView 不传队列。UI 文本显示为"计划内连播"。
 
 ### 播放互斥
 AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点打开前检查，为 true 时拒绝。
@@ -53,20 +53,6 @@ AnimationStyle 枚举控制方向（rightToLeft/topToBottom），@State isForwar
 ImageToSpeechCoordinator.performConcurrentOCR：按 ocr_concurrent_count（config sys 节）分批 chunked，每批 withTaskGroup 并发执行 OCRService.recognizeText。失败返回 ""（保持索引）。每批完成更新进度（OCR 0~50%，LLM 50~70%，TTS 70~100%）。拼接时剔除 ocrEmptyResultIndicator，检查总长度不超 tts_text_max_length。
 
 扩展 OCR 应在此函数修改，不在 UI 层自行并发。
-
-## 模式五：Siri 语音触发播放与控制
-
-触发播放流程：
-1. registerAppShortcuts 仅在 scenePhase==.active 时调用（首次+每次回前台），不在 init() 中
-2. PlaySessionIntent 将 sessionId 写入 UserDefaults（siriPendingPlaySessionId），openAppWhenRun=true
-3. PhotoTTSApp 监听 .active 调 loadPendingSiriSession()，读取并清除 key，后台加载 SessionRecord，主线程赋值 appState.sessionRecordToPlay
-4. .fullScreenCover(item: sessionRecordToPlay) 触发 PlayView；冷启动时启动页未结束则延迟 2s 再触发
-
-模糊匹配（SessionRecordEntityQuery）：全名 contains（兜底） -> 跳过日期前缀取内容 -> "-" 分段 -> 去"-"全文 contains。
-
-陷阱：phrase 必须含 \(.applicationName)，否则 appintentsmetadataprocessor halting error。
-
-播放中控制（MPRemoteCommandCenter）：PlayView.startPlayback 注册 play/pause/togglePlayPause 远程命令 -> NotificationCenter 发送 action -> PlayView .onReceive 分发。stop/finish 时 clearRemoteTransportControls。不写 MPNowPlayingInfoCenter（避免系统弹出 Now Playing）。不支持远程 stop 退出 PlayView（Siri 遮罩期间 SwiftUI 无法可靠关闭 fullScreenCover）。
 
 ## 模式六：全屏覆盖层（fullScreenKind）
 

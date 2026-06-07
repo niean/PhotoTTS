@@ -431,7 +431,6 @@
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "PhotoTTS需要访问本地网络以在设备间传输绘本记录";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Photo TTS需要访问麦克风来录制音频";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Photo TTS需要访问相册来选择照片进行文字识别";
-				INFOPLIST_KEY_NSSiriUsageDescription = "用于语音控制播放绘本内容";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
@@ -474,7 +473,6 @@
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "PhotoTTS需要访问本地网络以在设备间传输绘本记录";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Photo TTS需要访问麦克风来录制音频";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Photo TTS需要访问相册来选择照片进行文字识别";
-				INFOPLIST_KEY_NSSiriUsageDescription = "用于语音控制播放绘本内容";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;

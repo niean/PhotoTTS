@@ -229,15 +229,6 @@ struct PlayView: View {
             controlBarAutoHideTimer = nil
             onDismiss()
         }
-        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.remotePlaybackCommand)) { notification in
-            guard let action = notification.userInfo?["action"] as? String else { return }
-            switch action {
-            case "play": resumeIfPaused()
-            case "pause": pauseIfPlaying()
-            case "toggle": togglePlayback()
-            default: break
-            }
-        }
         // 禁用后台播放：锁屏/切APP时主动暂停
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             pauseIfPlaying()
@@ -612,7 +603,6 @@ struct PlayView: View {
             playbackProgress = 0
             startPlaybackTimer()
             UIApplication.shared.isIdleTimerDisabled = true
-            setupRemoteTransportControls()
         } catch {
             os.Logger.audioPlayer.error("PlayView 创建播放器失败: \(error.localizedDescription)")
         }
@@ -740,7 +730,6 @@ struct PlayView: View {
         playbackProgress = 1.0
         playbackTimer?.invalidate()
         playbackTimer = nil
-        clearRemoteTransportControls()
         if let r = record {
             PlayHistoryManager.shared.recordPlay(sessionId: r.id, name: r.name, playedAt: Date())
         }
@@ -827,7 +816,6 @@ struct PlayView: View {
         stopCurrentAudioPlayer()
         isPlaying = false
         UIApplication.shared.isIdleTimerDisabled = false
-        clearRemoteTransportControls()
     }
 
     private func stopCurrentAudioPlayer() {
@@ -867,55 +855,6 @@ struct PlayView: View {
         // 使用 .playback：忽略静音开关，扬声器始终可出声；后台暂停由 willResignActiveNotification 控制
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
-    }
-
-    // MARK: - Now Playing / 远程控制
-
-    private func setupRemoteTransportControls() {
-        let commandCenter = MPRemoteCommandCenter.shared()
-
-        commandCenter.playCommand.isEnabled = true
-        commandCenter.playCommand.addTarget { _ in
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: Constants.NotificationNames.remotePlaybackCommand,
-                    object: nil,
-                    userInfo: ["action": "play"]
-                )
-            }
-            return .success
-        }
-
-        commandCenter.pauseCommand.isEnabled = true
-        commandCenter.pauseCommand.addTarget { _ in
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: Constants.NotificationNames.remotePlaybackCommand,
-                    object: nil,
-                    userInfo: ["action": "pause"]
-                )
-            }
-            return .success
-        }
-
-        commandCenter.togglePlayPauseCommand.isEnabled = true
-        commandCenter.togglePlayPauseCommand.addTarget { _ in
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: Constants.NotificationNames.remotePlaybackCommand,
-                    object: nil,
-                    userInfo: ["action": "toggle"]
-                )
-            }
-            return .success
-        }
-    }
-
-    private func clearRemoteTransportControls() {
-        let commandCenter = MPRemoteCommandCenter.shared()
-        commandCenter.playCommand.removeTarget(nil)
-        commandCenter.pauseCommand.removeTarget(nil)
-        commandCenter.togglePlayPauseCommand.removeTarget(nil)
     }
 
     // MARK: - 控制层自动隐藏
