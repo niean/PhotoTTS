@@ -193,9 +193,17 @@ class DebugLogManager {
 
         fileHandle.seek(toFileOffset: UInt64(fullSize - Int64(bytesToRead)))
         let data = fileHandle.readData(ofLength: bytesToRead)
-        guard !data.isEmpty, let content = String(data: data, encoding: .utf8) else {
-            return ""
+        guard !data.isEmpty else { return "" }
+
+        var content = ""
+        for dropCount in 0..<min(4, data.count) {
+            let suffix = data.dropFirst(dropCount)
+            if let decoded = String(data: suffix, encoding: .utf8) {
+                content = decoded
+                break
+            }
         }
+        guard !content.isEmpty else { return "" }
 
         var lines = content.components(separatedBy: .newlines)
         // 若从中间截断，首段可能是某行的后半部分，丢弃不完整的第一行
