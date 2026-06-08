@@ -575,7 +575,6 @@ struct SessionRecordListView: View {
                             }) {
                                 Label("拍照制作", systemImage: "camera")
                             }
-                            Divider()
                             Button(action: {
                                 appState.openPhotoPickerOnNextRecordAppear = true
                                 appState.selectedTab = 1
@@ -586,7 +585,6 @@ struct SessionRecordListView: View {
                             Button(action: { showImportPicker = true }) {
                                 Label("导入", systemImage: "square.and.arrow.down")
                             }
-                            Divider()
                             Button(action: { startExportSelectionMode() }) {
                                 Label("导出", systemImage: "square.and.arrow.up")
                             }
