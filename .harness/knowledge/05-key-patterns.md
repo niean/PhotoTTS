@@ -31,7 +31,7 @@ PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），�
 queueRecordIds 参数（默认空），由 HomePageView 根据播放计划开关和记录是否在计划内选择不同策略：
 - 播放计划关闭或记录不在计划内：queueRecordIds = [id]（仅单条播放）
 - 播放计划开启且记录在计划内：通过 buildPlanQueue 构建（仅包含排序在起始记录之后的播放计划内记录，todoRecordIds 来自首页播放计划排序逻辑）
-播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。MakeView 不传队列。UI 文本显示为"计划内连播"。
+播完后 advanceToNextRecord：过渡页面 -> 预加载 -> 自动播放。MakeView 不传队列。UI 文本显示为"计划内连播"。PlayHistoryManager 记录播放后发送 playHistoryDidUpdate，HomePageView 需刷新可见卡片播放统计并重算播放计划状态，避免首页卡片播放次数和计划黄底依赖 Tab 重建才更新。
 
 ### 播放互斥
 AppState.isPlayViewActive 全局标志，任意时刻只允许一个记录播放。三个触发点打开前检查，为 true 时拒绝。

@@ -1880,6 +1880,22 @@ final class PhotoTTSAppTests: XCTestCase {
         XCTAssertFalse(HomePagePlayPlanHelper.shouldUsePlanQueue(sortMode: .list, playPlanEnabled: true, isTodoRecord: false))
     }
 
+    func testHomeVisiblePlayStatsDetectsNewPlayEvent() {
+        let visibleItems = [
+            makeMetadata(id: "played", name: "26.03.18 小熊-A"),
+            makeMetadata(id: "unplayed", name: "26.03.18 小熊-B")
+        ]
+        let latestStats = [
+            "played": PlayStatInfo(lastPlayedAt: makeDate("2026-03-20"), playCount: 1)
+        ]
+
+        XCTAssertTrue(HomePagePlayPlanHelper.hasVisiblePlayStatsChange(
+            visibleItems: visibleItems,
+            currentStatsMap: [:],
+            latestStatsMap: latestStats
+        ))
+    }
+
     // MARK: - 性能测试
     
     func testVoiceSettingsEncodingPerformance() {

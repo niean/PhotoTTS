@@ -19,6 +19,7 @@
 | DEBT014 | 测试债-ReadingReportStats签名变更（continuousDays移除/新增listeningDays等4字段，formattedNear30DaysDuration重命名为formattedNearPeriodDuration）时未同步更新ReadingReportManagerTests；本次为让测试target编译通过已最小化修复（补齐参数、改用新方法名、继承等价断言），但部分测试仅验证格式串未验证语义一致性，需后续审视listeningDays vs 原continuousDays语义对齐 | low | plan-260417-parallel-make-ocr-serial | 2026-04-17 | resolved |
 | DEBT015 | 编码约定-SessionRecordManager.swift 既有逻辑会在 Documents/session/export 目录创建 README.txt，与禁止主动创建 README 的项目约定冲突；需评估是否改名或移除说明文件 | low | plan-260606-transfer-storage-precheck | 2026-06-06 | open |
 | DEBT016 | 安全规范-项目仍声明 NSMicrophoneUsageDescription，但代码未发现麦克风使用且公开隐私/适龄文档未披露麦克风权限；需确认是否移除权限声明或补充说明 | medium | plan-260607-remove-siri | 2026-06-07 | open |
+| DEBT017 | 构建验证-Xcode 26.2 appintentsmetadataprocessor 输出 Metadata extraction skipped / No AppIntents.framework dependency found 警告，需确认是否可通过构建配置消除 | low | N/A | 2026-06-08 | open |
 
 ---
 

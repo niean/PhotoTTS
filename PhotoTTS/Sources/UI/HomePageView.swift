@@ -16,6 +16,18 @@ enum HomePagePlayPlanHelper {
         sortMode == .list && playPlanEnabled && isTodoRecord
     }
 
+    static func hasVisiblePlayStatsChange(
+        visibleItems: [SessionRecordMetadata],
+        currentStatsMap: [String: PlayStatInfo],
+        latestStatsMap: [String: PlayStatInfo]
+    ) -> Bool {
+        visibleItems.contains { metadata in
+            let current = currentStatsMap[metadata.id]
+            let latest = latestStatsMap[metadata.id]
+            return current?.playCount != latest?.playCount || current?.lastPlayedAt != latest?.lastPlayedAt
+        }
+    }
+
     static func activePlanDate(
         in items: [SessionRecordMetadata],
         statsMap: [String: PlayStatInfo],
@@ -308,7 +320,7 @@ struct HomePageView: View {
             refreshFirstBatch()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.playHistoryDidUpdate)) { _ in
-            checkAndMarkTodoDateIfNeeded()
+            handlePlayHistoryUpdate()
         }
         .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionMetadataDidUpdate)) { notification in
             if let sessionId = notification.userInfo?["sessionId"] as? String {
@@ -422,6 +434,24 @@ struct HomePageView: View {
 
     private func refreshFirstBatch() {
         loadBatch(page: 1, append: false)
+    }
+
+    private func handlePlayHistoryUpdate() {
+        let visibleItems = pagedMetadataList
+        guard !visibleItems.isEmpty else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let latestStatsMap = SessionRecordManager.shared.loadPlayStats(sessionIds: visibleItems.map(\.id))
+            DispatchQueue.main.async {
+                guard visibleItems.map(\.id) == self.pagedMetadataList.map(\.id) else { return }
+                guard HomePagePlayPlanHelper.hasVisiblePlayStatsChange(
+                    visibleItems: visibleItems,
+                    currentStatsMap: self.playStatsMap,
+                    latestStatsMap: latestStatsMap
+                ) else { return }
+                self.playStatsMap.merge(latestStatsMap) { _, new in new }
+                self.checkAndMarkTodoDateIfNeeded()
+            }
+        }
     }
 
     private func handleSessionMetadataUpdate(sessionId: String?) {
