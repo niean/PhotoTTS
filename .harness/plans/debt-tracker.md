@@ -20,6 +20,7 @@
 | DEBT015 | 编码约定-SessionRecordManager.swift 既有逻辑会在 Documents/session/export 目录创建 README.txt，与禁止主动创建 README 的项目约定冲突；需评估是否改名或移除说明文件 | low | plan-260606-transfer-storage-precheck | 2026-06-06 | open |
 | DEBT016 | 安全规范-项目仍声明 NSMicrophoneUsageDescription，但代码未发现麦克风使用且公开隐私/适龄文档未披露麦克风权限；需确认是否移除权限声明或补充说明 | medium | plan-260607-remove-siri | 2026-06-07 | open |
 | DEBT017 | 构建验证-Xcode 26.2 appintentsmetadataprocessor 输出 Metadata extraction skipped / No AppIntents.framework dependency found 警告，需确认是否可通过构建配置消除 | low | N/A | 2026-06-08 | open |
+| DEBT018 | 后台制作-JPEG 转换失败路径只标记内存任务失败，已落盘草稿仍可能保持 making 状态且不通知列表刷新，需统一失败落盘状态处理 | medium | N/A | 2026-06-10 | open |
 
 ---
 

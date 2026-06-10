@@ -170,11 +170,7 @@ final class BackgroundMakeManagerTests: XCTestCase {
 
     /// 超出并发时也应保存草稿记录，供管理页可见和后续继续制作
     func testSaveDeferredDraftPersistsIncompleteRecord() {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
-        let image = renderer.image { ctx in
-            UIColor.red.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
-        }
+        let image = makeTestImage()
 
         guard let sessionId = manager.saveDeferredDraft(images: [image]) else {
             XCTFail("saveDeferredDraft should persist a draft session")
@@ -193,5 +189,31 @@ final class BackgroundMakeManagerTests: XCTestCase {
             "deferred draft name should use yy.MM.dd 未命名-hhmmss format"
         )
         XCTAssertNil(manager.task(for: sessionId), "saving deferred draft should not create a running background task")
+    }
+
+    /// 后台制作草稿保存后应通知列表刷新，使已打开的管理页立即展示制作中状态
+    func testStartMakingDraftSavePostsMetadataUpdateNotification() throws {
+        let notificationExpectation = expectation(forNotification: Constants.NotificationNames.sessionMetadataDidUpdate, object: nil) { notification in
+            guard let sessionId = notification.userInfo?["sessionId"] as? String else { return false }
+            let metadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "BackgroundMakeManagerTests", forceRefresh: true)
+                .first(where: { $0.id == sessionId })
+            return metadata?.makeStatus == .making
+        }
+
+        guard let sessionId = manager.startMaking(images: [makeTestImage()]) else {
+            XCTFail("startMaking should create a background task")
+            return
+        }
+        deferredDraftIDs.append(sessionId)
+
+        wait(for: [notificationExpectation], timeout: 3)
+    }
+
+    private func makeTestImage() -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        return renderer.image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
     }
 }

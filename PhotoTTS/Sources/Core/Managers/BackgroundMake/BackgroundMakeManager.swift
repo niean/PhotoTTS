@@ -451,6 +451,13 @@ class BackgroundMakeManager: ObservableObject {
                 }
                 return
             }
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Constants.NotificationNames.sessionMetadataDidUpdate,
+                    object: nil,
+                    userInfo: ["sessionId": sessionId]
+                )
+            }
 
             // 准备图片数据
             var imageDataList: [Data] = []
