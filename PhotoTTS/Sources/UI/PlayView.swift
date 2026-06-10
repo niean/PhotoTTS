@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import AVFoundation
+import AVKit
 import MediaPlayer
 import os.log
 
@@ -78,6 +79,14 @@ struct PlaybackSessionTracker {
     }
 }
 
+private struct PendingHighlightsAudioStart {
+    let recordId: String
+    let sessionToken: UUID
+    let segmentIndex: Int
+    let localTime: TimeInterval
+    let userWantsPlay: Bool
+}
+
 // MARK: - 播放器
 
 /// 竖屏播放器：图片保持拍摄原始方向，全屏展示。
@@ -143,7 +152,17 @@ struct PlayView: View {
     @State private var systemVolumeSlider: UISlider? = nil
     /// 播放倍速
     @State private var playbackSpeed: Constants.PlaybackSpeed = .x1
-
+    @State private var highlightsMedia: SessionRecordManager.EndPictQueueItem? = nil
+    @State private var highlightsImage: UIImage? = nil
+    @State private var highlightsPlayer: AVPlayer? = nil
+    @State private var highlightsVideoReady = false
+    @State private var highlightsVideoObserver: NSKeyValueObservation? = nil
+    @State private var highlightsLoopObserver: NSObjectProtocol? = nil
+    @State private var highlightsVideoReadyTimeoutTimer: Timer? = nil
+    @State private var pendingHighlightsAudioStart: PendingHighlightsAudioStart? = nil
+    @State private var isWaitingForHighlightsVideo = false
+    @State private var isHighlightsMediaPreloading = false
+    @State private var didFinishHighlightsMediaPreload = false
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -213,8 +232,8 @@ struct PlayView: View {
                 textSegmentRanges = computeTextSegmentRanges(pre.ocrTextSegments)
                 configurePlaybackSegments(for: pre)
                 animationStyle = pre.animationStyle
+                preloadHighlightsMediaIfNeeded(for: pre)
                 isLoading = false
-                // 要点图片由 PlayerImageView 按需加载，无需在此处理
                 if pre.getAudioData() != nil { startPlayback() }
             } else {
                 recordIsFromPreload = false
@@ -223,6 +242,7 @@ struct PlayView: View {
         }
         .onDisappear {
             stopAudio()
+            clearHighlightsMediaPreload()
             overlayAutoHideTimer?.invalidate()
             overlayAutoHideTimer = nil
             controlBarAutoHideTimer?.invalidate()
@@ -372,8 +392,10 @@ struct PlayView: View {
                     totalImageCount: record.totalImageCount,
                     hasVirtualPage: record.hasVirtualPage,
                     storyHighlights: record.storyHighlights,
-                    animationStyle: animationStyle,
-                    isDefaultSession: record.id == Constants.DefaultSession.id
+                    isDefaultSession: record.id == Constants.DefaultSession.id,
+                    highlightsMedia: highlightsMedia,
+                    highlightsImage: highlightsImage,
+                    highlightsPlayer: highlightsPlayer
                 )
                 .id("\(record.id)_\(currentImageIndex)")
                 .transition(.asymmetric(
@@ -523,6 +545,7 @@ struct PlayView: View {
                 textSegmentRanges = computeTextSegmentRanges(loaded.ocrTextSegments)
                 configurePlaybackSegments(for: loaded)
                 animationStyle = loaded.animationStyle
+                preloadHighlightsMediaIfNeeded(for: loaded)
                 isLoading = false
                 if loaded.getAudioData() != nil {
                     startPlayback()
@@ -579,33 +602,198 @@ struct PlayView: View {
         currentAudioSegmentIndex = 0
     }
 
+    private func hasHighlightsPage(record: SessionRecord) -> Bool {
+        (record.hasVirtualPage || record.storyHighlights != nil) && record.id != Constants.DefaultSession.id
+    }
+
+    private func preloadHighlightsMediaIfNeeded(for record: SessionRecord) {
+        guard hasHighlightsPage(record: record), highlightsMedia == nil, !isHighlightsMediaPreloading else { return }
+        let expectedRecordId = record.id
+        let style = record.animationStyle
+        isHighlightsMediaPreloading = true
+        didFinishHighlightsMediaPreload = false
+        DispatchQueue.global(qos: .userInitiated).async {
+            let mediaItem = SessionRecordManager.shared.loadEndPictMedia(animationStyle: style)
+            let image = mediaItem.flatMap { item -> UIImage? in
+                guard item.kind == .image else { return nil }
+                return SessionRecordManager.shared.loadEndPictMediaThumbnail(
+                    item: item,
+                    maxDimension: Constants.ImageDisplay.playbackFullScreenMaxDimension
+                )
+            }
+            DispatchQueue.main.async {
+                guard self.record?.id == expectedRecordId else { return }
+                self.isHighlightsMediaPreloading = false
+                self.didFinishHighlightsMediaPreload = true
+                self.highlightsMedia = mediaItem
+                self.highlightsImage = image
+                guard let mediaItem, mediaItem.kind == .video, let url = mediaItem.url else {
+                    self.resumePendingHighlightsAudioAfterNonVideoPreload()
+                    return
+                }
+                self.prepareHighlightsVideo(url: url)
+            }
+        }
+    }
+
+    private func prepareHighlightsVideo(url: URL) {
+        clearHighlightsVideoOnly()
+        let playerItem = AVPlayerItem(url: url)
+        let player = AVPlayer(playerItem: playerItem)
+        player.isMuted = true
+        highlightsPlayer = player
+        highlightsVideoReady = playerItem.status == .readyToPlay
+
+        highlightsLoopObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak player] _ in
+            player?.seek(to: .zero)
+            player?.play()
+        }
+
+        highlightsVideoObserver = playerItem.observe(\.status, options: [.initial, .new]) { item, _ in
+            DispatchQueue.main.async {
+                switch item.status {
+                case .readyToPlay:
+                    self.highlightsVideoReady = true
+                    self.highlightsVideoReadyTimeoutTimer?.invalidate()
+                    self.highlightsVideoReadyTimeoutTimer = nil
+                    self.resumePendingHighlightsAudioIfPossible()
+                case .failed:
+                    os.Logger.audioPlayer.warning("要点视频准备失败: \(item.error?.localizedDescription ?? "unknown")")
+                    self.failHighlightsVideoPreload()
+                case .unknown:
+                    break
+                @unknown default:
+                    self.failHighlightsVideoPreload()
+                }
+            }
+        }
+
+        highlightsVideoReadyTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
+            DispatchQueue.main.async {
+                os.Logger.audioPlayer.warning("要点视频准备超时，继续播放TTS")
+                self.failHighlightsVideoPreload()
+            }
+        }
+    }
+
+    private func failHighlightsVideoPreload() {
+        let pending = pendingHighlightsAudioStart
+        pendingHighlightsAudioStart = nil
+        isWaitingForHighlightsVideo = false
+        clearHighlightsVideoOnly()
+        guard let pending,
+              pending.userWantsPlay,
+              record?.id == pending.recordId,
+              playbackSessionTracker.isCurrent(pending.sessionToken) else { return }
+        startAudioSegment(
+            index: pending.segmentIndex,
+            localTime: pending.localTime,
+            autoPlay: true,
+            existingSessionToken: pending.sessionToken,
+            bypassHighlightsVideoWait: true
+        )
+    }
+
+    private func clearHighlightsVideoOnly() {
+        highlightsVideoReadyTimeoutTimer?.invalidate()
+        highlightsVideoReadyTimeoutTimer = nil
+        highlightsVideoObserver?.invalidate()
+        highlightsVideoObserver = nil
+        if let highlightsLoopObserver {
+            NotificationCenter.default.removeObserver(highlightsLoopObserver)
+            self.highlightsLoopObserver = nil
+        }
+        highlightsPlayer?.pause()
+        highlightsPlayer = nil
+        highlightsVideoReady = false
+    }
+
+    private func clearHighlightsMediaPreload() {
+        pendingHighlightsAudioStart = nil
+        isWaitingForHighlightsVideo = false
+        highlightsMedia = nil
+        highlightsImage = nil
+        isHighlightsMediaPreloading = false
+        didFinishHighlightsMediaPreload = false
+        clearHighlightsVideoOnly()
+    }
+
+    private func isHighlightsAudioSegment(index: Int) -> Bool {
+        guard let record, index >= 0, index < playbackAudioSegments.count else { return false }
+        guard hasHighlightsPage(record: record) else { return false }
+        let virtualPageIndex = record.totalImageCount
+        let segment = playbackAudioSegments[index]
+        return segment.imageStartIndex <= virtualPageIndex && virtualPageIndex <= segment.imageEndIndex
+    }
+
+    private func shouldWaitForHighlightsMedia(segmentIndex: Int) -> Bool {
+        guard isHighlightsAudioSegment(index: segmentIndex) else { return false }
+        if isHighlightsMediaPreloading || !didFinishHighlightsMediaPreload { return true }
+        guard highlightsMedia?.kind == .video, highlightsPlayer != nil else { return false }
+        return !highlightsVideoReady
+    }
+
+    private func resumePendingHighlightsAudioAfterNonVideoPreload() {
+        guard let pending = pendingHighlightsAudioStart,
+              pending.userWantsPlay,
+              didFinishHighlightsMediaPreload,
+              highlightsMedia?.kind != .video,
+              record?.id == pending.recordId,
+              playbackSessionTracker.isCurrent(pending.sessionToken) else { return }
+        pendingHighlightsAudioStart = nil
+        isWaitingForHighlightsVideo = false
+        startAudioSegment(
+            index: pending.segmentIndex,
+            localTime: pending.localTime,
+            autoPlay: true,
+            existingSessionToken: pending.sessionToken,
+            bypassHighlightsVideoWait: true
+        )
+    }
+
+    private func resumePendingHighlightsAudioIfPossible() {
+        guard let pending = pendingHighlightsAudioStart,
+              pending.userWantsPlay,
+              highlightsVideoReady,
+              record?.id == pending.recordId,
+              playbackSessionTracker.isCurrent(pending.sessionToken) else { return }
+        pendingHighlightsAudioStart = nil
+        isWaitingForHighlightsVideo = false
+        startAudioSegment(
+            index: pending.segmentIndex,
+            localTime: pending.localTime,
+            autoPlay: true,
+            existingSessionToken: pending.sessionToken,
+            bypassHighlightsVideoWait: true
+        )
+    }
+
+    private func syncHighlightsVideo(to localTime: TimeInterval, shouldPlay: Bool) {
+        guard let player = highlightsPlayer else { return }
+        if isHighlightsAudioSegment(index: currentAudioSegmentIndex) {
+            let duration = player.currentItem?.duration.seconds ?? 0
+            let target = duration.isFinite && duration > 0 ? localTime.truncatingRemainder(dividingBy: duration) : 0
+            player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            if shouldPlay {
+                player.play()
+            } else {
+                player.pause()
+            }
+        } else {
+            player.pause()
+        }
+    }
+
     private func startPlayback() {
         if playbackAudioSegments.isEmpty, let record {
             configurePlaybackSegments(for: record)
         }
-        guard let firstSegment = playbackAudioSegments.first, let audioData = firstSegment.audioData else { return }
-        configureAudioSession()
-        do {
-            let player = try AVAudioPlayer(data: audioData)
-            let sessionToken = playbackSessionTracker.beginNewSession()
-            let delegate = AudioPlayerDelegate {
-                DispatchQueue.main.async { handleSegmentPlaybackFinished(for: sessionToken) }
-            }
-            player.delegate = delegate
-            player.enableRate = true  // 启用变速播放
-            guard player.prepareToPlay(), player.play() else { return }
-            player.rate = playbackSpeed.rate  // 设置当前倍速
-            stopCurrentAudioPlayer()
-            audioPlayer = player
-            audioPlayerDelegate = delegate
-            currentAudioSegmentIndex = 0
-            isPlaying = true
-            playbackProgress = 0
-            startPlaybackTimer()
-            UIApplication.shared.isIdleTimerDisabled = true
-        } catch {
-            os.Logger.audioPlayer.error("PlayView 创建播放器失败: \(error.localizedDescription)")
-        }
+        playbackProgress = 0
+        startAudioSegment(index: 0, localTime: 0, autoPlay: true)
     }
 
     private func startPlaybackTimer() {
@@ -626,11 +814,36 @@ struct PlayView: View {
     }
 
     private func switchToAudioSegment(index: Int, localTime: TimeInterval, autoPlay: Bool) {
+        startAudioSegment(index: index, localTime: localTime, autoPlay: autoPlay)
+    }
+
+    private func startAudioSegment(
+        index: Int,
+        localTime: TimeInterval,
+        autoPlay: Bool,
+        existingSessionToken: UUID? = nil,
+        bypassHighlightsVideoWait: Bool = false
+    ) {
         guard index >= 0, index < playbackAudioSegments.count,
               let audioData = playbackAudioSegments[index].audioData else { return }
+        guard bypassHighlightsVideoWait || !shouldWaitForHighlightsMedia(segmentIndex: index) || !autoPlay else {
+            let sessionToken = playbackSessionTracker.beginNewSession()
+            stopCurrentAudioPlayer()
+            pendingHighlightsAudioStart = record.map {
+                PendingHighlightsAudioStart(recordId: $0.id, sessionToken: sessionToken, segmentIndex: index, localTime: localTime, userWantsPlay: true)
+            }
+            isWaitingForHighlightsVideo = true
+            isPlaying = false
+            playbackTimer?.invalidate()
+            playbackTimer = nil
+            highlightsPlayer?.pause()
+            UIApplication.shared.isIdleTimerDisabled = false
+            return
+        }
+        configureAudioSession()
         do {
             let player = try AVAudioPlayer(data: audioData)
-            let sessionToken = playbackSessionTracker.beginNewSession()
+            let sessionToken = existingSessionToken ?? playbackSessionTracker.beginNewSession()
             let delegate = AudioPlayerDelegate {
                 DispatchQueue.main.async { handleSegmentPlaybackFinished(for: sessionToken) }
             }
@@ -643,12 +856,14 @@ struct PlayView: View {
             audioPlayer = player
             audioPlayerDelegate = delegate
             currentAudioSegmentIndex = index
+            syncHighlightsVideo(to: player.currentTime, shouldPlay: autoPlay && isHighlightsAudioSegment(index: index))
             if autoPlay {
                 let didStart = player.play()
                 isPlaying = didStart
                 UIApplication.shared.isIdleTimerDisabled = didStart
                 if didStart {
                     startPlaybackTimer()
+                    syncHighlightsVideo(to: player.currentTime, shouldPlay: isHighlightsAudioSegment(index: index))
                 } else {
                     playbackTimer?.invalidate()
                     playbackTimer = nil
@@ -658,6 +873,7 @@ struct PlayView: View {
                 UIApplication.shared.isIdleTimerDisabled = false
                 playbackTimer?.invalidate()
                 playbackTimer = nil
+                syncHighlightsVideo(to: player.currentTime, shouldPlay: false)
             }
         } catch {
             os.Logger.audioPlayer.error("PlayView 切换分段播放器失败: \(error.localizedDescription)")
@@ -700,8 +916,8 @@ struct PlayView: View {
     }
 
     private func togglePlayback() {
-        guard audioPlayer != nil else { return }
-        if audioPlayer?.isPlaying == true {
+        guard audioPlayer != nil || pendingHighlightsAudioStart != nil else { return }
+        if audioPlayer?.isPlaying == true || isWaitingForHighlightsVideo {
             pauseIfPlaying()
         } else {
             resumeIfPaused()
@@ -709,14 +925,28 @@ struct PlayView: View {
     }
 
     private func resumeIfPaused() {
+        if pendingHighlightsAudioStart != nil {
+            isWaitingForHighlightsVideo = true
+            resumePendingHighlightsAudioIfPossible()
+            resumePendingHighlightsAudioAfterNonVideoPreload()
+            return
+        }
         guard let player = audioPlayer, !player.isPlaying else { return }
+        if shouldWaitForHighlightsMedia(segmentIndex: currentAudioSegmentIndex) {
+            startAudioSegment(index: currentAudioSegmentIndex, localTime: player.currentTime, autoPlay: true)
+            return
+        }
         player.play()
         isPlaying = true
         startPlaybackTimer()
+        syncHighlightsVideo(to: player.currentTime, shouldPlay: isHighlightsAudioSegment(index: currentAudioSegmentIndex))
         UIApplication.shared.isIdleTimerDisabled = true
     }
 
     private func pauseIfPlaying() {
+        pendingHighlightsAudioStart = nil
+        isWaitingForHighlightsVideo = false
+        highlightsPlayer?.pause()
         guard let player = audioPlayer, player.isPlaying else { return }
         player.pause()
         isPlaying = false
@@ -763,6 +993,7 @@ struct PlayView: View {
 
         isTransitioning = true
         stopAudio()
+        clearHighlightsMediaPreload()
 
         // 预加载下一条记录
         let transitionStart = Date()
@@ -797,6 +1028,7 @@ struct PlayView: View {
                     textSegmentRanges = computeTextSegmentRanges(nextRecord.ocrTextSegments)
                     configurePlaybackSegments(for: nextRecord)
                     animationStyle = nextRecord.animationStyle
+                    preloadHighlightsMediaIfNeeded(for: nextRecord)
                     currentImageIndex = 0
                     playbackProgress = 0.0
                     isTransitioning = false
@@ -811,8 +1043,11 @@ struct PlayView: View {
 
     private func stopAudio() {
         playbackSessionTracker.invalidate()
+        pendingHighlightsAudioStart = nil
+        isWaitingForHighlightsVideo = false
         playbackTimer?.invalidate()
         playbackTimer = nil
+        highlightsPlayer?.pause()
         stopCurrentAudioPlayer()
         isPlaying = false
         UIApplication.shared.isIdleTimerDisabled = false
@@ -828,6 +1063,7 @@ struct PlayView: View {
     private func stopAndDismiss() {
         isTransitioning = false
         stopAudio()
+        clearHighlightsMediaPreload()
         onDismiss()
     }
 
@@ -843,6 +1079,13 @@ struct PlayView: View {
             let location = timeline.locate(globalTime: targetTime, segmentDurations: durations)
             let shouldAutoPlay = isPlaying
             switchToAudioSegment(index: location.segmentIndex, localTime: location.localTime, autoPlay: shouldAutoPlay)
+            if !isHighlightsAudioSegment(index: location.segmentIndex) {
+                pendingHighlightsAudioStart = nil
+                isWaitingForHighlightsVideo = false
+                highlightsPlayer?.pause()
+            } else if !shouldAutoPlay {
+                syncHighlightsVideo(to: location.localTime, shouldPlay: false)
+            }
         } else if let player = audioPlayer, player.duration > 0 {
             player.currentTime = clampedRatio * player.duration
         }
@@ -1276,11 +1519,12 @@ private struct PlayerImageView: View {
     var totalImageCount: Int? = nil
     var hasVirtualPage: Bool = false
     var storyHighlights: String? = nil
-    var animationStyle: AnimationStyle = .rightToLeft
     var isDefaultSession: Bool = false
+    let highlightsMedia: SessionRecordManager.EndPictQueueItem?
+    let highlightsImage: UIImage?
+    let highlightsPlayer: AVPlayer?
 
     @State private var loadedImage: UIImage? = nil
-    @State private var highlightsImage: UIImage? = nil
     private static let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
 
     /// 当前索引是否为要点图片页（兼容存量记录：hasVirtualPage 或 storyHighlights 存在即为 true）
@@ -1311,7 +1555,11 @@ private struct PlayerImageView: View {
 
     var body: some View {
         ZStack {
-            if let img = displayImage {
+            if isHighlightsPage, let player = highlightsPlayer {
+                VideoPlayer(player: player)
+                    .disabled(true)
+                    .frame(width: size.width, height: size.height)
+            } else if let img = displayImage {
                 // 模糊背景
                 Image(uiImage: img)
                     .resizable()
@@ -1348,20 +1596,7 @@ private struct PlayerImageView: View {
     }
 
     private func loadIfNeeded() {
-        // 要点图片页：从合并池加载 EndPicts 图片
         if isHighlightsPage {
-            guard highlightsImage == nil else { return }
-            DispatchQueue.global(qos: .userInitiated).async {
-                let loaded = SessionRecordManager.shared.loadEndPict(
-                    animationStyle: animationStyle,
-                    maxDimension: Self.maxDim
-                )
-                DispatchQueue.main.async {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        highlightsImage = loaded
-                    }
-                }
-            }
             return
         }
 
@@ -1427,6 +1662,7 @@ private struct PlayerImageView: View {
             }
         }
     }
+
 }
 
 // MARK: - 播放器进度条（纯轨道，时间标签由 PlayerControlLayer 外置）

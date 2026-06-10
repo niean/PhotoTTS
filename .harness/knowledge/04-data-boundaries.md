@@ -32,10 +32,10 @@ Documents/Sessions/{id}/
   README.txt
 
 Documents/EndPicts/
-  h/              -- 横向要点图片（用户上传）
-    h-{timestamp}.jpg ...
-  z/              -- 纵向要点图片（用户上传）
-    z-{timestamp}.jpg ...
+  h/              -- 横向要点媒体（用户上传）
+    h-{timestamp}.jpg / h-{timestamp}.mp4 ...
+  z/              -- 纵向要点媒体（用户上传）
+    z-{timestamp}.jpg / z-{timestamp}.mp4 ...
 ```
 
 加载由 SessionRecordManager.loadSession 从文件重组。多段记录优先读取 `audio_{sequenceNumber}.{format}` 并恢复 `TTSAudioSegment.audioData`；旧记录无 `audioSegments` 时回退到 `audio.<format>` + `audioDataBase64`。
@@ -47,7 +47,7 @@ Documents/EndPicts/
 - AudioResponse / SessionRecord 的 `duration` 为整条朗读总时长；分段时长存于各 `TTSAudioSegment.duration`
 - AudioResponse / SessionRecord 的 `audioSegments` 为空时，调用方必须回退到旧单音频路径
 
-用户上传要点图片存储在 Documents/EndPicts/ 目录，与 Bundle 内系统内置图片合并后随机选取。上传时降采样至 2048px，播放时按 1024pt 加载。
+用户上传要点媒体存储在 Documents/EndPicts/ 目录，与 Bundle 内系统内置图片合并后轮询选取；用户池支持图片与视频，系统内置池仍为图片。图片上传时降采样至 2048px，播放时按 1024pt 加载；视频不写入 SessionRecord，只作为要点页静音循环视觉层，音频仍由要点文字 TTS 驱动。
 
 ## 会话历史（history.json）
 

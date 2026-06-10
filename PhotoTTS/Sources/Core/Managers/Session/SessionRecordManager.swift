@@ -1315,12 +1315,39 @@ class SessionRecordManager {
 
     // MARK: - 要点图片队列公开信息
 
+/// 要点图片媒体类型
+public enum EndPictMediaKind: String, Codable, Equatable {
+    case image
+    case video
+
+    public init?(fileExtension: String) {
+        let ext = fileExtension.lowercased()
+        if Constants.EndPicts.imageExtensions.contains(ext) {
+            self = .image
+        } else if Constants.EndPicts.videoExtensions.contains(ext) {
+            self = .video
+        } else {
+            return nil
+        }
+    }
+}
+
+/// 要点图片媒体项信息
+public struct EndPictMediaItem: Identifiable, Equatable {
+    public let id: String
+    public let kind: EndPictMediaKind
+    public let isSystem: Bool
+    public let resourceName: String?
+    public let url: URL?
+}
+
 /// 要点图片队列项信息
 public struct EndPictQueueItem {
     public let id: String
+    public let kind: EndPictMediaKind
     public let isSystem: Bool
-    public let resourceName: String?  // 系统图片的资源名
-    public let url: URL?              // 用户图片的URL
+    public let resourceName: String?
+    public let url: URL?
 }
 
 /// 要点图片队列完整信息
@@ -1370,17 +1397,18 @@ public struct EndPictQueueInfo {
     private func saveRoundRobinState(direction: String, state: EndPictRoundRobinState) {
         let key = roundRobinKey(direction: direction)
         guard let data = try? JSONEncoder().encode(state) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        if Thread.isMainThread {
+            UserDefaults.standard.set(data, forKey: key)
+        } else {
+            DispatchQueue.main.async {
+                UserDefaults.standard.set(data, forKey: key)
+            }
+        }
     }
 
     /// 重置轮询队列（图片池变化时调用）
     private func resetRoundRobinQueue(direction: String, totalCount: Int) {
-        var queue = Array(0..<totalCount)
-        // Fisher-Yates 洗牌
-        for i in stride(from: queue.count - 1, through: 1, by: -1) {
-            let j = Int.random(in: 0...i)
-            queue.swapAt(i, j)
-        }
+        let queue = makeEndPictQueue(items: endPictQueueItems(direction: direction), totalCount: totalCount)
         let state = EndPictRoundRobinState(
             queue: queue,
             playedIndices: [],
@@ -1391,12 +1419,21 @@ public struct EndPictQueueInfo {
         logger.info("要点图片轮询队列重置: direction=\(direction), count=\(totalCount)")
     }
 
+    private func makeEndPictQueue(items: [EndPictQueueItem], totalCount: Int) -> [Int] {
+        var queue = Array(0..<totalCount)
+        for i in stride(from: queue.count - 1, through: 1, by: -1) {
+            let j = Int.random(in: 0...i)
+            queue.swapAt(i, j)
+        }
+        guard SettingsManager.shared.getEndPictsVideoFirst(), items.count == totalCount else { return queue }
+        return queue.filter { items[$0].kind == .video } + queue.filter { items[$0].kind != .video }
+    }
+
     /// 图片池变化后重置轮询队列（计算新总数并重置）
     private func resetRoundRobinQueueAfterChange(direction: String) {
         let systemCount = systemEndPictCount(direction: direction)
-        let userCount = getUserEndPictURLs(direction: direction).count
-        let totalCount = systemCount + userCount
-        resetRoundRobinQueue(direction: direction, totalCount: totalCount)
+        let userCount = getUserEndPictMediaURLs(direction: direction).count
+        resetRoundRobinQueue(direction: direction, totalCount: systemCount + userCount)
     }
 
     /// 从轮询队列中取出下一个索引，队列为空或无效时重新生成
@@ -1438,24 +1475,39 @@ public struct EndPictQueueInfo {
         return index
     }
 
-    /// 从合并池（系统内置 + 用户上传）按轮询机制加载要点图片
-    /// - Parameters:
-    ///   - animationStyle: 动画方向（横向/纵向）
-    ///   - maxDimension: 最大边长（点），超过则等比缩小
-    /// - Returns: 图片，加载失败返回 nil
-    func loadEndPict(animationStyle: AnimationStyle, maxDimension: CGFloat) -> UIImage? {
-        let directionName: String
-        switch animationStyle {
-        case .rightToLeft:
-            directionName = Constants.EndPicts.horizontalDirectoryName
-        case .topToBottom:
-            directionName = Constants.EndPicts.verticalDirectoryName
+    private func endPictQueueItems(direction: String) -> [EndPictQueueItem] {
+        let systemNames = systemEndPictResourceNames(direction: direction)
+        let userURLs = getUserEndPictMediaURLs(direction: direction)
+        var items: [EndPictQueueItem] = []
+        for name in systemNames {
+            items.append(EndPictQueueItem(
+                id: "system-\(name)",
+                kind: .image,
+                isSystem: true,
+                resourceName: name,
+                url: nil
+            ))
         }
+        for url in userURLs {
+            guard let kind = EndPictMediaKind(fileExtension: url.pathExtension) else { continue }
+            items.append(EndPictQueueItem(
+                id: url.path,
+                kind: kind,
+                isSystem: false,
+                resourceName: nil,
+                url: url
+            ))
+        }
+        return items
+    }
 
-        let resourceNames = systemEndPictResourceNames(direction: directionName)
-        let systemImageCount = resourceNames.count
-        let userImageURLs = getUserEndPictURLs(direction: directionName)
-        let totalCount = systemImageCount + userImageURLs.count
+    /// 从合并池（系统内置 + 用户上传）按轮询机制加载要点媒体
+    func loadEndPictMedia(animationStyle: AnimationStyle) -> EndPictQueueItem? {
+        let directionName = animationStyle == .rightToLeft
+            ? Constants.EndPicts.horizontalDirectoryName
+            : Constants.EndPicts.verticalDirectoryName
+        let items = endPictQueueItems(direction: directionName)
+        let totalCount = items.count
 
         guard totalCount > 0 else {
             logger.warning("要点图片池为空")
@@ -1468,39 +1520,47 @@ public struct EndPictQueueInfo {
             return nil
         }
 
-        if selectedIndex < systemImageCount {
-            let resourceName = resourceNames[selectedIndex]
-            let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
-                ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
-            guard let imageURL else {
-                logger.warning("系统要点图片不存在: \(resourceName).jpg/.png")
-                return nil
-            }
-            logger.info("播放要点图片: \(resourceName).\(imageURL.pathExtension) (系统内置)")
-            return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
-        } else {
-            let userIndex = selectedIndex - systemImageCount
-            guard userIndex < userImageURLs.count else {
-                logger.warning("用户要点图片索引越界")
-                return nil
-            }
-            let imageURL = userImageURLs[userIndex]
-            logger.info("播放要点图片: \(imageURL.lastPathComponent) (用户上传)")
-            return Self.downsampleImageFromFile(url: imageURL, maxDimension: maxDimension)
+        let item = items[selectedIndex]
+        if item.isSystem, let resourceName = item.resourceName {
+            logger.info("播放要点图片: \(resourceName) (系统内置)")
+        } else if let url = item.url {
+            logger.info("播放要点图片: \(url.lastPathComponent) (用户上传)")
         }
+        return item
     }
 
-    /// 获取用户上传的要点图片 URL 列表
-    /// - Parameter direction: 方向标识（h/z）
-    /// - Returns: 图片 URL 数组
-    func getUserEndPictURLs(direction: String) -> [URL] {
+    /// 从合并池（系统内置 + 用户上传）按轮询机制加载要点图片
+    func loadEndPict(animationStyle: AnimationStyle, maxDimension: CGFloat) -> UIImage? {
+        guard let item = loadEndPictMedia(animationStyle: animationStyle) else { return nil }
+        return loadEndPictMediaThumbnail(item: item, maxDimension: maxDimension)
+    }
+
+    /// 获取用户上传的要点媒体 URL 列表
+    func getUserEndPictMediaURLs(direction: String) -> [URL] {
         let dir = userEndPictsDirectionDirectory(direction: direction)
         guard fileManager.fileExists(atPath: dir.path),
               let contents = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             return []
         }
-        // 返回 jpg/png 文件
-        return contents.filter { ["jpg", "png"].contains($0.pathExtension.lowercased()) }.sorted { $0.path < $1.path }
+        let mediaURLs = contents
+            .filter { EndPictMediaKind(fileExtension: $0.pathExtension) != nil }
+        if SettingsManager.shared.getEndPictsVideoFirst() {
+            return mediaURLs.sorted { lhs, rhs in
+                let lhsKind = EndPictMediaKind(fileExtension: lhs.pathExtension)
+                let rhsKind = EndPictMediaKind(fileExtension: rhs.pathExtension)
+                if lhsKind != rhsKind {
+                    return lhsKind == .video
+                }
+                return lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent) == .orderedAscending
+            }
+        }
+        return mediaURLs.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    }
+
+    /// 获取用户上传的要点图片 URL 列表
+    func getUserEndPictURLs(direction: String) -> [URL] {
+        getUserEndPictMediaURLs(direction: direction)
+            .filter { EndPictMediaKind(fileExtension: $0.pathExtension) == .image }
     }
 
     /// 保存用户上传的要点图片
@@ -1537,6 +1597,46 @@ public struct EndPictQueueInfo {
         }
     }
 
+    /// 保存用户上传的要点视频
+    func saveUserEndPictVideo(from sourceURL: URL, direction: String) -> Bool {
+        let dir = ensureUserEndPictsDirectoryExists(direction: direction)
+        let ext = sourceURL.pathExtension.lowercased()
+        guard EndPictMediaKind(fileExtension: ext) == .video else { return false }
+
+        guard hasAvailableSpace(for: sourceURL) else {
+            logger.warning("保存用户要点视频失败: 空间不足 file=\(sourceURL.lastPathComponent)")
+            return false
+        }
+
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let fileURL = dir.appendingPathComponent("\(direction)-\(timestamp).\(ext)")
+        do {
+            if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
+            }
+            try fileManager.copyItem(at: sourceURL, to: fileURL)
+            resetRoundRobinQueueAfterChange(direction: direction)
+            logger.info("保存用户要点视频成功: \(fileURL.lastPathComponent)")
+            return true
+        } catch {
+            logger.warning("保存用户要点视频失败: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func hasAvailableSpace(for sourceURL: URL) -> Bool {
+        guard let values = try? sourceURL.resourceValues(forKeys: [.fileSizeKey]),
+              let fileSize = values.fileSize else {
+            return true
+        }
+        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let resourceValues = try? documents.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let available = resourceValues.volumeAvailableCapacityForImportantUsage else {
+            return true
+        }
+        return Int64(fileSize) < available
+    }
+
     /// 删除用户上传的要点图片
     /// - Parameter url: 图片 URL
     /// - Returns: 删除成功返回 true
@@ -1560,7 +1660,7 @@ public struct EndPictQueueInfo {
     /// - Returns: (系统内置数量, 用户上传数量)
     func getEndPictCounts(direction: String) -> (system: Int, user: Int) {
         let systemCount = systemEndPictCount(direction: direction)
-        let userCount = getUserEndPictURLs(direction: direction).count
+        let userCount = getUserEndPictMediaURLs(direction: direction).count
         return (systemCount, userCount)
     }
 
@@ -1571,6 +1671,23 @@ public struct EndPictQueueInfo {
     /// - Returns: 缩略图
     func loadUserEndPictThumbnail(url: URL, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
         return Self.downsampleImageFromFile(url: url, maxDimension: maxDimension)
+    }
+
+    /// 加载用户要点视频缩略图（用于管理页展示）
+    func loadUserEndPictVideoThumbnail(url: URL, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension, completion: @escaping (UIImage?) -> Void) {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: maxDimension * UIScreen.main.scale, height: maxDimension * UIScreen.main.scale)
+        generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) { [weak self] _, cgImage, _, _, error in
+            if let error {
+                self?.logger.warning("加载用户要点视频缩略图失败: \(error.localizedDescription)")
+            }
+            let image = cgImage.map { UIImage(cgImage: $0) }
+            DispatchQueue.main.async {
+                completion(image)
+            }
+        }
     }
 
     /// 加载系统内置要点图片缩略图（用于管理页展示）
@@ -1597,31 +1714,11 @@ public struct EndPictQueueInfo {
     /// - Parameter direction: 方向标识（h/z）
     /// - Returns: 队列信息，无图片时返回 nil
     public func getEndPictQueueInfo(direction: String) -> EndPictQueueInfo? {
-        let systemNames = systemEndPictResourceNames(direction: direction)
-        let userURLs = getUserEndPictURLs(direction: direction)
-        let totalCount = systemNames.count + userURLs.count
+        let items = endPictQueueItems(direction: direction)
+        let totalCount = items.count
 
         guard totalCount > 0 else {
             return nil
-        }
-
-        // 构建合并后的 items 列表
-        var items: [EndPictQueueItem] = []
-        for name in systemNames {
-            items.append(EndPictQueueItem(
-                id: "system-\(name)",
-                isSystem: true,
-                resourceName: name,
-                url: nil
-            ))
-        }
-        for url in userURLs {
-            items.append(EndPictQueueItem(
-                id: url.path,
-                isSystem: false,
-                resourceName: nil,
-                url: url
-            ))
         }
 
         // 加载轮询状态
@@ -1637,13 +1734,7 @@ public struct EndPictQueueInfo {
             nextQueueIndex = 0
         } else {
             // 无有效状态，生成新队列但不保存
-            var newQueue = Array(0..<totalCount)
-            // Fisher-Yates 洗牌
-            for i in stride(from: newQueue.count - 1, through: 1, by: -1) {
-                let j = Int.random(in: 0...i)
-                newQueue.swapAt(i, j)
-            }
-            queue = newQueue
+            queue = makeEndPictQueue(items: items, totalCount: totalCount)
             playedIndices = []
             nextQueueIndex = 0
         }
@@ -1662,17 +1753,23 @@ public struct EndPictQueueInfo {
     ///   - maxDimension: 最大边长
     /// - Returns: 缩略图
     public func getEndPictItemThumbnail(item: EndPictQueueItem, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
+        loadEndPictMediaThumbnail(item: item, maxDimension: maxDimension)
+    }
+
+    func loadEndPictMediaThumbnail(item: EndPictQueueItem, maxDimension: CGFloat = Constants.EndPicts.thumbnailMaxDimension) -> UIImage? {
         if item.isSystem, let resourceName = item.resourceName {
             let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
                 ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
-            guard let url = imageURL else {
-                return nil
-            }
+            guard let url = imageURL else { return nil }
             return Self.downsampleImageFromFile(url: url, maxDimension: maxDimension)
-        } else if let url = item.url {
-            return loadUserEndPictThumbnail(url: url, maxDimension: maxDimension)
         }
-        return nil
+        guard let url = item.url else { return nil }
+        switch item.kind {
+        case .image:
+            return loadUserEndPictThumbnail(url: url, maxDimension: maxDimension)
+        case .video:
+            return nil
+        }
     }
 
     /// 重置指定方向的要点图片播放队列

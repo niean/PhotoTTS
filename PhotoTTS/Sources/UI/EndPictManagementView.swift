@@ -1,5 +1,7 @@
 import SwiftUI
 import PhotosUI
+import AVKit
+import UniformTypeIdentifiers
 
 // MARK: - 要点图片管理页面
 struct EndPictManagementView: View {
@@ -21,6 +23,26 @@ struct EndPictManagementView: View {
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
+    }
+
+    private func endPictThumbnail(for item: SessionRecordManager.EndPictQueueItem) -> UIImage? {
+        if item.kind == .video {
+            return Self.videoPlaceholder(size: CGSize(width: thumbnailSize, height: thumbnailSize))
+        }
+        return SessionRecordManager.shared.loadEndPictMediaThumbnail(item: item)
+    }
+
+    static func videoPlaceholder(size: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            UIColor.systemGray5.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let symbolConfig = UIImage.SymbolConfiguration(pointSize: min(size.width, size.height) * 0.36, weight: .semibold)
+            let symbol = UIImage(systemName: "play.circle.fill", withConfiguration: symbolConfig)?.withTintColor(.systemGray, renderingMode: .alwaysOriginal)
+            let symbolSize = symbol?.size ?? .zero
+            let rect = CGRect(x: (size.width - symbolSize.width) / 2, y: (size.height - symbolSize.height) / 2, width: symbolSize.width, height: symbolSize.height)
+            symbol?.draw(in: rect)
+        }
     }
 
     var body: some View {
@@ -106,9 +128,9 @@ struct EndPictManagementView: View {
         .navigationBarHidden(true)
         .onAppear { loadImages() }
         .sheet(isPresented: $showImagePicker) {
-            ImagePickerForEndPict { images in
+            MediaPickerForEndPict { media in
                 if let direction = selectedDirection {
-                    saveImages(images, direction: direction)
+                    saveMedia(media, direction: direction)
                 }
             }
         }
@@ -156,7 +178,7 @@ struct EndPictManagementView: View {
         let hResourceNames = SessionRecordManager.shared.systemEndPictResourceNames(direction: hDirection)
         for (i, name) in hResourceNames.enumerated() {
             if let thumbnail = SessionRecordManager.shared.loadSystemEndPictThumbnail(direction: hDirection, index: i) {
-                hItems.append(EndPictItem(id: "system-\(name)", thumbnail: thumbnail, isSystem: true, url: nil, resourceName: name))
+                hItems.append(EndPictItem(id: "system-\(name)", kind: .image, thumbnail: thumbnail, isSystem: true, url: nil, resourceName: name))
             }
         }
 
@@ -164,22 +186,26 @@ struct EndPictManagementView: View {
         let vResourceNames = SessionRecordManager.shared.systemEndPictResourceNames(direction: vDirection)
         for (i, name) in vResourceNames.enumerated() {
             if let thumbnail = SessionRecordManager.shared.loadSystemEndPictThumbnail(direction: vDirection, index: i) {
-                vItems.append(EndPictItem(id: "system-\(name)", thumbnail: thumbnail, isSystem: true, url: nil, resourceName: name))
+                vItems.append(EndPictItem(id: "system-\(name)", kind: .image, thumbnail: thumbnail, isSystem: true, url: nil, resourceName: name))
             }
         }
 
-        // 加载用户上传图片
-        let hUserURLs = SessionRecordManager.shared.getUserEndPictURLs(direction: hDirection)
+        // 加载用户上传媒体
+        let hUserURLs = SessionRecordManager.shared.getUserEndPictMediaURLs(direction: hDirection)
         for url in hUserURLs {
-            if let thumbnail = SessionRecordManager.shared.loadUserEndPictThumbnail(url: url) {
-                hItems.append(EndPictItem(id: url.path, thumbnail: thumbnail, isSystem: false, url: url, resourceName: nil))
+            guard let kind = SessionRecordManager.EndPictMediaKind(fileExtension: url.pathExtension) else { continue }
+            let item = SessionRecordManager.EndPictQueueItem(id: url.path, kind: kind, isSystem: false, resourceName: nil, url: url)
+            if let thumbnail = endPictThumbnail(for: item) {
+                hItems.append(EndPictItem(id: url.path, kind: kind, thumbnail: thumbnail, isSystem: false, url: url, resourceName: nil))
             }
         }
 
-        let vUserURLs = SessionRecordManager.shared.getUserEndPictURLs(direction: vDirection)
+        let vUserURLs = SessionRecordManager.shared.getUserEndPictMediaURLs(direction: vDirection)
         for url in vUserURLs {
-            if let thumbnail = SessionRecordManager.shared.loadUserEndPictThumbnail(url: url) {
-                vItems.append(EndPictItem(id: url.path, thumbnail: thumbnail, isSystem: false, url: url, resourceName: nil))
+            guard let kind = SessionRecordManager.EndPictMediaKind(fileExtension: url.pathExtension) else { continue }
+            let item = SessionRecordManager.EndPictQueueItem(id: url.path, kind: kind, isSystem: false, resourceName: nil, url: url)
+            if let thumbnail = endPictThumbnail(for: item) {
+                vItems.append(EndPictItem(id: url.path, kind: kind, thumbnail: thumbnail, isSystem: false, url: url, resourceName: nil))
             }
         }
 
@@ -187,17 +213,25 @@ struct EndPictManagementView: View {
         verticalImages = vItems
     }
 
-    private func saveImages(_ images: [UIImage], direction: String) {
+    private func saveMedia(_ media: [PickedEndPictMedia], direction: String) {
         var successCount = 0
-        for image in images {
-            if SessionRecordManager.shared.saveUserEndPict(image: image, direction: direction) {
-                successCount += 1
+        for item in media {
+            switch item {
+            case .image(let image):
+                if SessionRecordManager.shared.saveUserEndPict(image: image, direction: direction) {
+                    successCount += 1
+                }
+            case .video(let url):
+                if SessionRecordManager.shared.saveUserEndPictVideo(from: url, direction: direction) {
+                    successCount += 1
+                }
+                try? FileManager.default.removeItem(at: url)
             }
         }
-        if successCount == images.count {
-            showToastMessage("已添加 \(successCount) 张图片")
+        if successCount == media.count {
+            showToastMessage("已添加 \(successCount) 个素材")
         } else if successCount > 0 {
-            showToastMessage("已添加 \(successCount)/\(images.count) 张")
+            showToastMessage("已添加 \(successCount)/\(media.count) 个素材")
         } else {
             showToastMessage("添加失败")
         }
@@ -231,10 +265,11 @@ struct EndPictManagementView: View {
 // MARK: - 要点图片项
 struct EndPictItem: Identifiable {
     let id: String
+    let kind: SessionRecordManager.EndPictMediaKind
     let thumbnail: UIImage
     let isSystem: Bool
     let url: URL?
-    /// 系统图片的 Bundle 资源名（不含扩展名），用户图片为 nil
+    /// 系统图片的 Bundle 资源名（不含扩展名），用户媒体为 nil
     let resourceName: String?
 }
 
@@ -284,7 +319,7 @@ struct EndPictSectionView: View {
             Button(action: onAdd) {
                 HStack {
                     Spacer()
-                    Label("添加图片", systemImage: "plus.circle")
+                    Label("添加素材", systemImage: "plus.circle")
                         .font(Constants.Fonts.subheadline)
                     Spacer()
                 }
@@ -312,18 +347,29 @@ struct EndPictThumbnailView: View {
     let onDelete: () -> Void
     let onTap: () -> Void
 
+    @State private var thumbnail: UIImage?
+
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
     }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Image(uiImage: item.thumbnail)
+            Image(uiImage: thumbnail ?? item.thumbnail)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: size, height: size)
                 .clipShape(RoundedRectangle(cornerRadius: scaled(8)))
                 .onTapGesture { onTap() }
+
+            if item.kind == .video {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: scaled(22)))
+                    .foregroundColor(.white)
+                    .shadow(radius: scaled(2))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(scaled(6))
+            }
 
             // 系统标签或删除按钮
             if item.isSystem {
@@ -347,17 +393,33 @@ struct EndPictThumbnailView: View {
             }
         }
         .frame(width: size, height: size)
+        .onAppear { loadVideoThumbnailIfNeeded() }
+    }
+
+    private func loadVideoThumbnailIfNeeded() {
+        guard thumbnail == nil, item.kind == .video, let url = item.url else { return }
+        SessionRecordManager.shared.loadUserEndPictVideoThumbnail(url: url, maxDimension: Constants.EndPicts.thumbnailMaxDimension) { image in
+            guard let image else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                thumbnail = image
+            }
+        }
     }
 }
 
-// MARK: - 图片选择器（用于要点图片，支持多选）
-struct ImagePickerForEndPict: UIViewControllerRepresentable {
-    let onImagesPicked: ([UIImage]) -> Void
+// MARK: - 媒体选择器（用于要点图片，支持图片和视频多选）
+enum PickedEndPictMedia {
+    case image(UIImage)
+    case video(URL)
+}
+
+struct MediaPickerForEndPict: UIViewControllerRepresentable {
+    let onMediaPicked: ([PickedEndPictMedia]) -> Void
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.filter = .images
-        config.selectionLimit = 0 // 0 = 不限数量
+        config.filter = .any(of: [.images, .videos])
+        config.selectionLimit = 0
 
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
@@ -367,40 +429,61 @@ struct ImagePickerForEndPict: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onImagesPicked: onImagesPicked)
+        Coordinator(onMediaPicked: onMediaPicked)
     }
 
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let onImagesPicked: ([UIImage]) -> Void
+        let onMediaPicked: ([PickedEndPictMedia]) -> Void
 
-        init(onImagesPicked: @escaping ([UIImage]) -> Void) {
-            self.onImagesPicked = onImagesPicked
+        init(onMediaPicked: @escaping ([PickedEndPictMedia]) -> Void) {
+            self.onMediaPicked = onMediaPicked
         }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
-
             guard !results.isEmpty else { return }
 
             let group = DispatchGroup()
-            var images: [(Int, UIImage)] = []
+            var media: [(Int, PickedEndPictMedia)] = []
             let lock = NSLock()
 
             for (index, result) in results.enumerated() {
-                group.enter()
-                result.itemProvider.loadObject(ofClass: UIImage.self) { object, _ in
-                    if let image = object as? UIImage {
-                        lock.lock()
-                        images.append((index, image))
-                        lock.unlock()
+                let provider = result.itemProvider
+                if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+                    group.enter()
+                    provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, _ in
+                        if let url {
+                            let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+                            let tempURL = FileManager.default.temporaryDirectory
+                                .appendingPathComponent(UUID().uuidString)
+                                .appendingPathExtension(ext)
+                            do {
+                                try FileManager.default.copyItem(at: url, to: tempURL)
+                                lock.lock()
+                                media.append((index, .video(tempURL)))
+                                lock.unlock()
+                            } catch {
+                                try? FileManager.default.removeItem(at: tempURL)
+                            }
+                        }
+                        group.leave()
                     }
-                    group.leave()
+                } else if provider.canLoadObject(ofClass: UIImage.self) {
+                    group.enter()
+                    provider.loadObject(ofClass: UIImage.self) { object, _ in
+                        if let image = object as? UIImage {
+                            lock.lock()
+                            media.append((index, .image(image)))
+                            lock.unlock()
+                        }
+                        group.leave()
+                    }
                 }
             }
 
             group.notify(queue: .main) {
-                let sorted = images.sorted { $0.0 < $1.0 }.map { $0.1 }
-                self.onImagesPicked(sorted)
+                let sorted = media.sorted { $0.0 < $1.0 }.map { $0.1 }
+                self.onMediaPicked(sorted)
             }
         }
     }
@@ -413,6 +496,8 @@ struct FullScreenEndPictView: View {
     let onDismiss: () -> Void
 
     @State private var loadedImage: UIImage? = nil
+    @State private var videoPlayer: AVPlayer? = nil
+    @State private var loopObserver: NSObjectProtocol? = nil
 
     private static let maxDim = Constants.ImageDisplay.playbackFullScreenMaxDimension
 
@@ -422,28 +507,34 @@ struct FullScreenEndPictView: View {
                 Color.black
                     .ignoresSafeArea()
 
-                // 中层：模糊背景（与播放器一致：.fit + scaleEffect）
-                if let img = loadedImage {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .scaleEffect(Constants.ImageDisplay.blurBackgroundScaleEffect)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .blur(radius: Constants.ImageDisplay.blurBackgroundRadius)
-                        .opacity(Constants.ImageDisplay.blurBackgroundOpacity)
-                        .clipped()
-                }
-
-                // 顶层：原图（与播放器一致：圆角 8pt）
-                if let img = loadedImage {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .cornerRadius(8)
+                if let player = videoPlayer {
+                    VideoPlayer(player: player)
+                        .disabled(true)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 } else {
-                    ProgressView()
-                        .tint(.primary)
+                    // 中层：模糊背景（与播放器一致：.fit + scaleEffect）
+                    if let img = loadedImage {
+                        Image(uiImage: img)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .scaleEffect(Constants.ImageDisplay.blurBackgroundScaleEffect)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .blur(radius: Constants.ImageDisplay.blurBackgroundRadius)
+                            .opacity(Constants.ImageDisplay.blurBackgroundOpacity)
+                            .clipped()
+                    }
+
+                    // 顶层：原图（与播放器一致：圆角 8pt）
+                    if let img = loadedImage {
+                        Image(uiImage: img)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .cornerRadius(8)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    } else {
+                        ProgressView()
+                            .tint(.primary)
+                    }
                 }
             }
             .contentShape(Rectangle())
@@ -462,15 +553,33 @@ struct FullScreenEndPictView: View {
         }
         .ignoresSafeArea(.all)
         .statusBarHidden(true)
-        .onAppear { loadImage(for: currentIndex) }
+        .onAppear { loadMedia(for: currentIndex) }
+        .onDisappear { clearVideoPlayer() }
         .onChange(of: currentIndex) { _, newIndex in
-            loadImage(for: newIndex)
+            loadMedia(for: newIndex)
         }
     }
 
-    private func loadImage(for index: Int) {
+    private func loadMedia(for index: Int) {
+        clearVideoPlayer()
+        loadedImage = nil
         guard index >= 0, index < items.count else { return }
         let item = items[index]
+        if item.kind == .video, let url = item.url {
+            let player = AVPlayer(url: url)
+            player.isMuted = true
+            videoPlayer = player
+            loopObserver = NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: player.currentItem,
+                queue: .main
+            ) { _ in
+                player.seek(to: .zero)
+                player.play()
+            }
+            player.play()
+            return
+        }
         if item.isSystem, let resourceName = item.resourceName {
             let imageURL = Bundle.main.url(forResource: resourceName, withExtension: "jpg")
                 ?? Bundle.main.url(forResource: resourceName, withExtension: "png")
@@ -479,6 +588,15 @@ struct FullScreenEndPictView: View {
             }
         } else if let url = item.url {
             loadedImage = SessionRecordManager.shared.loadUserEndPictThumbnail(url: url, maxDimension: Self.maxDim)
+        }
+    }
+
+    private func clearVideoPlayer() {
+        videoPlayer?.pause()
+        videoPlayer = nil
+        if let loopObserver {
+            NotificationCenter.default.removeObserver(loopObserver)
+            self.loopObserver = nil
         }
     }
 }
@@ -517,6 +635,15 @@ private struct EndPictQueueItemView: View {
                     }
             }
 
+            if item.kind == .video {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: scaled(22)))
+                    .foregroundColor(.white)
+                    .shadow(radius: scaled(2))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(scaled(6))
+            }
+
             // 序号标记
             ZStack {
                 Circle()
@@ -548,18 +675,29 @@ private struct EndPictQueueItemView: View {
                 }
             }
         )
-        .onAppear {
-            if loadedImage == nil {
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let img = SessionRecordManager.shared.getEndPictItemThumbnail(
-                        item: item,
-                        maxDimension: Constants.EndPicts.thumbnailMaxDimension
-                    )
-                    DispatchQueue.main.async {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            loadedImage = img
-                        }
-                    }
+        .onAppear { loadThumbnailIfNeeded() }
+    }
+
+    private func loadThumbnailIfNeeded() {
+        guard loadedImage == nil else { return }
+        if item.kind == .video, let url = item.url {
+            loadedImage = EndPictManagementView.videoPlaceholder(size: CGSize(width: size, height: size))
+            SessionRecordManager.shared.loadUserEndPictVideoThumbnail(url: url, maxDimension: Constants.EndPicts.thumbnailMaxDimension) { image in
+                guard let image else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    loadedImage = image
+                }
+            }
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let img = SessionRecordManager.shared.getEndPictItemThumbnail(
+                item: item,
+                maxDimension: Constants.EndPicts.thumbnailMaxDimension
+            )
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    loadedImage = img
                 }
             }
         }

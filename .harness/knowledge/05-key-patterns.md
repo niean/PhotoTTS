@@ -24,6 +24,9 @@ SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openC
 ### 多段音频连续播放
 PlayView 通过 `PlaybackTimeline` 将多个 `TTSAudioSegment.duration` 抽象成统一全局时间轴，再把全局时间映射为“当前段索引 + 段内时间”。段结束时自动切到下一段继续播放，进度条、自动翻页、暂停后手势翻页都始终基于全局时间工作，因此用户感知仍是一条连续朗读。旧记录 `audioSegments` 为空时回退到单 `AVAudioPlayer` 路径。
 
+### 要点媒体视觉层
+要点虚拟页的 EndPicts 媒体由 PlayView 在记录进入播放后预加载并且每条记录只消费一次轮询队列，PlayerImageView 只渲染 PlayView 传入的 highlightsImage 或 highlightsPlayer。图片按播放全屏尺寸降采样；视频使用静音 AVPlayer 预先等待 ready，要点 TTS 段覆盖虚拟页索引时，如视频未 ready 则延迟该段 TTS 启动，ready 后同步启动 TTS 与静音循环视频。AVPlayer 必须 isMuted=true，不展示系统控制，不接管音频会话；TTS 的 AVAudioPlayer 仍是唯一有声播放源。暂停/恢复、进度跳转、连播切换或退出视图时，PlayView 负责同步暂停/seek 视频并移除 KVO、循环 observer 与 player。
+
 ### 控制层
 PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left：播放/暂停 + 进度条（PlayerProgressBar）。用户横屏 top-right：退出 + "播完本集"开关（autoStopEnabled，默认开启）。
 

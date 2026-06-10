@@ -583,7 +583,14 @@ class SettingsManager {
         os.Logger.settingsManager.info("读取TTS字符限制配置: \(maxLength)")
         return max(1, maxLength)
     }
-    
+
+    /// 读取要点媒体是否视频优先配置
+    /// - Returns: true 时用户上传视频排在用户上传图片前，默认 false
+    func getEndPictsVideoFirst() -> Bool {
+        let sysConfig = loadSystemConfig()
+        return sysConfig["endpicts_video_first"] as? Bool ?? false
+    }
+
     /// 读取OCR基础URL
     /// - Returns: OCR基础URL，如果读取失败返回空字符串
     func getOCRBaseURL() -> String {

@@ -464,8 +464,12 @@ extension Constants {
         static let thumbnailMaxDimension: CGFloat = 96
         /// 上传图片最大边长（像素）
         static let uploadImageMaxPixel: CGFloat = 2048
+        /// 要点图片支持的图片扩展名
+        static let imageExtensions = ["jpg", "jpeg", "png", "heic"]
+        /// 要点图片支持的视频扩展名
+        static let videoExtensions = ["mp4", "mov", "m4v"]
         /// 轮询状态版本号，用于检测图片池变化后重置队列
-        static let roundRobinVersion = 2
+        static let roundRobinVersion = 3
     }
 
     // MARK: - 字体常量
