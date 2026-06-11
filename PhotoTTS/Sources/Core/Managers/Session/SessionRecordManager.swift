@@ -1416,6 +1416,13 @@ public struct EndPictQueueInfo {
             version: Constants.EndPicts.roundRobinVersion
         )
         saveRoundRobinState(direction: direction, state: state)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: Constants.NotificationNames.endPictQueueDidReset,
+                object: nil,
+                userInfo: ["direction": direction]
+            )
+        }
         logger.info("要点图片轮询队列重置: direction=\(direction), count=\(totalCount)")
     }
 

@@ -800,6 +800,11 @@ private struct EndPictQueueSectionView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             loadQueueInfo()
         }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.endPictQueueDidReset)) { notification in
+            guard notification.userInfo?["direction"] as? String == direction else { return }
+            refreshId = UUID()
+            loadQueueInfo()
+        }
         .id(refreshId)
     }
 

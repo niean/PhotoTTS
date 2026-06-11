@@ -62,6 +62,39 @@ final class EndPictMediaTests: XCTestCase {
         XCTAssertEqual(firstItem.kind, .video)
     }
 
+    func testSavingUserEndPictVideoResetsPlayedQueue() throws {
+        let imageURL = try saveTinyImage(named: "h-reset-image.jpg")
+        createdURLs.append(imageURL)
+        manager.resetEndPictQueue(direction: direction)
+        _ = manager.loadEndPictMedia(animationStyle: .rightToLeft)
+        XCTAssertFalse(try XCTUnwrap(manager.getEndPictQueueInfo(direction: direction)).playedIndices.isEmpty)
+
+        let sourceURL = try saveTemporaryVideoPlaceholder(named: "new-endpict.mp4")
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        XCTAssertTrue(manager.saveUserEndPictVideo(from: sourceURL, direction: direction))
+
+        let queueInfo = try XCTUnwrap(manager.getEndPictQueueInfo(direction: direction))
+        createdURLs.append(contentsOf: queueInfo.items.compactMap(\.url))
+        XCTAssertTrue(queueInfo.playedIndices.isEmpty)
+        XCTAssertTrue(queueInfo.items.contains { $0.kind == .video && $0.url?.lastPathComponent.hasSuffix(".mp4") == true })
+    }
+
+    func testSavingUserEndPictVideoPostsQueueResetNotification() throws {
+        let expectation = expectation(forNotification: Constants.NotificationNames.endPictQueueDidReset, object: nil) { notification in
+            notification.userInfo?["direction"] as? String == self.direction
+        }
+        let sourceURL = try saveTemporaryVideoPlaceholder(named: "notify-endpict.mp4")
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        XCTAssertTrue(manager.saveUserEndPictVideo(from: sourceURL, direction: direction))
+        if let queueInfo = manager.getEndPictQueueInfo(direction: direction) {
+            createdURLs.append(contentsOf: queueInfo.items.compactMap(\.url))
+        }
+
+        wait(for: [expectation], timeout: 1)
+    }
+
     private func saveTinyImage(named fileName: String) throws -> URL {
         let url = userDirectionDirectory().appendingPathComponent(fileName)
         let image = UIImage(systemName: "photo") ?? UIImage()
@@ -72,6 +105,13 @@ final class EndPictMediaTests: XCTestCase {
 
     private func saveTinyVideoPlaceholder(named fileName: String) throws -> URL {
         let url = userDirectionDirectory().appendingPathComponent(fileName)
+        try Data([0, 0, 0, 20, 102, 116, 121, 112, 109, 112, 52, 50]).write(to: url)
+        return url
+    }
+
+    private func saveTemporaryVideoPlaceholder(named fileName: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try? FileManager.default.removeItem(at: url)
         try Data([0, 0, 0, 20, 102, 116, 121, 112, 109, 112, 52, 50]).write(to: url)
         return url
     }

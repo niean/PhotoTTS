@@ -27,6 +27,8 @@ PlayView 通过 `PlaybackTimeline` 将多个 `TTSAudioSegment.duration` 抽象�
 ### 要点媒体视觉层
 要点虚拟页的 EndPicts 媒体由 PlayView 在记录进入播放后预加载并且每条记录只消费一次轮询队列，PlayerImageView 只渲染 PlayView 传入的 highlightsImage 或 highlightsPlayer。图片按播放全屏尺寸降采样；视频使用静音 AVPlayer 预先等待 ready，要点 TTS 段覆盖虚拟页索引时，如视频未 ready 则延迟该段 TTS 启动，ready 后同步启动 TTS 与静音循环视频。AVPlayer 必须 isMuted=true，不展示系统控制，不接管音频会话；TTS 的 AVAudioPlayer 仍是唯一有声播放源。暂停/恢复、进度跳转、连播切换或退出视图时，PlayView 负责同步暂停/seek 视频并移除 KVO、循环 observer 与 player。
 
+要点媒体池变化由 SessionRecordManager 重置轮询队列，并通过 Constants.NotificationNames.endPictQueueDidReset 携带 direction 通知管理页队列子视图刷新。通知必须在主线程发布；EndPictQueueSectionView 只响应 direction 匹配的通知，避免横向/纵向队列互相刷新。
+
 ### 控制层
 PlayerControlLayer 悬浮在图片之上（isOverlayVisible 控制显隐），通过回调与 PlayView 交互。用户横屏 bottom-left：播放/暂停 + 进度条（PlayerProgressBar）。用户横屏 top-right：退出 + "播完本集"开关（autoStopEnabled，默认开启）。
 

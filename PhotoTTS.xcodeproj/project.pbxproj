@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+			CC3330922E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
+			CC3330932E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
+			CC3330942E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		CC3330752E78117A005BD37F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -25,6 +31,7 @@
 
 /* Begin PBXFileReference section */
 		CC3330672E781179005BD37F /* PhotoTTS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoTTS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC3330952E78117A005BD37F /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		CC3330742E78117A005BD37F /* PhotoTTSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoTTSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC33307E2E78117A005BD37F /* PhotoTTSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoTTSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -52,6 +59,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC3330922E78117A005BD37F /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +67,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC3330932E78117A005BD37F /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -66,6 +75,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC3330942E78117A005BD37F /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +89,7 @@
 				CC3330772E78117A005BD37F /* PhotoTTSTests */,
 				CC3330812E78117A005BD37F /* PhotoTTSUITests */,
 				CC3330682E781179005BD37F /* Products */,
+				CC3330952E78117A005BD37F /* AppIntents.framework */,
 			);
 			sourceTree = "<group>";
 		};

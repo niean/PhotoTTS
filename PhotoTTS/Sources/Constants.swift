@@ -361,8 +361,10 @@ extension Constants {
         static let avatarImageDidUpdate = NSNotification.Name("AvatarImageDidUpdate")
         /// 播放历史已更新（记录了一次播放）
         static let playHistoryDidUpdate = NSNotification.Name("PlayHistoryDidUpdate")
+        /// 要点图片播放队列已重置，userInfo["direction"]: String
+        static let endPictQueueDidReset = NSNotification.Name("EndPictQueueDidReset")
     }
-    
+
     // MARK: - 外部链接
     struct Links {
         static let privacyPolicy = "https://phototts.niean.name/privacy-policy.html"
