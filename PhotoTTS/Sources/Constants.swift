@@ -359,6 +359,8 @@ extension Constants {
         static let coverImageDidUpdate = NSNotification.Name("CoverImageDidUpdate")
         /// 头像图片已更新，userInfo["sessionId"]: String
         static let avatarImageDidUpdate = NSNotification.Name("AvatarImageDidUpdate")
+        /// 会话图片已更新，userInfo["sessionId"]: String, userInfo["index"]: Int
+        static let sessionImageDidUpdate = NSNotification.Name("SessionImageDidUpdate")
         /// 播放历史已更新（记录了一次播放）
         static let playHistoryDidUpdate = NSNotification.Name("PlayHistoryDidUpdate")
         /// 要点图片播放队列已重置，userInfo["direction"]: String

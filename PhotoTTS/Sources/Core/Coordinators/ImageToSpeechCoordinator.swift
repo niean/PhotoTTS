@@ -896,7 +896,11 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         return (combinedText, validImageCount)
     }
 
-    func buildTTSSegments(from recognizedTexts: [String], characterLimit: Int = Constants.TTS.segmentCharacterLimit) -> [PlannedTTSSegment] {
+    func buildTTSSegments(
+        from recognizedTexts: [String],
+        characterLimit: Int = Constants.TTS.segmentCharacterLimit,
+        isolateLastSegment: Bool = false
+    ) -> [PlannedTTSSegment] {
         guard !recognizedTexts.isEmpty else { return [] }
 
         var planned: [PlannedTTSSegment] = []
@@ -927,6 +931,13 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
             let candidateCount = currentCharCount + separator + text.count
             let itemStartOffset = globalOffset
             let itemEndOffset = globalOffset + max(0, text.count - 1)
+
+            if isolateLastSegment, index == recognizedTexts.count - 1, !currentTexts.isEmpty {
+                let previousEndOffset = max(currentTextStartOffset, itemStartOffset - AppConstants.ocrTextSeparator.count - 1)
+                flush(endImageIndex: index - 1, endOffset: previousEndOffset)
+                currentStartIndex = index
+                currentTextStartOffset = itemStartOffset
+            }
 
             if !currentTexts.isEmpty && candidateCount > characterLimit {
                 let previousEndOffset = currentTextStartOffset + max(0, currentCharCount - 1)
@@ -972,7 +983,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
         hasVirtualPage: Bool,
         progressHandler: @escaping (ProcessingProgress) -> Void
     ) async throws -> AudioResponse {
-        let plannedSegments = buildTTSSegments(from: finalSegments)
+        let plannedSegments = buildTTSSegments(from: finalSegments, isolateLastSegment: hasVirtualPage)
         if plannedSegments.isEmpty {
             let audioResponse = try await convertTextToSpeechAsync(finalText)
             return AudioResponse(

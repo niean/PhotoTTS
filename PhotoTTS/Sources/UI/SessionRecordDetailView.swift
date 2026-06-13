@@ -26,6 +26,8 @@ struct SessionRecordUnifiedView: View {
     @State private var selectedAnimationStyle: AnimationStyle = .rightToLeft
     @State private var showingCoverEdit = false
     @State private var showingAvatarEdit = false
+    @State private var showingSessionImageEdit = false
+    @State private var editingImageIndex = 0
     @FocusState private var isTextFieldFocused: Bool
     
     private func scaled(_ value: CGFloat) -> CGFloat {
@@ -137,6 +139,22 @@ struct SessionRecordUnifiedView: View {
                 CoverEditView(sessionId: record.id, editMode: .avatar, imageIndex: selectedAvatarIndex) {
                     showingAvatarEdit = false
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $showingSessionImageEdit) {
+            if case .edit(let record, _, _) = mode {
+                SessionImageEditView(
+                    sessionId: record.id,
+                    imageIndex: editingImageIndex,
+                    onDismiss: {
+                        showingSessionImageEdit = false
+                    },
+                    onSave: {
+                        if editingImageIndex == 0 {
+                            selectedAvatarIndex = 0
+                        }
+                    }
+                )
             }
         }
         .onAppear {
@@ -451,11 +469,26 @@ struct SessionRecordUnifiedView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) {
                             ForEach(0..<record.totalImageCount, id: \.self) { index in
-                                LoadableSessionImageView(sessionId: record.id, index: index, maxDimension: 400)
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 160, height: 300)
-                                    .clipped()
-                                    .cornerRadius(8)
+                                Button(action: {
+                                    guard isEditable else { return }
+                                    editingImageIndex = index
+                                    showingSessionImageEdit = true
+                                }) {
+                                    LoadableSessionImageView(sessionId: record.id, index: index, maxDimension: 400)
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 160, height: 300)
+                                        .clipped()
+                                        .cornerRadius(8)
+                                        .overlay(alignment: .bottomTrailing) {
+                                            if isEditable {
+                                                Image(systemName: "pencil.circle.fill")
+                                                    .font(Constants.Fonts.body)
+                                                    .foregroundStyle(.white, .blue)
+                                                    .padding(8)
+                                            }
+                                        }
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -773,6 +806,21 @@ struct LoadableSessionImageView: View {
         }
         .onDisappear {
             image = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Constants.NotificationNames.sessionImageDidUpdate)) { notification in
+            guard let updatedId = notification.userInfo?["sessionId"] as? String,
+                  let updatedIndex = notification.userInfo?["index"] as? Int,
+                  updatedId == sessionId,
+                  updatedIndex == index else { return }
+            let sid = sessionId
+            let idx = index
+            let maxD = maxDimension
+            DispatchQueue.global(qos: .userInitiated).async {
+                let loaded = SessionRecordManager.shared.loadImage(sessionId: sid, index: idx, maxDimension: maxD)
+                DispatchQueue.main.async {
+                    image = loaded
+                }
+            }
         }
     }
 }

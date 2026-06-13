@@ -1817,6 +1817,10 @@ public struct EndPictQueueInfo {
         return c
     }()
 
+    private func invalidateImageLoadCache() {
+        Self.imageLoadCache.removeAllObjects()
+    }
+
     private static let homeCardCoverCache: NSCache<NSString, UIImage> = {
         let c = NSCache<NSString, UIImage>()
         c.countLimit = Constants.HomeCard.coverCacheLimit
@@ -2102,6 +2106,91 @@ public struct EndPictQueueInfo {
         _ = removeLocalIntegrityManifestIfExists(sessionDir: targetDir)
     }
 
+    private func encodedDraftImageData(_ image: UIImage) -> Data? {
+        let saveMaxPixel = Int(Constants.ImageDisplay.saveImageMaxPixel)
+        let imageToSave = Self.downsampleImageToMaxPixel(image, maxPixelLength: saveMaxPixel) ?? image
+        return imageToSave.jpegData(compressionQuality: 1.0)
+    }
+
+    private func writeDraftImages(_ images: [UIImage], to imagesDir: URL) throws {
+        if fileManager.fileExists(atPath: imagesDir.path) {
+            try fileManager.removeItem(at: imagesDir)
+        }
+        try fileManager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+
+        for (index, image) in images.enumerated() {
+            guard let jpegData = encodedDraftImageData(image) else { continue }
+            let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
+            try jpegData.write(to: imageURL)
+        }
+    }
+
+    private func isFirstDraftImageChanged(sessionDir: URL, newImages: [UIImage]) -> Bool {
+        let existingFirstImageURL = sessionDir
+            .appendingPathComponent("images", isDirectory: true)
+            .appendingPathComponent("image_0.jpg")
+
+        guard let newFirstImage = newImages.first else {
+            return fileManager.fileExists(atPath: existingFirstImageURL.path)
+        }
+        guard fileManager.fileExists(atPath: existingFirstImageURL.path),
+              let existingImage = UIImage(contentsOfFile: existingFirstImageURL.path) else {
+            return true
+        }
+
+        let normalizedExisting = Self.downsampleImageToMaxPixel(existingImage, maxPixelLength: Int(Constants.ImageDisplay.saveImageMaxPixel)) ?? existingImage
+        let normalizedNew = Self.downsampleImageToMaxPixel(newFirstImage, maxPixelLength: Int(Constants.ImageDisplay.saveImageMaxPixel)) ?? newFirstImage
+
+        guard let existingPNG = normalizedExisting.pngData(),
+              let newPNG = normalizedNew.pngData() else {
+            return true
+        }
+        return existingPNG != newPNG
+    }
+
+    private func removeSessionAudioArtifacts(sessionDir: URL) {
+        guard let contents = try? fileManager.contentsOfDirectory(at: sessionDir, includingPropertiesForKeys: nil) else {
+            return
+        }
+        for url in contents where url.lastPathComponent.hasPrefix("audio") {
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
+    private func resetSessionArtworkIfNeeded(sessionDir: URL, sessionId: String, removeAvatar: Bool, removeCover: Bool) {
+        if removeAvatar {
+            try? fileManager.removeItem(at: sessionDir.appendingPathComponent(Self.avatarFileName))
+        }
+        if removeCover {
+            try? fileManager.removeItem(at: sessionDir.appendingPathComponent(Self.coverFileName))
+        }
+        if removeAvatar || removeCover {
+            invalidateHomeCardCoverCache(sessionId: sessionId)
+        }
+    }
+
+    private func persistSessionRecord(_ record: SessionRecord, sessionDir: URL) throws {
+        let recordURL = sessionDir.appendingPathComponent("record.json")
+        let metadataURL = sessionDir.appendingPathComponent("metadata.json")
+
+        let recordData = try JSONEncoder().encode(record)
+        try recordData.write(to: recordURL)
+
+        let metadata = SessionRecordMetadata(from: record)
+        let metadataData = try JSONEncoder().encode(metadata)
+        try metadataData.write(to: metadataURL)
+
+        let storageSize = calculateDirectorySize(sessionDir)
+        let sizedRecord = record.withStorageSize(storageSize)
+
+        let sizedRecordData = try JSONEncoder().encode(sizedRecord)
+        try sizedRecordData.write(to: recordURL)
+
+        let sizedMetadata = SessionRecordMetadata(from: sizedRecord)
+        let sizedMetadataData = try JSONEncoder().encode(sizedMetadata)
+        try sizedMetadataData.write(to: metadataURL)
+    }
+
     // MARK: - 草稿会话（后台制作）
 
     /// 保存草稿会话记录（仅落盘图片和 metadata，makeStatus=making，无 OCR/音频结果）
@@ -2109,14 +2198,20 @@ public struct EndPictQueueInfo {
     ///   - id: 会话ID（由调用方生成，保证与 BackgroundMakeManager 任务对应）
     ///   - name: 草稿名称（如 "25.03.04 未命名-153045"）
     ///   - images: 已降采样的图片数组
+    ///   - replaceExistingContent: 复用已有会话时，是否用新图片覆盖原内容
     /// - Returns: 是否保存成功
-    func saveDraftSession(id: String, name: String, images: [UIImage]) -> Bool {
+    func saveDraftSession(id: String, name: String, images: [UIImage], replaceExistingContent: Bool = false) -> Bool {
         let sessionDir = sessionsDirectory.appendingPathComponent(id, isDirectory: true)
         let metadataURL = sessionDir.appendingPathComponent("metadata.json")
         let recordURL = sessionDir.appendingPathComponent("record.json")
 
         // 检查是否为复用已有会话（metadata.json 已存在）
         let isReusingExistingSession = fileManager.fileExists(atPath: metadataURL.path)
+        let existingRecord = isReusingExistingSession ? loadSession(id: id) : nil
+        let shouldReplaceExistingContent = replaceExistingContent && existingRecord != nil
+        let firstImageChanged = shouldReplaceExistingContent
+            ? isFirstDraftImageChanged(sessionDir: sessionDir, newImages: images)
+            : false
 
         do {
             // 创建会话目录（如果不存在）
@@ -2124,30 +2219,51 @@ public struct EndPictQueueInfo {
                 try fileManager.createDirectory(at: sessionDir, withIntermediateDirectories: true)
             }
 
-            // 保存图片文件（仅当复用会话时才跳过）
-            if !isReusingExistingSession {
-                let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
-                if !fileManager.fileExists(atPath: imagesDir.path) {
-                    try fileManager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
-                }
-                let saveMaxPixel = Int(Constants.ImageDisplay.saveImageMaxPixel)
-                for (index, image) in images.enumerated() {
-                    let imageToSave = Self.downsampleImageToMaxPixel(image, maxPixelLength: saveMaxPixel) ?? image
-                    guard let jpegData = imageToSave.jpegData(compressionQuality: 1.0) else { continue }
-                    let imageURL = imagesDir.appendingPathComponent("image_\(index).jpg")
-                    try jpegData.write(to: imageURL)
-                }
+            let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+            if !isReusingExistingSession || shouldReplaceExistingContent {
+                try writeDraftImages(images, to: imagesDir)
 
-                // 预生成头像（仅新建时）
-                if !images.isEmpty {
-                    let imagesDir = sessionDir.appendingPathComponent("images", isDirectory: true)
+                if !isReusingExistingSession, !images.isEmpty {
                     writeAvatarImage(sessionDir: sessionDir, imagesDir: imagesDir, avatarImageIndex: 0)
                 }
             }
 
             // 构建或更新 record
             let record: SessionRecord
-            if isReusingExistingSession, let existingRecord = loadSession(id: id) {
+            if let existingRecord, shouldReplaceExistingContent {
+                let avatarOutOfRange = existingRecord.avatarImageIndex >= images.count
+                let shouldResetAvatar = firstImageChanged || avatarOutOfRange
+                resetSessionArtworkIfNeeded(
+                    sessionDir: sessionDir,
+                    sessionId: id,
+                    removeAvatar: shouldResetAvatar,
+                    removeCover: firstImageChanged
+                )
+                removeSessionAudioArtifacts(sessionDir: sessionDir)
+
+                let emptySegments = Array(repeating: "", count: images.count)
+                record = SessionRecord(
+                    id: id,
+                    name: existingRecord.name,
+                    createdAt: existingRecord.createdAt,
+                    updatedAt: Date(),
+                    images: images,
+                    ocrText: "",
+                    ocrTextSegments: emptySegments,
+                    audioData: Data(),
+                    audioFormat: "mp3",
+                    audioDuration: 0,
+                    ocrDuration: 0,
+                    ttsDuration: 0,
+                    validImageCount: 0,
+                    voiceSettings: existingRecord.voiceSettings,
+                    avatarImageIndex: shouldResetAvatar ? 0 : min(existingRecord.avatarImageIndex, max(0, images.count - 1)),
+                    storageSize: existingRecord.storageSize,
+                    makeStatus: .making,
+                    animationStyle: existingRecord.animationStyle,
+                    coverImagePath: firstImageChanged ? nil : existingRecord.coverImagePath
+                )
+            } else if let existingRecord {
                 // 复用已有记录，仅更新 makeStatus 为 making
                 record = existingRecord.withMakeStatus(.making)
             } else {
@@ -2179,7 +2295,9 @@ public struct EndPictQueueInfo {
             try recordData.write(to: recordURL)
 
             invalidateMetadataCache()
-            if isReusingExistingSession {
+            if shouldReplaceExistingContent {
+                logger.info("草稿会话图片更新成功: \(name), id=\(id), 图片数=\(images.count)")
+            } else if isReusingExistingSession {
                 logger.info("草稿会话复用成功: \(name), id=\(id)")
             } else {
                 logger.info("草稿会话保存成功: \(name), id=\(id), 图片数=\(images.count)")
@@ -2496,6 +2614,98 @@ public struct EndPictQueueInfo {
     }
 
     // MARK: - 更新会话记录
+
+    /// 替换会话中的单张图片，不重跑 OCR / LLM / TTS。
+    /// - Parameters:
+    ///   - sessionId: 会话 ID
+    ///   - index: 图片索引
+    ///   - image: 新图片
+    /// - Returns: 是否替换成功
+    func replaceSessionImage(sessionId: String, index: Int, image: UIImage) -> Bool {
+        if isBundledDefaultSession(sessionId) {
+            logger.warning("内置默认会话不可更新图片")
+            return false
+        }
+        guard let record = loadSession(id: sessionId) else {
+            logger.error("替换会话图片失败，记录不存在: \(sessionId)")
+            return false
+        }
+        guard index >= 0, index < record.totalImageCount else {
+            logger.error("替换会话图片失败，索引越界: sessionId=\(sessionId), index=\(index)")
+            return false
+        }
+        let sessionDir = sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true)
+        let maxDimension = Constants.ImageDisplay.saveImageMaxPixel
+        var images: [UIImage] = []
+
+        for currentIndex in 0..<record.totalImageCount {
+            if currentIndex == index {
+                let normalized = Self.downsampleImageToMaxPixel(
+                    image,
+                    maxPixelLength: Int(Constants.ImageDisplay.saveImageMaxPixel)
+                ) ?? image
+                images.append(normalized)
+                continue
+            }
+
+            guard let existingImage = loadImage(
+                sessionId: sessionId,
+                index: currentIndex,
+                maxDimension: maxDimension
+            ) else {
+                logger.error("替换会话图片失败，旧图片加载失败: sessionId=\(sessionId), index=\(currentIndex)")
+                return false
+            }
+            images.append(existingImage)
+        }
+
+        let shouldResetArtwork = index == 0
+        if shouldResetArtwork {
+            resetSessionArtworkIfNeeded(
+                sessionDir: sessionDir,
+                sessionId: sessionId,
+                removeAvatar: true,
+                removeCover: true
+            )
+        }
+
+        let updatedRecord = SessionRecord(
+            id: record.id,
+            name: record.name,
+            createdAt: record.createdAt,
+            updatedAt: Date(),
+            images: images,
+            ocrText: record.ocrText,
+            ocrTextSegments: record.ocrTextSegments,
+            audioData: record.getAudioData() ?? Data(),
+            audioFormat: record.audioFormat,
+            audioSegments: record.audioSegments,
+            audioDuration: record.audioDuration,
+            ocrDuration: record.ocrDuration,
+            llmDuration: record.llmDuration,
+            ttsDuration: record.ttsDuration,
+            validImageCount: record.validImageCount,
+            voiceSettings: record.voiceSettings,
+            avatarImageIndex: shouldResetArtwork ? 0 : record.avatarImageIndex,
+            storageSize: record.storageSize,
+            makeStatus: record.makeStatus,
+            storyHighlights: record.storyHighlights,
+            hasVirtualPage: record.hasVirtualPage,
+            animationStyle: record.animationStyle,
+            coverImagePath: shouldResetArtwork ? nil : record.coverImagePath
+        )
+
+        let result = saveSession(updatedRecord)
+        if result.success {
+            invalidateMetadataCache()
+            invalidateImageLoadCache()
+            _ = removeLocalIntegrityManifestIfExists(sessionDir: sessionDir)
+            logger.info("会话图片替换成功: sessionId=\(sessionId), index=\(index)")
+        } else {
+            logger.error("替换会话图片失败: sessionId=\(sessionId), index=\(index)")
+        }
+        return result.success
+    }
     
     /// 更新会话记录（名称、头像等可选项，仅更新传入的非 nil 参数）
     /// - Parameters:

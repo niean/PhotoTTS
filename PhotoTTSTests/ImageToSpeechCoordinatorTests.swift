@@ -156,6 +156,21 @@ final class ImageToSpeechCoordinatorTests: XCTestCase {
         XCTAssertEqual(segments[0].imageEndIndex, 2)
     }
 
+    func testBuildTTSSegmentsIsolatesHighlightsVirtualPage() {
+        let segments = coordinator.buildTTSSegments(
+            from: ["第一页", "第二页", "要点总结"],
+            isolateLastSegment: true
+        )
+
+        XCTAssertEqual(segments.count, 2)
+        XCTAssertEqual(segments[0].text, "第一页\n\n第二页")
+        XCTAssertEqual(segments[0].imageStartIndex, 0)
+        XCTAssertEqual(segments[0].imageEndIndex, 1)
+        XCTAssertEqual(segments[1].text, "要点总结")
+        XCTAssertEqual(segments[1].imageStartIndex, 2)
+        XCTAssertEqual(segments[1].imageEndIndex, 2)
+    }
+
     func testSegmentedTTSHonorsConcurrentLimitAndPreservesSequence() {
         let expectation = XCTestExpectation(description: "segmented tts")
         mockNetworkService.segmentDelay = 0.05

@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-			CC3330922E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
-			CC3330932E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
-			CC3330942E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
+		CC3330922E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
+		CC3330932E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
+		CC3330942E78117A005BD37F /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC3330952E78117A005BD37F /* AppIntents.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,9 +31,9 @@
 
 /* Begin PBXFileReference section */
 		CC3330672E781179005BD37F /* PhotoTTS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoTTS.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC3330952E78117A005BD37F /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		CC3330742E78117A005BD37F /* PhotoTTSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoTTSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC33307E2E78117A005BD37F /* PhotoTTSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoTTSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC3330952E78117A005BD37F /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */

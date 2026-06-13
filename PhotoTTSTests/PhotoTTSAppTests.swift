@@ -1377,6 +1377,238 @@ final class PhotoTTSAppTests: XCTestCase {
         )
     }
 
+    func testSaveDraftSessionReplacingExistingContentResetsAvatarAndCoverWhenFirstImageChanges() throws {
+        let sessionID = "replace-draft-reset-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let initialRecord = SessionRecord(
+            id: sessionID,
+            name: "replace-draft-reset",
+            images: [
+                makeImage(color: .red, size: CGSize(width: 120, height: 120)),
+                makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+            ],
+            ocrText: "旧文本",
+            ocrTextSegments: ["旧", "文本"],
+            audioData: Data([0x01, 0x02]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 2,
+            avatarImageIndex: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let avatarURL = sessionDir.appendingPathComponent("avatar.jpg")
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        let customAvatarData = try XCTUnwrap(
+            makeImage(color: .purple, size: CGSize(width: 96, height: 96)).jpegData(compressionQuality: 1.0)
+        )
+        try customAvatarData.write(to: avatarURL)
+
+        let coverData = try XCTUnwrap(
+            makeImage(color: .green, size: CGSize(width: 160, height: 90)).jpegData(compressionQuality: 1.0)
+        )
+        let coverPath = try SessionRecordManager.shared.saveCoverImage(data: coverData, sessionId: sessionID)
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord.withCoverImagePath(coverPath)).success)
+
+        XCTAssertTrue(
+            SessionRecordManager.shared.saveDraftSession(
+                id: sessionID,
+                name: "ignored",
+                images: [
+                    makeImage(color: .yellow, size: CGSize(width: 120, height: 120)),
+                    makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+                ],
+                replaceExistingContent: true
+            )
+        )
+
+        let updatedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
+        XCTAssertEqual(updatedRecord.name, initialRecord.name)
+        XCTAssertEqual(updatedRecord.totalImageCount, 2)
+        XCTAssertEqual(updatedRecord.avatarImageIndex, 0)
+        XCTAssertEqual(updatedRecord.makeStatus, .making)
+        XCTAssertNil(updatedRecord.coverImagePath)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: avatarURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: coverURL.path))
+    }
+
+    func testSaveDraftSessionReplacingExistingContentPreservesArtworkWhenFirstImageUnchanged() throws {
+        let sessionID = "replace-draft-keep-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let initialRecord = SessionRecord(
+            id: sessionID,
+            name: "replace-draft-keep",
+            images: [
+                makeImage(color: .red, size: CGSize(width: 120, height: 120)),
+                makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+            ],
+            ocrText: "旧文本",
+            ocrTextSegments: ["旧", "文本"],
+            audioData: Data([0x01, 0x02]),
+            audioFormat: "mp3",
+            audioDuration: 1.0,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 2,
+            avatarImageIndex: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let avatarURL = sessionDir.appendingPathComponent("avatar.jpg")
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        let customAvatarData = try XCTUnwrap(
+            makeImage(color: .purple, size: CGSize(width: 96, height: 96)).jpegData(compressionQuality: 1.0)
+        )
+        try customAvatarData.write(to: avatarURL)
+
+        let coverData = try XCTUnwrap(
+            makeImage(color: .green, size: CGSize(width: 160, height: 90)).jpegData(compressionQuality: 1.0)
+        )
+        let coverPath = try SessionRecordManager.shared.saveCoverImage(data: coverData, sessionId: sessionID)
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord.withCoverImagePath(coverPath)).success)
+
+        let unchangedFirstImage = try XCTUnwrap(
+            SessionRecordManager.shared.loadImage(sessionId: sessionID, index: 0, maxDimension: 400)
+        )
+
+        XCTAssertTrue(
+            SessionRecordManager.shared.saveDraftSession(
+                id: sessionID,
+                name: "ignored",
+                images: [
+                    unchangedFirstImage,
+                    makeImage(color: .yellow, size: CGSize(width: 120, height: 120))
+                ],
+                replaceExistingContent: true
+            )
+        )
+
+        let updatedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
+        XCTAssertEqual(updatedRecord.avatarImageIndex, 1)
+        XCTAssertEqual(updatedRecord.coverImagePath, coverPath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: avatarURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: coverURL.path))
+    }
+
+    func testReplaceSessionImageResetsAvatarAndCoverWhenReplacingFirstImage() throws {
+        let sessionID = "replace-session-image-reset-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let initialRecord = SessionRecord(
+            id: sessionID,
+            name: "replace-session-image-reset",
+            images: [
+                makeImage(color: .red, size: CGSize(width: 120, height: 120)),
+                makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+            ],
+            ocrText: "旧文本",
+            ocrTextSegments: ["旧", "文本"],
+            audioData: Data([0x01, 0x02, 0x03]),
+            audioFormat: "mp3",
+            audioDuration: 1.2,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 2,
+            avatarImageIndex: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let avatarURL = sessionDir.appendingPathComponent("avatar.jpg")
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        let customAvatarData = try XCTUnwrap(
+            makeImage(color: .purple, size: CGSize(width: 96, height: 96)).jpegData(compressionQuality: 1.0)
+        )
+        try customAvatarData.write(to: avatarURL)
+
+        let coverData = try XCTUnwrap(
+            makeImage(color: .green, size: CGSize(width: 160, height: 90)).jpegData(compressionQuality: 1.0)
+        )
+        let coverPath = try SessionRecordManager.shared.saveCoverImage(data: coverData, sessionId: sessionID)
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord.withCoverImagePath(coverPath)).success)
+
+        XCTAssertTrue(
+            SessionRecordManager.shared.replaceSessionImage(
+                sessionId: sessionID,
+                index: 0,
+                image: makeImage(color: .yellow, size: CGSize(width: 150, height: 150))
+            )
+        )
+
+        let updatedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
+        XCTAssertEqual(updatedRecord.avatarImageIndex, 0)
+        XCTAssertNil(updatedRecord.coverImagePath)
+        XCTAssertEqual(updatedRecord.ocrText, initialRecord.ocrText)
+        XCTAssertEqual(updatedRecord.ocrTextSegments, initialRecord.ocrTextSegments)
+        XCTAssertEqual(updatedRecord.audioDuration, initialRecord.audioDuration)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: coverURL.path))
+    }
+
+    func testReplaceSessionImagePreservesAvatarAndCoverWhenReplacingNonFirstImage() throws {
+        let sessionID = "replace-session-image-keep-\(UUID().uuidString)"
+        createdSessionIDs.append(sessionID)
+
+        let initialRecord = SessionRecord(
+            id: sessionID,
+            name: "replace-session-image-keep",
+            images: [
+                makeImage(color: .red, size: CGSize(width: 120, height: 120)),
+                makeImage(color: .blue, size: CGSize(width: 120, height: 120))
+            ],
+            ocrText: "旧文本",
+            ocrTextSegments: ["旧", "文本"],
+            audioData: Data([0x01, 0x02, 0x03]),
+            audioFormat: "mp3",
+            audioDuration: 1.2,
+            ocrDuration: 0.1,
+            ttsDuration: 0.2,
+            validImageCount: 2,
+            avatarImageIndex: 1
+        )
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord).success)
+
+        let sessionDir = SessionRecordManager.shared.sessionsDirectory.appendingPathComponent(sessionID, isDirectory: true)
+        let avatarURL = sessionDir.appendingPathComponent("avatar.jpg")
+        let coverURL = sessionDir.appendingPathComponent("cover.jpg")
+
+        let customAvatarData = try XCTUnwrap(
+            makeImage(color: .purple, size: CGSize(width: 96, height: 96)).jpegData(compressionQuality: 1.0)
+        )
+        try customAvatarData.write(to: avatarURL)
+
+        let coverData = try XCTUnwrap(
+            makeImage(color: .green, size: CGSize(width: 160, height: 90)).jpegData(compressionQuality: 1.0)
+        )
+        let coverPath = try SessionRecordManager.shared.saveCoverImage(data: coverData, sessionId: sessionID)
+        XCTAssertTrue(SessionRecordManager.shared.saveSession(initialRecord.withCoverImagePath(coverPath)).success)
+
+        XCTAssertTrue(
+            SessionRecordManager.shared.replaceSessionImage(
+                sessionId: sessionID,
+                index: 1,
+                image: makeImage(color: .yellow, size: CGSize(width: 150, height: 150))
+            )
+        )
+
+        let updatedRecord = try XCTUnwrap(SessionRecordManager.shared.loadSession(id: sessionID))
+        XCTAssertEqual(updatedRecord.avatarImageIndex, 1)
+        XCTAssertEqual(updatedRecord.coverImagePath, coverPath)
+        XCTAssertEqual(updatedRecord.ocrText, initialRecord.ocrText)
+        XCTAssertEqual(updatedRecord.ocrTextSegments, initialRecord.ocrTextSegments)
+        XCTAssertEqual(updatedRecord.audioDuration, initialRecord.audioDuration)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: avatarURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: coverURL.path))
+    }
+
     func testValidateTransferredSessionDirectoryReportsMissingImageReason() throws {
         let sessionID = "integrity-validate-\(UUID().uuidString)"
         createdSessionIDs.append(sessionID)

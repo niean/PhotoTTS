@@ -364,7 +364,7 @@ struct MakeView: View {
         }
     }
     
-    /// 从记录管理「加载到制作」：还原记录完整制作状态，展示"再次制作"进度，不自动触发制作
+    /// 从记录管理「加载到制作」：还原记录完整制作状态，不自动触发制作
     private func loadRecordIntoMake(sessionId: String) {
         guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else { return }
         let count = record.totalImageCount
@@ -712,7 +712,9 @@ struct MakeView: View {
         let images = selectedImages
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let sessionId = bgMakeManager.saveDeferredDraft(images: images)
+            let sessionId = bgMakeManager.saveDeferredDraft(
+                images: images
+            )
             DispatchQueue.main.async {
                 self.isSavingDeferredDraft = false
                 if let sessionId {

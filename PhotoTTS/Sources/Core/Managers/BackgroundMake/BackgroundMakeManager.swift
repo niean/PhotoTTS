@@ -349,11 +349,16 @@ class BackgroundMakeManager: ObservableObject {
     ///   - images: 已降采样的图片数组
     ///   - reuseSessionId: 可选，复用已有草稿会话的 ID
     /// - Returns: 草稿会话 ID；保存失败时返回 nil
-    func saveDeferredDraft(images: [UIImage], reuseSessionId: String? = nil) -> String? {
+    func saveDeferredDraft(images: [UIImage], reuseSessionId: String? = nil, replaceExistingContent: Bool = false) -> String? {
         let sessionId = reuseSessionId ?? UUID().uuidString
         let draftName = makeDraftName()
 
-        let saved = SessionRecordManager.shared.saveDraftSession(id: sessionId, name: draftName, images: images)
+        let saved = SessionRecordManager.shared.saveDraftSession(
+            id: sessionId,
+            name: draftName,
+            images: images,
+            replaceExistingContent: replaceExistingContent
+        )
         guard saved else {
             logger.error("并发已满时保存草稿失败: sessionId=\(sessionId), 图片数=\(images.count)")
             return nil
@@ -405,7 +410,8 @@ class BackgroundMakeManager: ObservableObject {
         existingOCRDuration: TimeInterval = 0,
         existingLLMDuration: TimeInterval = 0,
         existingTTSDuration: TimeInterval = 0,
-        reuseSessionId: String? = nil
+        reuseSessionId: String? = nil,
+        replaceExistingContent: Bool = false
     ) -> String? {
         // 若复用 ID 对应任务仍活跃，视为重入，拒绝
         if let rid = reuseSessionId, let existing = tasks[rid], !existing.isCompleted {
@@ -442,7 +448,12 @@ class BackgroundMakeManager: ObservableObject {
             guard let self = self, let task = task else { return }
 
             // 保存草稿（图片落盘）
-            let saved = SessionRecordManager.shared.saveDraftSession(id: sessionId, name: draftName, images: images)
+            let saved = SessionRecordManager.shared.saveDraftSession(
+                id: sessionId,
+                name: draftName,
+                images: images,
+                replaceExistingContent: replaceExistingContent
+            )
             guard saved else {
                 self.logger.error("草稿会话保存失败，无法启动后台制作")
                 DispatchQueue.main.async {
