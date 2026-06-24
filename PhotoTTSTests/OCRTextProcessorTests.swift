@@ -10,6 +10,10 @@ final class OCRTextProcessorTests: XCTestCase {
         XCTAssertEqual(OCRTextProcessor.process("一......二......三"), "一...二...三")
     }
 
+    func testProcessCollapsesConsecutiveEllipsesToOne() {
+        XCTAssertEqual(OCRTextProcessor.process("等等.........我们来了............好呀"), "等等...我们来了...好呀")
+    }
+
     func testProcessKeepsExistingWhitespaceCleanup() {
         XCTAssertEqual(OCRTextProcessor.process("\n第一行\n\n\n第二行\n"), "第一行\n第二行")
     }
