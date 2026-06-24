@@ -837,7 +837,7 @@ struct PlayView: View {
             playbackTimer?.invalidate()
             playbackTimer = nil
             highlightsPlayer?.pause()
-            UIApplication.shared.isIdleTimerDisabled = false
+            UIApplication.shared.isIdleTimerDisabled = true
             return
         }
         configureAudioSession()
@@ -860,7 +860,7 @@ struct PlayView: View {
             if autoPlay {
                 let didStart = player.play()
                 isPlaying = didStart
-                UIApplication.shared.isIdleTimerDisabled = didStart
+                UIApplication.shared.isIdleTimerDisabled = true
                 if didStart {
                     startPlaybackTimer()
                     syncHighlightsVideo(to: player.currentTime, shouldPlay: isHighlightsAudioSegment(index: index))
@@ -870,7 +870,7 @@ struct PlayView: View {
                 }
             } else {
                 isPlaying = false
-                UIApplication.shared.isIdleTimerDisabled = false
+                UIApplication.shared.isIdleTimerDisabled = true
                 playbackTimer?.invalidate()
                 playbackTimer = nil
                 syncHighlightsVideo(to: player.currentTime, shouldPlay: false)
@@ -952,7 +952,7 @@ struct PlayView: View {
         isPlaying = false
         playbackTimer?.invalidate()
         playbackTimer = nil
-        UIApplication.shared.isIdleTimerDisabled = false
+        UIApplication.shared.isIdleTimerDisabled = true
     }
 
     private func onPlaybackFinished() {
@@ -1050,7 +1050,7 @@ struct PlayView: View {
         highlightsPlayer?.pause()
         stopCurrentAudioPlayer()
         isPlaying = false
-        UIApplication.shared.isIdleTimerDisabled = false
+        UIApplication.shared.isIdleTimerDisabled = true
     }
 
     private func stopCurrentAudioPlayer() {

@@ -323,7 +323,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.skippedDuplicateCount = 0
             self.receivedTransferMode = .full
             self.receiverExistingSessionIDs = []
-            UIApplication.shared.isIdleTimerDisabled = false
+            UIApplication.shared.isIdleTimerDisabled = true
         }
     }
 
@@ -628,7 +628,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             self.decisionTimeoutTimer = nil
             self.receivedTransferMode = .full
             self.receiverExistingSessionIDs = []
-            UIApplication.shared.isIdleTimerDisabled = false
+            UIApplication.shared.isIdleTimerDisabled = true
         }
     }
 

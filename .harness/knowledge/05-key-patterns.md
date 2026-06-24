@@ -131,18 +131,18 @@ NSError 创建：统一使用 Constants.ErrorInfo.domain / Constants.ErrorInfo.d
 
 ## 模式十二：防息屏（Idle Timer）
 
-两层策略防止屏幕自动熄灭：全局兜底 + 场景级保护。
+App 打开期间始终防止屏幕自动熄灭：全局策略 + 场景级补偿。
 
-全局兜底：PhotoTTSApp init() 设置 `UIApplication.shared.isIdleTimerDisabled = true`，scenePhase 变为 .active 时再次设置（应对系统重置）。
+全局策略：PhotoTTSApp init() 设置 `UIApplication.shared.isIdleTimerDisabled = true`，scenePhase 变为 .active 时再次设置（应对系统重置）。局部播放、暂停、播完、退出播放器、传输取消或重置等流程不得把该值改为 false，否则会破坏"只要打开 App 就不息屏"的产品预期。
 
-场景级保护：关键页面在各自启动入口重新设置 isIdleTimerDisabled = true：
+场景级补偿：关键页面在各自启动入口重新设置 isIdleTimerDisabled = true：
 - PlayView：startPlayback()、resumePlayback()
 - MakeView：processImages()
 - PeerTransferManager：startBrowsing()（传输开始）、session didReceiveStream（传输恢复）
 
 陷阱：系统会在特定时机重置 isIdleTimerDisabled（如 App 回前台），不能只依赖全局 init() 设置。每个需要防息屏的场景必须在自己的启动入口独立设置。
 
-新增防息屏页面应在对应的启动/恢复入口设置 `UIApplication.shared.isIdleTimerDisabled = true`。
+新增防息屏页面应在对应的启动/恢复入口设置 `UIApplication.shared.isIdleTimerDisabled = true`，不要在页面退出或任务结束时恢复为 false。
 
 ## 模式十二：日志双写（os.Logger + DebugLogManager）
 
@@ -172,7 +172,7 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 - 接收端 didFinishReceivingResourceWithName 中按模式分流：full/fullWithStats 走完整解包流程（重复 session 仅覆盖 history.json），playOnly 走 applyHistoryPackage 覆盖本地历史
 - full/fullWithStats 模式的完整记录判断优先依赖导出包或传输快照中的 `integrity.json`：该文件的职责就是供导入、接收时做完整性校验，校验清单覆盖目录内全部文件 MD5（不含自身）；接收到本地后会删除该文件，本地 `Documents/Sessions/{id}/` 仍以结构检查和业务文件为准
 - 接收方通过 receiverExistingSessionIDs 在接受邀请时保存本地已有 sessionID，供传输完成后 applyHistoryPackage 使用（pendingInvitation 在接受后即被清除）
-- cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，先 reject 未处理的 pendingInvitation 再置 nil（避免发送方等待超时），同时重置 isIdleTimerDisabled
+- cancelTransfer() / reset() 时清空 currentTransferMode 和 receiverExistingSessionIDs，先 reject 未处理的 pendingInvitation 再置 nil（避免发送方等待超时），但不关闭全局防息屏
 - 接收方 didReceiveInvitationFromPeer 中检测 transferState 为 .completed/.failed 时，自动清理 stale 状态（teardownSession + createSession + 状态重置），确保同一 MCPeerID 可重新连接
 - DeviceTransferView.onDisappear 中 reset() 后延迟重启 startAdvertising()，确保设备可被附近设备发现
 
