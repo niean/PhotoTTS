@@ -12,6 +12,7 @@ import AppKit
 public protocol OCRServiceProtocol {
     func recognizeText(from imageData: Data) async throws -> OCRResult
     func recognizeText(from imageData: Data, withPrompt prompt: String) async throws -> OCRResult
+    func recognizeText(from imageData: Data, imageIndex: Int) async throws -> OCRResult
 }
 
 // MARK: - OCR服务委托

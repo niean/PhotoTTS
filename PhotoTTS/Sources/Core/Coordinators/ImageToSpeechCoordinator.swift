@@ -213,7 +213,7 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
     /// 设置管理器，用于获取用户配置
     private let settingsManager: SettingsManager
     /// OCR服务，用于文字识别
-    private let ocrService: OCRService?
+    private let ocrService: OCRServiceProtocol?
     /// LLM服务，用于绘本分析
     private let llmService: LLMServiceProtocol?
     /// 当前是否正在处理中
@@ -226,12 +226,14 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
     // MARK: - 初始化
     init(networkService: NetworkServiceProtocol,
          settingsManager: SettingsManager = .shared,
-         ownerTaskId: String = UUID().uuidString) {
+         ownerTaskId: String = UUID().uuidString,
+         ocrService: OCRServiceProtocol? = OCRServiceFactory.createOCRService(),
+         llmService: LLMServiceProtocol? = LLMServiceFactory.createLLMService()) {
         self.networkService = networkService
         self.settingsManager = settingsManager
         self.ownerTaskId = ownerTaskId
-        self.ocrService = OCRServiceFactory.createOCRService()
-        self.llmService = LLMServiceFactory.createLLMService()
+        self.ocrService = ocrService
+        self.llmService = llmService
 
         if self.ocrService == nil {
             logError("ImageToSpeechCoordinator: OCR服务初始化失败")
@@ -247,6 +249,22 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
     }
     
     
+    private func failWithLLMError(_ error: Error, progressHandler: @escaping (ProcessingProgress) -> Void, completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void) {
+        self.isProcessing = false
+        progressHandler(ProcessingProgress(
+            stage: .failed,
+            currentStep: 0,
+            totalSteps: 100,
+            message: "LLM分析失败: \(error.localizedDescription)",
+            percentage: 0.0
+        ))
+        completion(.failure(.llmFailed(error)))
+    }
+
+    private func unusableLLMResultError() -> LLMError {
+        LLMError.parsingError("LLM返回内容不可用：未生成绘本名称或绘本要点")
+    }
+
     // MARK: - 批量图片转语音处理
 
     func convertBatchImagesToSpeech(_ images: [Data], progressHandler: @escaping (ProcessingProgress) -> Void, completion: @escaping (Result<AudioResponse, ImageToSpeechProcessingError>) -> Void) {
@@ -363,6 +381,14 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                     do {
                         llmResult = try await llmService.analyzeStory(ocrText: combinedText)
 
+                        if let result = llmResult, !result.isSuccess {
+                            let error = self.unusableLLMResultError()
+                            await MainActor.run {
+                                self.failWithLLMError(error, progressHandler: progressHandler, completion: completion)
+                            }
+                            return
+                        }
+
                         // 应用LLM结果
                         if let result = llmResult {
                             // 要点成功：追加到ocrTextSegments和ocrText
@@ -401,29 +427,11 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                             ))
                         }
                     } catch {
-                        logWarning("LLM分析失败，继续进入TTS: \(error.localizedDescription)")
+                        logWarning("LLM分析失败，暂停制作: \(error.localizedDescription)")
                         await MainActor.run {
-                            progressHandler(ProcessingProgress(
-                                stage: .llm,
-                                currentStep: 70,
-                                totalSteps: 100,
-                                message: "LLM分析: 跳过",
-                                percentage: 70.0,
-                                stageResults: StageResults(
-                                    ocrTexts: nil,
-                                    validImageCount: nil,
-                                    llmStoryName: nil,
-                                    llmHighlights: nil,
-                                    totalImageCount: nil,
-                                    ocrCompletedCount: nil,
-                                    ocrCharCount: nil,
-                                    ocrDuration: nil,
-                                    llmCharCount: nil,
-                                    llmDuration: nil,
-                                    llmStatus: .skipped
-                                )
-                            ))
+                            self.failWithLLMError(error, progressHandler: progressHandler, completion: completion)
                         }
+                        return
                     }
                 } else {
                     // LLM服务未初始化，跳过
@@ -748,6 +756,13 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
             } else if let llmService = llmService {
                 do {
                     llmResult = try await llmService.analyzeStory(ocrText: combinedText)
+                    if let result = llmResult, !result.isSuccess {
+                        let error = self.unusableLLMResultError()
+                        await MainActor.run {
+                            self.failWithLLMError(error, progressHandler: progressHandler, completion: completion)
+                        }
+                        return
+                    }
                     if let result = llmResult {
                         if result.isHighlightsSuccess, let highlights = result.storyHighlights {
                             finalSegments.append(highlights)
@@ -772,18 +787,11 @@ class ImageToSpeechCoordinator: ImageToSpeechCoordinatorProtocol, ObservableObje
                         ))
                     }
                 } catch {
-                    logWarning("LLM分析失败，继续进入TTS: \(error.localizedDescription)")
+                    logWarning("LLM分析失败，暂停制作: \(error.localizedDescription)")
                     await MainActor.run {
-                        progressHandler(ProcessingProgress(
-                            stage: .llm, currentStep: 70, totalSteps: 100,
-                            message: "LLM分析: 跳过", percentage: 70.0,
-                            stageResults: StageResults(
-                                ocrTexts: nil, validImageCount: nil, llmStoryName: nil, llmHighlights: nil,
-                                totalImageCount: nil, ocrCompletedCount: nil, ocrCharCount: nil, ocrDuration: nil,
-                                llmCharCount: nil, llmDuration: nil, llmStatus: .skipped
-                            )
-                        ))
+                        self.failWithLLMError(error, progressHandler: progressHandler, completion: completion)
                     }
+                    return
                 }
             } else {
                 await MainActor.run {

@@ -203,6 +203,175 @@ final class ImageToSpeechCoordinatorTests: XCTestCase {
 
         wait(for: [expectation], timeout: 5.0)
     }
+
+    func testBatchProcessingStopsBeforeTTSWhenLLMThrows() {
+        let expectation = XCTestExpectation(description: "llm failure stops before tts")
+        mockNetworkService.ttsResult = .success(AudioResponse(audioData: Data([0x01]), format: "mp3", duration: 1.0))
+        let texts = Array(repeating: "这是一本绘本文字", count: Constants.LLM.minImageCountForAnalysis)
+        coordinator = ImageToSpeechCoordinator(
+            networkService: mockNetworkService,
+            ocrService: MockOCRService(texts: texts),
+            llmService: MockLLMService(result: .failure(LLMError.retryExhausted))
+        )
+
+        let images = Array(repeating: Data([0x01]), count: texts.count)
+        coordinator.convertBatchImagesToSpeech(images, progressHandler: { _ in }) { result in
+            switch result {
+            case .success:
+                XCTFail("should fail")
+            case .failure(let error):
+                if case .llmFailed = error {
+                    XCTAssertEqual(self.mockNetworkService.ttsCallCount, 0)
+                } else {
+                    XCTFail("should be llmFailed, got: \(error)")
+                }
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5.0)
+    }
+
+    func testStartingFromLLMStopsBeforeTTSWhenLLMThrows() {
+        let expectation = XCTestExpectation(description: "starting from llm failure")
+        mockNetworkService.ttsResult = .success(AudioResponse(audioData: Data([0x01]), format: "mp3", duration: 1.0))
+        coordinator = ImageToSpeechCoordinator(
+            networkService: mockNetworkService,
+            llmService: MockLLMService(result: .failure(LLMError.retryExhausted))
+        )
+
+        let texts = Array(repeating: "这是一本绘本文字", count: Constants.LLM.minImageCountForAnalysis)
+        let images = Array(repeating: Data([0x01]), count: texts.count)
+        coordinator.convertBatchImagesToSpeech(
+            images,
+            startingFrom: .llm,
+            ocrTexts: texts,
+            ocrCombinedText: nil,
+            llmStoryName: nil,
+            llmHighlights: nil,
+            progressHandler: { _ in }
+        ) { result in
+            switch result {
+            case .success:
+                XCTFail("should fail")
+            case .failure(let error):
+                if case .llmFailed = error {
+                    XCTAssertEqual(self.mockNetworkService.ttsCallCount, 0)
+                } else {
+                    XCTFail("should be llmFailed, got: \(error)")
+                }
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5.0)
+    }
+
+    func testBatchProcessingStopsBeforeTTSWhenLLMResultIsUnusable() {
+        let expectation = XCTestExpectation(description: "unusable llm result stops before tts")
+        mockNetworkService.ttsResult = .success(AudioResponse(audioData: Data([0x01]), format: "mp3", duration: 1.0))
+        let unusable = LLMStoryAnalysisResult(
+            storyName: nil,
+            storyHighlights: nil,
+            isNameSuccess: false,
+            isHighlightsSuccess: false
+        )
+        let texts = Array(repeating: "这是一本绘本文字", count: Constants.LLM.minImageCountForAnalysis)
+        coordinator = ImageToSpeechCoordinator(
+            networkService: mockNetworkService,
+            ocrService: MockOCRService(texts: texts),
+            llmService: MockLLMService(result: .success(unusable))
+        )
+
+        let images = Array(repeating: Data([0x01]), count: texts.count)
+        coordinator.convertBatchImagesToSpeech(images, progressHandler: { _ in }) { result in
+            switch result {
+            case .success:
+                XCTFail("should fail")
+            case .failure(let error):
+                if case .llmFailed = error {
+                    XCTAssertEqual(self.mockNetworkService.ttsCallCount, 0)
+                } else {
+                    XCTFail("should be llmFailed, got: \(error)")
+                }
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5.0)
+    }
+
+    func testStartingFromLLMStopsBeforeTTSWhenLLMResultIsUnusable() {
+        let expectation = XCTestExpectation(description: "starting from unusable llm result")
+        mockNetworkService.ttsResult = .success(AudioResponse(audioData: Data([0x01]), format: "mp3", duration: 1.0))
+        let unusable = LLMStoryAnalysisResult(
+            storyName: nil,
+            storyHighlights: nil,
+            isNameSuccess: false,
+            isHighlightsSuccess: false
+        )
+        coordinator = ImageToSpeechCoordinator(
+            networkService: mockNetworkService,
+            llmService: MockLLMService(result: .success(unusable))
+        )
+
+        let texts = Array(repeating: "这是一本绘本文字", count: Constants.LLM.minImageCountForAnalysis)
+        let images = Array(repeating: Data([0x01]), count: texts.count)
+        coordinator.convertBatchImagesToSpeech(
+            images,
+            startingFrom: .llm,
+            ocrTexts: texts,
+            ocrCombinedText: nil,
+            llmStoryName: nil,
+            llmHighlights: nil,
+            progressHandler: { _ in }
+        ) { result in
+            switch result {
+            case .success:
+                XCTFail("should fail")
+            case .failure(let error):
+                if case .llmFailed = error {
+                    XCTAssertEqual(self.mockNetworkService.ttsCallCount, 0)
+                } else {
+                    XCTFail("should be llmFailed, got: \(error)")
+                }
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5.0)
+    }
+
+    func testStartingFromLLMContinuesToTTSWhenLLMIsNotConfigured() {
+        let expectation = XCTestExpectation(description: "llm not configured continues to tts")
+        mockNetworkService.ttsResult = .success(AudioResponse(audioData: Data([0x01]), format: "mp3", duration: 1.0))
+        coordinator = ImageToSpeechCoordinator(
+            networkService: mockNetworkService,
+            llmService: nil
+        )
+
+        let texts = Array(repeating: "这是一本绘本文字", count: Constants.LLM.minImageCountForAnalysis)
+        let images = Array(repeating: Data([0x01]), count: texts.count)
+        coordinator.convertBatchImagesToSpeech(
+            images,
+            startingFrom: .llm,
+            ocrTexts: texts,
+            ocrCombinedText: nil,
+            llmStoryName: nil,
+            llmHighlights: nil,
+            progressHandler: { _ in }
+        ) { result in
+            switch result {
+            case .success:
+                XCTAssertGreaterThan(self.mockNetworkService.ttsCallCount, 0)
+            case .failure(let error):
+                XCTFail("should succeed, got: \(error)")
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5.0)
+    }
 }
 
 // MARK: - Mock Network Service
@@ -217,9 +386,11 @@ final class MockNetworkService: NetworkServiceProtocol {
     private let lock = NSLock()
     private var concurrentCount = 0
     private(set) var maxConcurrentSeen = 0
+    private(set) var ttsCallCount = 0
     
     func convertTextToSpeech(_ text: String, voiceSettings: VoiceSettings, completion: @escaping (Result<AudioResponse, Error>) -> Void) {
         lock.lock()
+        ttsCallCount += 1
         concurrentCount += 1
         maxConcurrentSeen = max(maxConcurrentSeen, concurrentCount)
         lock.unlock()
@@ -263,5 +434,38 @@ final class MockNetworkService: NetworkServiceProtocol {
     
     func cancelAllRequests() {
         // no-op
+    }
+}
+
+final class MockOCRService: OCRServiceProtocol {
+    var texts: [String]
+
+    init(texts: [String]) {
+        self.texts = texts
+    }
+
+    func recognizeText(from imageData: Data) async throws -> OCRResult {
+        try await recognizeText(from: imageData, imageIndex: 0)
+    }
+
+    func recognizeText(from imageData: Data, withPrompt prompt: String) async throws -> OCRResult {
+        try await recognizeText(from: imageData, imageIndex: 0)
+    }
+
+    func recognizeText(from imageData: Data, imageIndex: Int) async throws -> OCRResult {
+        let text = imageIndex < texts.count ? texts[imageIndex] : ""
+        return OCRResult(recognizedText: text, processingTime: 0, imageSize: .zero, modelUsed: "mock")
+    }
+}
+
+final class MockLLMService: LLMServiceProtocol {
+    var result: Result<LLMStoryAnalysisResult, Error>
+
+    init(result: Result<LLMStoryAnalysisResult, Error>) {
+        self.result = result
+    }
+
+    func analyzeStory(ocrText: String) async throws -> LLMStoryAnalysisResult {
+        try result.get()
     }
 }

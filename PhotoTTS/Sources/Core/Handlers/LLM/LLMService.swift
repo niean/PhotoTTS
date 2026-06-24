@@ -150,9 +150,10 @@ enum LLMServiceFactory {
 
         // 检查API Key是否为空
         if config.apiKey.isEmpty {
-            let msg = "LLM API Key为空，provider: \(config.provider)"
+            let msg = "LLM API Key为空，provider: \(config.provider)，无法创建服务"
             os.Logger.llmService.warning("\(msg)")
             DebugLogManager.shared.directLog(msg)
+            return nil
         }
 
         let llmConfig = LLMConfiguration(

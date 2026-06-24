@@ -168,6 +168,63 @@ final class BackgroundMakeManagerTests: XCTestCase {
         XCTAssertEqual(Constants.BackgroundMake.maxConcurrentTasks, 10, "spec contract: maxConcurrentTasks == 10")
     }
 
+    func testDraftPreservesOCRResultsAndIncompleteStatusAfterLLMFailure() {
+        let sessionId = "llm-failure-draft-\(UUID().uuidString)"
+        deferredDraftIDs.append(sessionId)
+        let image = makeTestImage()
+        let ocrTexts = ["第一页文字", "第二页文字"]
+        let combinedText = ocrTexts.joined(separator: Constants.ocrTextSeparator)
+
+        XCTAssertTrue(SessionRecordManager.shared.saveDraftSession(id: sessionId, name: "LLM失败草稿", images: [image, image]))
+        XCTAssertTrue(SessionRecordManager.shared.updateDraftWithOCRResults(
+            id: sessionId,
+            ocrTexts: ocrTexts,
+            ocrCombinedText: combinedText,
+            validImageCount: ocrTexts.count,
+            ocrDuration: 1.2,
+            llmDuration: 0.3,
+            llmStoryName: nil,
+            llmHighlights: nil,
+            hasVirtualPage: false
+        ))
+
+        let record = SessionRecordManager.shared.loadSession(id: sessionId)
+        let metadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "BackgroundMakeManagerTests", forceRefresh: true)
+            .first(where: { $0.id == sessionId })
+
+        XCTAssertEqual(record?.makeStatus, .incomplete)
+        XCTAssertEqual(metadata?.makeStatus, .incomplete)
+        XCTAssertEqual(record?.ocrText, combinedText)
+        XCTAssertEqual(record?.ocrTextSegments, ocrTexts)
+        XCTAssertTrue(record?.audioDataBase64.isEmpty ?? false)
+        XCTAssertEqual(record?.audioSize, 0)
+    }
+
+    func testMakeTaskLLMFailurePreservesIntermediateOCRResults() {
+        let task = MakeTask(sessionId: "llm-failure-task", imageCount: 2)
+        let ocrTexts = ["第一页文字", "第二页文字"]
+
+        task.updateProgress(ProcessingProgress(
+            stage: .ocr,
+            currentStep: 50,
+            totalSteps: 100,
+            message: "OCR识别进度: 完成",
+            percentage: 50,
+            stageResults: StageResults(
+                ocrTexts: ocrTexts,
+                validImageCount: ocrTexts.count,
+                totalImageCount: 2,
+                ocrCompletedCount: 2
+            )
+        ))
+        task.markFailed(error: ImageToSpeechProcessingError.llmFailed(LLMError.retryExhausted))
+
+        XCTAssertTrue(task.isCompleted)
+        XCTAssertFalse(task.isSuccess)
+        XCTAssertEqual(task.intermediateResults?.ocrTexts, ocrTexts)
+        XCTAssertEqual(task.intermediateResults?.validImageCount, ocrTexts.count)
+    }
+
     /// 超出并发时也应保存草稿记录，供管理页可见和后续继续制作
     func testSaveDeferredDraftPersistsIncompleteRecord() {
         let image = makeTestImage()

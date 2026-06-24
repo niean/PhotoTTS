@@ -2,16 +2,28 @@ import XCTest
 @testable import PhotoTTS
 
 final class OCRTextProcessorTests: XCTestCase {
-    func testProcessCollapsesSixDotsToThree() {
-        XCTAssertEqual(OCRTextProcessor.process("等等......我们来了"), "等等...我们来了")
+    func testProcessCollapsesSixDotsToChineseEllipsis() {
+        XCTAssertEqual(OCRTextProcessor.process("等等......我们来了"), "等等……我们来了")
     }
 
     func testProcessCollapsesMultipleSixDotRuns() {
-        XCTAssertEqual(OCRTextProcessor.process("一......二......三"), "一...二...三")
+        XCTAssertEqual(OCRTextProcessor.process("一......二......三"), "一……二……三")
     }
 
     func testProcessCollapsesConsecutiveEllipsesToOne() {
-        XCTAssertEqual(OCRTextProcessor.process("等等.........我们来了............好呀"), "等等...我们来了...好呀")
+        XCTAssertEqual(OCRTextProcessor.process("等等.........我们来了............好呀"), "等等……我们来了……好呀")
+    }
+
+    func testProcessCollapsesChineseEllipsesToOne() {
+        XCTAssertEqual(OCRTextProcessor.process("等等…………我们来了………………好呀"), "等等……我们来了……好呀")
+    }
+
+    func testProcessCollapsesMiddleDotsToChineseEllipsis() {
+        XCTAssertEqual(OCRTextProcessor.process("等等······我们来了"), "等等……我们来了")
+    }
+
+    func testProcessCollapsesMixedEllipsesToOne() {
+        XCTAssertEqual(OCRTextProcessor.process("等等……......我们来了"), "等等……我们来了")
     }
 
     func testProcessKeepsExistingWhitespaceCleanup() {
