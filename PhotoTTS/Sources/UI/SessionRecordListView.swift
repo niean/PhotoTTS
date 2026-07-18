@@ -77,7 +77,7 @@ struct SessionRecordListView: View {
     // 多选导出状态
     @State private var isSelectionMode: Bool = false
     @State private var selectedIDs: Set<String> = []
-    @State private var allRecordIDs: [String] = []  // 所有记录的 ID 列表（用于全选）
+    @State private var allRecordIDs: [String] = []  // 可全选的记录 ID 列表（按当前筛选条件过滤）
     @State private var currentExportHistoryMode: ExportHistoryMode = .trimPlayEvents
 
     // 设备传输
@@ -216,12 +216,7 @@ struct SessionRecordListView: View {
             selectedReadStatus: $selectedReadStatus,
             seriesOptions: seriesOptions,
             onSearchSubmit: {
-                if isGroupedMode {
-                    loadAllMetadata()
-                } else {
-                    currentPage = 1
-                    loadPage()
-                }
+                reloadForFilterChange()
             }
         )
     }
@@ -643,29 +638,14 @@ struct SessionRecordListView: View {
         .onChange(of: searchText) {
             // 清空时自动刷新回原列表
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if isGroupedMode {
-                    loadAllMetadata()
-                } else {
-                    currentPage = 1
-                    loadPage()
-                }
+                reloadForFilterChange()
             }
         }
         .onChange(of: selectedSeries) {
-            if isGroupedMode {
-                loadAllMetadata()
-            } else {
-                currentPage = 1
-                loadPage()
-            }
+            reloadForFilterChange()
         }
         .onChange(of: selectedReadStatus) {
-            if isGroupedMode {
-                loadAllMetadata()
-            } else {
-                currentPage = 1
-                loadPage()
-            }
+            reloadForFilterChange()
         }
         .alert("删除会话记录", isPresented: $showDeleteConfirmation) {
             Button("取消", role: .cancel) {
@@ -1267,13 +1247,43 @@ struct SessionRecordListView: View {
         selectedIDs.insert(id)
     }
     
-    // 加载所有记录 ID（用于全选功能）
+    // 加载可全选的记录 ID（按当前筛选条件过滤，保证“全选”只选中满足筛选条件的记录）
     private func loadAllRecordIDs() {
+        let keyword = searchText
+        let series = selectedSeries
+        let readStatus = selectedReadStatus
         DispatchQueue.global(qos: .userInitiated).async {
-            let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "多选导出")
+            let filteredMetadata = SessionRecordManager.shared.getFilteredSessionMetadata(
+                searchKeyword: keyword,
+                seriesFilter: series,
+                readStatusFilter: readStatus,
+                caller: "多选全选"
+            )
+            let filteredIDs = filteredMetadata
+                .filter { $0.id != Constants.DefaultSession.id }
+                .map { $0.id }
             DispatchQueue.main.async {
-                self.allRecordIDs = allMetadata.map { $0.id }
+                // 筛选条件再次变化后丢弃过期结果，避免全选命中旧筛选集合
+                guard self.searchText == keyword,
+                      self.selectedSeries == series,
+                      self.selectedReadStatus == readStatus else {
+                    return
+                }
+                self.allRecordIDs = filteredIDs
             }
+        }
+    }
+
+    /// 筛选条件变化后重载列表；多选模式下同步重载全选可用 ID，保证“全选”只选中满足筛选条件的记录
+    private func reloadForFilterChange() {
+        if isGroupedMode {
+            loadAllMetadata()
+        } else {
+            currentPage = 1
+            loadPage()
+        }
+        if isSelectionMode {
+            loadAllRecordIDs()
         }
     }
 
