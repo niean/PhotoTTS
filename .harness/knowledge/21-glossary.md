@@ -29,7 +29,7 @@
 - config_local.json：本地 API 配置（OCR 多 Provider：豆包/OpenAI，TTS 多 Provider：火山引擎/阿里千问，LLM 多 Provider：豆包/OpenAI），SettingsManager 读取，设置页可编辑
 - 会话命名约定：会话名称以日期前缀 `YY.MM.DD ` 开头（如 `26.03.16 `），前缀自动生成且只读，用户只能编辑前缀后的自定义名称部分；格式 `yy.MM.dd 系列-故事名`，系列名通过 SessionRecordMetadata.seriesName 提取（第一个 `-` 前的部分）
 - GroupMode：管理页分组展示模式（private enum，SessionRecordListView.swift 内），flat/bySeries/byMonth 三种模式，顶导左侧图标按钮轮换切换；分组模式全量加载 metadata、手风琴折叠展示
-- PeerTransferManager：E2E设备传输管理器（封装MultipeerConnectivity），支持WiFi/蓝牙自动切换，管理设备发现、连接、数据传输全流程
+- PeerTransferManager：E2E设备传输管理器（封装MultipeerConnectivity），WiFi-Only（不再支持蓝牙，无 WiFi 时发现/广播前置门禁阻断），管理设备发现、连接、数据传输全流程
 - TransferInvitationContext：E2E传输邀请上下文（Codable），字段：sessionCount/totalSize/deviceName/sessionIDs/mode，邀请时携带记录ID列表用于接收方去重判断；旧版本缺少 mode 时默认 full
 - TransferConflictDecision：E2E传输冲突决策（Codable），字段：skipDuplicates/existingIDs，接收方选择跳过或覆盖重复记录后发送给发送方
 - BackgroundMakeManager：后台制作管理器（单例），以 `tasks: [String: MakeTask]` 字典管理并发任务，按 sessionId 索引；上限 `Constants.BackgroundMake.maxConcurrentTasks`（默认 10）；暴露 `hasCapacity/activeTaskCount/hasAnyActiveTask` 供 UI/调度判断；`task(for:)`/`activeTask(for:)` 按 id 精准定位；`startMaking` 超限或 reuseSessionId 指向活跃任务时返回 nil

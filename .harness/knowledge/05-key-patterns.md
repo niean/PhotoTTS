@@ -1,4 +1,4 @@
-<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输/传输空间预检 -->
+<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输(WiFi-Only门禁)/传输空间预检 -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -157,6 +157,8 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 ## 模式十三：播放记录传输（复用传输基础设施）
 
 设备间传输复用现有 PeerTransferManager 的 MultipeerConnectivity 基础设施，通过 TransferMode 枚举区分 full / fullWithStats / playOnly 三种模式，避免新增独立的传输通道。
+
+传输链路为 WiFi-Only（不支持蓝牙）：MPC 无 transport 控制 API、无法强制 WiFi-Only，且 sendResource 仅 Wi-Fi 可用（仅蓝牙时能发现/建连但数据传输失败）。故 PeerTransferManager 用 NWPathMonitor 常驻缓存 Wi-Fi 可用性（检测 Wi-Fi 接口已关联，局域网即可、不要求互联网），在 startBrowsing/startAdvertising 前置门禁：无 Wi-Fi 时发送方置 wifiUnavailable=true（DeviceTransferView 弹"无法传输"提示、点"返回"回上一页，不走 failedView 重试）、接收方静默不广播（不可被发现）。两端都门禁 => 蓝牙-only 设备被排除在发现阶段之外，失败清晰。
 
 调用链：SessionRecordListView "更多" 菜单 -> 选择"传输播放记录" -> 设置 showPlayOnlyTransfer=true -> DeviceTransferView(transferMode: .playOnly) -> PeerTransferManager.invitePeerPlayOnly() -> 发送端打包 history.json（SessionRecordManager.packageHistoryFilesOnly） -> 接收端收到后识别 playOnly 模式 -> 解包覆盖本地 history.json（SessionRecordManager.applyHistoryPackage） -> 完成提示文本按模式区分（TransferReceiverModifier 根据 receivedTransferMode 切换文案）。
 

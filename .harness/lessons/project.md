@@ -68,3 +68,19 @@ AI 自主维护，人工可通过提示或建议触发新增/修正。
 - 修改 TTS 聚合策略时，要保留“普通短页可合并”和“要点虚拟页独立”的双重约束，并用单测覆盖
 
 来源：2026-06-13 要点视频未体现在播放进度条修复
+
+### P005: MultipeerConnectivity 无法强制 WiFi-Only，仅蓝牙时"能发现能连但传输失败"
+
+现象：发送方仅有蓝牙（无 Wi-Fi/局域网）时，能发现接收方、能建连、接收方还能判重，但数据传输失败。曾尝试改用 send 分片支持蓝牙，但蓝牙下 send 单条过大触发会话断开、且 send 不阻塞导致发送方进度失真，问题过多，最终放弃蓝牙、改全链路 WiFi-Only。
+
+根因：
+1. MCSession.sendResource(at:) 的文件资源传输仅 Wi-Fi 可用；仅蓝牙连接下不可用
+2. MCSession.send(_:toPeers:with:) 小消息支持 Wi-Fi 与蓝牙，故发现/建连/邀请信令均能在蓝牙下完成，表现为"能连上但传不动"
+3. MultipeerConnectivity 无 transport 控制 API，无法强制"仅 Wi-Fi、禁用蓝牙"，MPC 自动选路（优先 Wi-Fi、蓝牙兜底）
+
+教训：
+- MPC 设备间传输不要尝试支持仅蓝牙场景：sendResource 仅 Wi-Fi；send 分片虽支持蓝牙但单条过大断连、不阻塞致进度失真，代价过大
+- 要实现"WiFi-Only、不支持蓝牙"，不能用 MPC 的 transport 控制（无此 API），而用 NWPathMonitor 检测 Wi-Fi 可用性作前置门禁：无 Wi-Fi 时不发现/不广播，蓝牙-only 设备被排除在发现阶段之外，失败清晰
+- NWPathMonitor 检测 Wi-Fi 接口已关联（availableInterfaces 含 .wifi），局域网即可、不要求互联网；AWDL（Wi-Fi 开但无 LAN）测不到，若需支持无 LAN 点对点要改用 Network framework + Bonjour
+
+来源：2026-08-03 仅蓝牙下设备传输失败、改全链路 WiFi-Only
