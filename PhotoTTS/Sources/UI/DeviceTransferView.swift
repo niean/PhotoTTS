@@ -100,6 +100,14 @@ struct DeviceTransferView: View {
                 }
             }
         }
+        .alert("无法传输", isPresented: Binding(
+            get: { transferManager.wifiUnavailable },
+            set: { if !$0 { transferManager.wifiUnavailable = false } }
+        )) {
+            Button("返回") { dismiss() }
+        } message: {
+            Text("需要连接到 Wi-Fi 网络才能传输")
+        }
     }
 
     private func handleDismiss() {

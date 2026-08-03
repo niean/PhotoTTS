@@ -256,4 +256,16 @@ final class PeerTransferManagerTests: XCTestCase {
         let allowed = CharacterSet.lowercaseLetters.union(.decimalDigits).union(CharacterSet(charactersIn: "-"))
         XCTAssertTrue(serviceType.unicodeScalars.allSatisfy { allowed.contains($0) })
     }
+
+    // MARK: - Wi-Fi 门禁
+
+    func testStartBrowsingGatesWithoutWifi() {
+        let manager = PeerTransferManager.shared
+        manager.reset()
+        manager.setHasWifiForTesting(false)
+        manager.startBrowsing()
+        XCTAssertTrue(manager.wifiUnavailable, "无 Wi-Fi 时应触发 wifiUnavailable 门禁而非进入失败重试")
+        manager.setHasWifiForTesting(true)
+        manager.reset()
+    }
 }

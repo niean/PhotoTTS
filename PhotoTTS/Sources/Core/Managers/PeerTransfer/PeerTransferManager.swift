@@ -1,6 +1,7 @@
 import Foundation
 import MultipeerConnectivity
 import UIKit
+import Network
 import os
 
 // MARK: - 传输状态
@@ -189,6 +190,8 @@ class PeerTransferManager: NSObject, ObservableObject {
     @Published private(set) var actualSendCount: Int = 0
     /// 跳过的重复记录数
     @Published private(set) var skippedDuplicateCount: Int = 0
+    /// Wi-Fi 不可用门禁：无 Wi-Fi 时不发现，DeviceTransferView 弹提示并回到上一页（而非 failedView 重试）
+    @Published var wifiUnavailable: Bool = false
 
     private let serviceType = Constants.PeerTransfer.serviceType
     private let myPeerID: MCPeerID
@@ -197,6 +200,10 @@ class PeerTransferManager: NSObject, ObservableObject {
     private var browser: MCNearbyServiceBrowser?
     private var browsingTimer: Timer?
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+    /// Wi-Fi 可用性（NWPathMonitor 缓存，主线程访问）：传输全链路门禁，无 Wi-Fi 时不发现/不广播
+    private var hasWifiNetwork = false
+    private let pathMonitor = NWPathMonitor()
+    private let monitorQueue = DispatchQueue(label: "com.photoTTS.peerTransfer.network", qos: .utility)
     private var transferProgressObserver: NSKeyValueObservation?
     private(set) var pendingSendIDs: [String] = []
     private(set) var pendingSendPeer: MCPeerID?
@@ -219,6 +226,20 @@ class PeerTransferManager: NSObject, ObservableObject {
     private override init() {
         self.myPeerID = MCPeerID(displayName: UIDevice.current.name)
         super.init()
+        startNetworkMonitor()
+    }
+
+    // MARK: - 网络监控（Wi-Fi 门禁）
+
+    /// 启动 NWPathMonitor，缓存 Wi-Fi 可用性。MPC 无法强制 Wi-Fi-only（无 transport API），
+    /// 故在发现/广播前置门禁：无 Wi-Fi 时不参与发现，蓝牙-only 设备被排除，失败清晰。
+    private func startNetworkMonitor() {
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            // 检测 Wi-Fi 接口是否可用（已关联 Wi-Fi 网络），不要求互联网可达（局域网即可）
+            let hasWifi = path.availableInterfaces.contains { $0.type == .wifi }
+            DispatchQueue.main.async { self?.hasWifiNetwork = hasWifi }
+        }
+        pathMonitor.start(queue: monitorQueue)
     }
 
     // MARK: - 会话管理
@@ -257,6 +278,7 @@ class PeerTransferManager: NSObject, ObservableObject {
 
     func startAdvertising() {
         guard advertiser == nil else { return }
+        guard hasWifiNetwork else { return } // 无 Wi-Fi 不广播（蓝牙-only 设备不可被发现）
         createSession()
         advertiser = MCNearbyServiceAdvertiser(peer: myPeerID, discoveryInfo: nil, serviceType: serviceType)
         advertiser?.delegate = self
@@ -275,6 +297,11 @@ class PeerTransferManager: NSObject, ObservableObject {
 
     func startBrowsing() {
         guard browser == nil else { return }
+        guard hasWifiNetwork else {
+            transferState = .idle
+            wifiUnavailable = true
+            return
+        }
         createSession()
         DispatchQueue.main.async {
             self.discoveredPeers = []
@@ -310,6 +337,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             // 先 reject 未处理的邀请，让发送方立即收到反馈
             self.pendingInvitation?.handler(false)
             self.pendingInvitation = nil
+            self.wifiUnavailable = false
             self.discoveredPeers = []
             self.transferState = .idle
             self.transferProgress = 0
@@ -613,6 +641,7 @@ class PeerTransferManager: NSObject, ObservableObject {
             // 先 reject 未处理的邀请
             self.pendingInvitation?.handler(false)
             self.pendingInvitation = nil
+            self.wifiUnavailable = false
             self.transferState = .idle
             self.transferProgress = 0
             self.isSender = false
@@ -700,6 +729,10 @@ class PeerTransferManager: NSObject, ObservableObject {
         pendingSendPeer = peer
         isSender = true
         transferState = .connecting
+    }
+
+    func setHasWifiForTesting(_ value: Bool) {
+        hasWifiNetwork = value
     }
 
     // MARK: - 归档工具（iOS 兼容，流式写入）
