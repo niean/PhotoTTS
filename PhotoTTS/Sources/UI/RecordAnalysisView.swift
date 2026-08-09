@@ -100,7 +100,7 @@ struct RecordAnalysisSnapshot {
         )
     }
 
-    private static func buildSeriesItems(
+    static func buildSeriesItems(
         metadataList: [SessionRecordMetadata],
         statsMap: [String: PlayStatInfo]
     ) -> [SeriesItem] {
@@ -122,6 +122,9 @@ struct RecordAnalysisSnapshot {
 
         let otherName = "其它"
         var explicitOther = buckets.removeValue(forKey: otherName) ?? Bucket()
+
+        // 系列分布规则：绘本数量 >= 阈值的系列单独展示，< 阈值的归并到"其它"
+        let threshold = Constants.GroupDisplay.seriesMinCountForStandalone
         let sortedSeries = buckets
             .map { (name: $0.key, stats: $0.value) }
             .sorted { lhs, rhs in
@@ -131,30 +134,28 @@ struct RecordAnalysisSnapshot {
                 return lhs.name.localizedCompare(rhs.name) == .orderedAscending
             }
 
-        let topItems = sortedSeries.prefix(10).map { series in
-            SeriesItem(
-                id: series.name,
-                name: series.name,
-                totalCount: series.stats.totalCount,
-                readCount: series.stats.readCount
-            )
+        var result: [SeriesItem] = []
+        for series in sortedSeries {
+            if series.stats.totalCount >= threshold {
+                result.append(SeriesItem(
+                    id: series.name,
+                    name: series.name,
+                    totalCount: series.stats.totalCount,
+                    readCount: series.stats.readCount
+                ))
+            } else {
+                explicitOther.totalCount += series.stats.totalCount
+                explicitOther.readCount += series.stats.readCount
+            }
         }
 
-        for series in sortedSeries.dropFirst(10) {
-            explicitOther.totalCount += series.stats.totalCount
-            explicitOther.readCount += series.stats.readCount
-        }
-
-        var result = topItems
         if explicitOther.totalCount > 0 {
-            result.append(
-                SeriesItem(
-                    id: otherName,
-                    name: otherName,
-                    totalCount: explicitOther.totalCount,
-                    readCount: explicitOther.readCount
-                )
-            )
+            result.append(SeriesItem(
+                id: otherName,
+                name: otherName,
+                totalCount: explicitOther.totalCount,
+                readCount: explicitOther.readCount
+            ))
         }
         return result
     }

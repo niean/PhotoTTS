@@ -436,6 +436,8 @@ extension Constants {
     struct GroupDisplay {
         /// 未分类标签（系列名无法提取时的 fallback）
         static let uncategorizedLabel = "未分类"
+        /// 系列单独展示的最小绘本数量（记录分析：少于该值的系列归并到"其它"）
+        static let seriesMinCountForStandalone = 5
         /// 月份分组键格式
         static let monthKeyFormat = "yyyy年M月"
         /// 组头高度
