@@ -13,10 +13,12 @@ final class ReadingReportManagerTests: XCTestCase {
         bookCount: Int = 0,
         topBooks: [TopBookItem] = [],
         listeningDays: Int = 0,
-        near30DaysDuration: TimeInterval = 0
+        near30DaysDuration: TimeInterval = 0,
+        periodDays: Int? = nil
     ) -> ReadingReportStats {
         ReadingReportStats(
             period: period,
+            periodDays: periodDays ?? period.days,
             totalDuration: totalDuration,
             bookCount: bookCount,
             topBooks: topBooks,
@@ -98,6 +100,46 @@ final class ReadingReportManagerTests: XCTestCase {
         XCTAssertEqual(stats.formattedNearPeriodDuration, "近30天累计 30分钟")
     }
 
+    // MARK: - All Period Tests
+
+    func testReportPeriodAllCase() {
+        XCTAssertEqual(ReportPeriod.all.displayName, "全部")
+        XCTAssertTrue(ReportPeriod.all.isAll)
+        XCTAssertFalse(ReportPeriod.weekly.isAll)
+        XCTAssertEqual(ReportPeriod.allCases.last, .all)
+    }
+
+    func testAllPeriodRangeStartsAtDistantPast() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 5, day: 17, hour: 21, minute: 30))!
+
+        let range = ReadingReportManager.periodRange(period: .all, now: now, calendar: calendar)
+
+        XCTAssertEqual(range.start, .distantPast)
+        XCTAssertEqual(range.endExclusive, calendar.date(from: DateComponents(year: 2026, month: 5, day: 18, hour: 0, minute: 0))!)
+    }
+
+    func testRangeHintAll() {
+        let stats = makeStats(period: .all, totalDuration: 0, periodDays: 42)
+        XCTAssertEqual(stats.rangeHint, "全部42天")
+    }
+
+    func testRangeHintFixedPeriod() {
+        let stats = makeStats(period: .monthly, totalDuration: 0)
+        XCTAssertEqual(stats.rangeHint, "最近30天")
+    }
+
+    func testFormattedNearPeriodDurationAllHoursAndMinutes() {
+        let stats = makeStats(period: .all, totalDuration: 0, near30DaysDuration: 19920, periodDays: 42)
+        XCTAssertEqual(stats.formattedNearPeriodDuration, "全部42天累计 5小时32分")
+    }
+
+    func testFormattedNearPeriodDurationAllMinutesOnly() {
+        let stats = makeStats(period: .all, totalDuration: 0, near30DaysDuration: 1800, periodDays: 42)
+        XCTAssertEqual(stats.formattedNearPeriodDuration, "全部42天累计 30分钟")
+    }
+
     // MARK: - ReadingReportManager Integration Tests
 
     func testCalculateStatsReturnsValidStructure() {
@@ -105,6 +147,13 @@ final class ReadingReportManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(stats.totalDuration, 0)
         XCTAssertGreaterThanOrEqual(stats.bookCount, 0)
         XCTAssertGreaterThanOrEqual(stats.listeningDays, 0)
+        XCTAssertLessThanOrEqual(stats.topBooks.count, 3)
+    }
+
+    func testCalculateStatsAllPeriodReturnsValidStructure() {
+        let stats = ReadingReportManager.shared.calculateStats(period: .all)
+        XCTAssertGreaterThanOrEqual(stats.periodDays, 0)
+        XCTAssertGreaterThanOrEqual(stats.totalDuration, 0)
         XCTAssertLessThanOrEqual(stats.topBooks.count, 3)
     }
 }

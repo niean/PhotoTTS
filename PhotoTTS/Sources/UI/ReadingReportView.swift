@@ -60,7 +60,7 @@ struct ReadingReportView: View {
             }
             .pickerStyle(.segmented)
 
-            Text(period.rangeDescription)
+            Text(stats.rangeHint)
                 .font(Constants.Fonts.caption)
                 .foregroundStyle(.secondary)
         }
