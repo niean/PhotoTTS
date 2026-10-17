@@ -120,7 +120,7 @@
 - 文件名：小写英文 kebab-case，动词-名词语序
 - 知识库编号分段：同一目录下按文件性质分段编号（如 knowledge/ 01~05 认知约束类、21~22 工具索引类），新增文件归入对应段的下一个序号
 - 执行计划文件落盘到 `.harness/plans/active/plan-{YYMMDD}-{desc}.md`（模板见 `.harness/framework/skills/superpowers/writing-plans.md`），任务完成后移动到 `completed/`
-- 命令行超过 10 行时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程；AI 自主维护该目录（创建、清理均无需用户确认）
+- 多步命令组合（3+ 条独立命令串联，或总行数超过 10 行）时，必须先将脚本写入 `locals/harness_tmp/` 再执行，防止 Terminal 异常阻塞流程；AI 自主维护该目录（创建、清理均无需用户确认）
 
 ---
 

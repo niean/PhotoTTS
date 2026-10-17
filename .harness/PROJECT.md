@@ -8,6 +8,10 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 
 本节为 Harness 框架提供项目级配置，框架文件通过 `.harness/PROJECT.md` 直接引用。
 
+## 运行配置
+
+机器可读的 Harness 运行配置统一位于 `.harness/harness.json`，消费者通过 `sh .harness/framework/scripts/get-config.sh <config-key>` 读取。当前管理 Third Review、端到端测试与 after-finish Hook；本文件只保留项目说明、知识索引和人工规则，不重复维护运行值或默认值。
+
 ## 知识库目录
 
 首次加载时需建立 SUMMARY 索引的目录：
@@ -22,7 +26,7 @@ PhotoTTS（拍照阅读）是一款 iOS 应用：拍照或选图，经 OCR 识�
 | 任务类型 | 必读（完整读取） | 按需读取 |
 |---------|----------------|---------|
 | 功能需求 | .harness/knowledge/01-overview.md, .harness/knowledge/02-architecture.md, .harness/knowledge/22-file-map.md, .harness/prd/01-prd-sense.md, .harness/prd/02-prd-baseline.md | .harness/knowledge/03-conventions.md, .harness/knowledge/04-data-boundaries.md, .harness/knowledge/05-key-patterns.md, .harness/knowledge/21-glossary.md |
-| 精调功能 | .harness/knowledge/01-overview.md, .harness/knowledge/22-file-map.md | .harness/knowledge/02-architecture.md, .harness/knowledge/03-conventions.md, .harness/knowledge/04-data-boundaries.md, .harness/knowledge/05-key-patterns.md, .harness/knowledge/21-glossary.md |
+| 功能精调 | .harness/knowledge/01-overview.md, .harness/knowledge/22-file-map.md | .harness/knowledge/02-architecture.md, .harness/knowledge/03-conventions.md, .harness/knowledge/04-data-boundaries.md, .harness/knowledge/05-key-patterns.md, .harness/knowledge/21-glossary.md |
 | Bug修复 | .harness/knowledge/01-overview.md, .harness/knowledge/03-conventions.md, .harness/knowledge/22-file-map.md | .harness/knowledge/02-architecture.md, .harness/knowledge/04-data-boundaries.md, .harness/knowledge/05-key-patterns.md, .harness/knowledge/21-glossary.md |
 | 治理/扫描 | .harness/knowledge/01-overview.md, .harness/knowledge/03-conventions.md, .harness/knowledge/22-file-map.md | .harness/knowledge/02-architecture.md, .harness/knowledge/05-key-patterns.md |
 | 文档维护 | .harness/knowledge/01-overview.md, .harness/knowledge/22-file-map.md | 读取目标文件引用链上的 knowledge/ 和 prd/ 文件 |
@@ -59,6 +63,10 @@ xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTS -destination 'platform=i
 ```bash
 xcodebuild -project PhotoTTS.xcodeproj -scheme PhotoTTSTests -only-testing:PhotoTTSTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' test
 ```
+
+### 端到端测试
+
+自动端到端测试的开关、命令与超时统一由 `.harness/harness.json` 管理。启用前须明确允许的运行环境、前置构建、启动与测试数据准备要求；不得将需要真实 API 凭据的功能测试或需要设备配对的流程自动作为默认命令。现有单元测试执行策略保持独立。
 
 ## 扫描维度
 
@@ -139,6 +147,7 @@ AGENTS.md              -- AI 入口（纯路由）
 CLAUDE.md              -- Claude Code 入口
 .harness/
   PROJECT.md           -- 项目规范入口（本文件）
+  harness.json         -- Harness 机器可读运行配置
   framework/           -- 通用能力（详见 FRAMEWORK.md "Framework 目录结构"）
   knowledge/           -- AI 知识库（01~05 认知约束类, 21~22 工具索引类）
   prd/                 -- 产品文档（AI只读：01-prd-sense、02-prd-baseline、03-prd-specs）
@@ -147,6 +156,7 @@ CLAUDE.md              -- Claude Code 入口
   specs/               -- 设计文档
     active/
     completed/
+    verify/            -- 人工端到端验收文件
   plans/               -- 实现计划
     active/
     completed/
