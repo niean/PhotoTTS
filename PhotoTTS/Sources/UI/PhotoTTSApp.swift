@@ -56,8 +56,6 @@ class AppState: ObservableObject {
     @Published var tab0ResetId: Int = 0
     @Published var tab2ResetId: Int = 0
     @Published var tab3ResetId: Int = 0
-    @Published var openCameraOnNextRecordAppear: Bool = false
-    @Published var openPhotoPickerOnNextRecordAppear: Bool = false
     /// 记录管理里「加载到制作」时写入，制作页 onAppear 消费后置 nil
     @Published var sessionIdToLoadIntoMake: String? = nil
     /// 从记录列表点击制作中记录时写入，制作页消费后置 nil

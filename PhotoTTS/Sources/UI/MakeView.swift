@@ -42,9 +42,9 @@ struct MakeView: View {
     @State private var showSaveSessionDialog = false
     @State private var showPhotoPicker = false
     @State private var photoPickerSelectedImages: [UIImage] = []
-    @State private var openedCameraFromHome = false   // 从管理页发起的拍照，关闭相机时若仍无图则回管理页
-    @State private var openedPickerFromHome = false  // 从管理页发起的选图，取消或未选则回管理页
     @State private var isSavingSession = false  // 保存会话记录时的加载状态
+    // 切换前台记录时使旧的异步回调失效，后台任务本身继续执行。
+    @State private var makeContextID = UUID()
     
     // 状态弹出层：失败时持续展示直至用户点击关闭
     @State private var processingOverlayDismissed = false
@@ -88,34 +88,27 @@ struct MakeView: View {
                     os.Logger.makeView.info("相机返回: 图片数=\(rawImages.count)")
                     if rawImages.isEmpty {
                         os.Logger.makeView.info("相机返回: 无图片，回退")
-                        // 未拍照直接返回，按原逻辑处理
-                        if openedCameraFromHome {
-                            openedCameraFromHome = false
-                            appState.selectedTab = 2
-                        }
                     } else {
                         // 清空图片+展示 Loading，与 fullScreenKind=nil 同批渲染：相机消失+Loading 出现
                         selectedImages.removeAll()
                         isLoadingRecord = true
-                        let fromHome = openedCameraFromHome
-                        openedCameraFromHome = false
+                        let contextID = makeContextID
                         os.Logger.makeView.info("相机返回: 已清空图片并设置 Loading，等待渲染")
                         // 延迟到下一帧，确保 Loading 渲染后再设置图片和启动制作
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            guard self.makeContextID == contextID else { return }
                             os.Logger.makeView.info("相机返回: asyncAfter 触发，设置图片并启动制作")
                             // 相机拍摄时已降采样（didCaptureImage），无需重复处理
                             self.selectedImages = rawImages
                             self.currentImageIndex = 0
                             self.isLoadingRecord = false
                             self.onImagesChanged()
-                            _ = fromHome
                         }
                     }
                 }
             }
             .onChange(of: appState.selectedTab) { _, new in
                 if new == 1 {
-                    handlePendingFromHome()
                     if let id = appState.sessionIdToLoadIntoMake {
                         appState.sessionIdToLoadIntoMake = nil
                         loadRecordIntoMake(sessionId: id)
@@ -132,7 +125,6 @@ struct MakeView: View {
             }
             .onAppear {
                 if appState.selectedTab == 1 {
-                    handlePendingFromHome()
                     if let id = appState.sessionIdToLoadIntoMake {
                         appState.sessionIdToLoadIntoMake = nil
                         loadRecordIntoMake(sessionId: id)
@@ -151,26 +143,28 @@ struct MakeView: View {
                 syncBackgroundTaskState()
             }
             .sheet(isPresented: $showPhotoPicker) {
+                let contextID = makeContextID
                 MultiImagePicker(
-                    selectedImages: $photoPickerSelectedImages,
+                    selectedImages: Binding(
+                        get: { makeContextID == contextID ? photoPickerSelectedImages : [] },
+                        set: { images in
+                            guard makeContextID == contextID else { return }
+                            photoPickerSelectedImages = images
+                        }
+                    ),
                     onCompletion: { images in
+                        guard makeContextID == contextID else { return }
                         if !images.isEmpty {
                             let maxP = Int(Constants.ImageDisplay.saveImageMaxPixel)
                             selectedImages = images.map { SessionRecordManager.downsampleImageToMaxPixel($0, maxPixelLength: maxP) ?? $0 }
                             currentImageIndex = 0
                             onImagesChanged()
-                        } else if openedPickerFromHome {
-                            appState.selectedTab = 2
                         }
-                        openedPickerFromHome = false
                         showPhotoPicker = false
                         photoPickerSelectedImages.removeAll()
                     },
                     onCancel: {
-                        if openedPickerFromHome {
-                            appState.selectedTab = 2
-                        }
-                        openedPickerFromHome = false
+                        guard makeContextID == contextID else { return }
                         showPhotoPicker = false
                         photoPickerSelectedImages.removeAll()
                     }
@@ -244,6 +238,13 @@ struct MakeView: View {
         
         // 捕获来源记录ID（用于复用头像和封面）
         let sourceSessionId = loadedSourceSessionId
+        let contextID = makeContextID
+        let savedText = ocrResult
+        let savedTextSegments = ocrTextSegments
+        let savedIntermediateResults = intermediateResults
+        let savedOCRDuration = ocrDuration
+        let savedLLMDuration = llmDuration
+        let savedTTSDuration = ttsDuration
 
         // 在后台线程执行保存操作
         DispatchQueue.global(qos: .userInitiated).async {
@@ -253,22 +254,22 @@ struct MakeView: View {
             
             // 创建会话记录
             let record = SessionRecord(
-                name: name.isEmpty ? (self.intermediateResults?.llmStoryName ?? Constants.defaultSessionName) : name,
+                name: name.isEmpty ? (savedIntermediateResults?.llmStoryName ?? Constants.defaultSessionName) : name,
                 images: images,
-                ocrText: self.ocrResult,
-                ocrTextSegments: self.ocrTextSegments,
+                ocrText: savedText,
+                ocrTextSegments: savedTextSegments,
                 audioData: audioData,
                 audioFormat: audioFormat,
                 audioSegments: audioResponse.audioSegments ?? [],
                 audioDuration: audioResponse.duration,
-                ocrDuration: self.ocrDuration,
-                llmDuration: self.llmDuration,
-                ttsDuration: self.ttsDuration,
+                ocrDuration: savedOCRDuration,
+                llmDuration: savedLLMDuration,
+                ttsDuration: savedTTSDuration,
                 validImageCount: audioResponse.validImageCount ?? images.count,
                 voiceSettings: audioResponse.voiceSettings,
                 avatarImageIndex: avatarIndex,
-                storyHighlights: self.intermediateResults?.llmHighlights,
-                hasVirtualPage: self.intermediateResults?.llmHighlights != nil
+                storyHighlights: savedIntermediateResults?.llmHighlights,
+                hasVirtualPage: savedIntermediateResults?.llmHighlights != nil
             )
             
             // 保存到文件系统
@@ -276,8 +277,6 @@ struct MakeView: View {
             
             // 回到主线程更新UI
             DispatchQueue.main.async {
-                self.isSavingSession = false
-
                 if result.success {
                     // 复用来源记录的头像和封面
                     if let sourceId = sourceSessionId {
@@ -286,12 +285,18 @@ struct MakeView: View {
                     MakeHistoryManager.shared.recordSave(sessionId: record.id, name: record.name, savedAt: Date())
                     let sizeText = result.size != nil ? "\n存储空间: \(self.formatStorageSize(result.size!))" : ""
                     os.Logger.makeView.info("会话记录保存成功: \(record.name)\(sizeText)")
+                } else {
+                    os.Logger.makeView.error("会话记录保存失败")
+                }
+                // 持久化和历史登记始终完成，旧上下文不得影响新制作页面。
+                guard self.makeContextID == contextID else { return }
+                self.isSavingSession = false
+                if result.success {
                     // 跳转管理Tab编辑页（与正常制作完成流程对齐）
                     self.appState.recordIdToEditInManageTab = record.id
                     self.appState.selectedTab = 2
                     self.clearAllState()
                 } else {
-                    os.Logger.makeView.error("会话记录保存失败")
                     self.alertMessage = "会话记录保存失败"
                     self.showingAlert = true
                 }
@@ -301,6 +306,8 @@ struct MakeView: View {
     
     // 完全清理所有状态
     private func clearAllState() {
+        makeContextID = UUID()
+        observingTaskId = nil
         // 清理图片
         capturedImage = nil
         selectedImages.removeAll()
@@ -322,6 +329,12 @@ struct MakeView: View {
         isReMaking = false
         processingProgress = 0.0
         currentOperation = ""
+        intermediateResults = nil
+        processingOverlayDismissed = false
+        photoPickerSelectedImages.removeAll()
+        isSavingSession = false
+        showingAlert = false
+        alertMessage = ""
         
         // 清理计时器
         ocrDuration = 0.0
@@ -346,21 +359,15 @@ struct MakeView: View {
         loadedSourceSessionId = nil
     }
     
-    /// 处理从首页跳转过来的待办：拍照、选图
-    private func handlePendingFromHome() {
-        if appState.openPhotoPickerOnNextRecordAppear {
-            appState.openPhotoPickerOnNextRecordAppear = false
-            clearAllState()
-            openedPickerFromHome = true
-            showPhotoPicker = true
-            return
-        }
-        if appState.openCameraOnNextRecordAppear {
-            appState.openCameraOnNextRecordAppear = false
-            clearAllState()
-            openedCameraFromHome = true
+    /// 新建仅解除前台绑定，不取消原后台任务，也不复用其记录 ID。
+    private func beginNewMaking(useCamera: Bool) {
+        clearAllState()
+        appState.sessionIdToLoadIntoMake = nil
+        appState.makeTaskIdToReconnect = nil
+        if useCamera {
             checkCameraPermissionAndTakePhoto()
-            return
+        } else {
+            showPhotoPicker = true
         }
     }
     
@@ -369,6 +376,8 @@ struct MakeView: View {
         guard let record = SessionRecordManager.shared.loadSession(id: sessionId) else { return }
         let count = record.totalImageCount
         guard count > 0 else { return }
+        clearAllState()
+        let contextID = makeContextID
 
         // 记录来源记录ID，保存新记录时复用头像和封面
         loadedSourceSessionId = sessionId
@@ -450,6 +459,7 @@ struct MakeView: View {
                 }
             }
             DispatchQueue.main.async {
+                guard self.makeContextID == contextID else { return }
                 self.isLoadingRecord = false
                 self.selectedImages = images
                 self.currentImageIndex = 0
@@ -479,8 +489,10 @@ struct MakeView: View {
     
     // MARK: - 照片处理视图
     private var photoProcessingView: some View {
+        let contextID = makeContextID
         // 制作与弹层：照片处理区域
-        PhotoProcessingView(
+        return PhotoProcessingView(
+            isContextCurrent: { makeContextID == contextID },
             image: capturedImage,
             selectedImages: selectedImages,
             currentImageIndex: currentImageIndex,
@@ -607,6 +619,13 @@ struct MakeView: View {
         Group {
             CustomNavigationBar(title: navigationBarTitle, trailing: {
                 Menu {
+                    Button { beginNewMaking(useCamera: true) } label: {
+                        Label("拍照制作", systemImage: "camera")
+                    }
+                    Button { beginNewMaking(useCamera: false) } label: {
+                        Label("选图制作", systemImage: "photo.on.rectangle")
+                    }
+                    Divider()
                     Button {
                         processingOverlayDismissed = false
                         clearDataAndState()
@@ -710,12 +729,14 @@ struct MakeView: View {
 
         isSavingDeferredDraft = true
         let images = selectedImages
+        let contextID = makeContextID
 
         DispatchQueue.global(qos: .userInitiated).async {
             let sessionId = bgMakeManager.saveDeferredDraft(
                 images: images
             )
             DispatchQueue.main.async {
+                guard self.makeContextID == contextID else { return }
                 self.isSavingDeferredDraft = false
                 if let sessionId {
                     self.failedSessionId = sessionId
@@ -969,19 +990,10 @@ struct MakeView: View {
             return
         }
 
+        clearAllState()
+        let contextID = makeContextID
         isLoadingRecord = true
         observingTaskId = sessionId
-        failedSessionId = nil
-        loadedSourceSessionId = nil
-        processingOverlayDismissed = false
-        error = nil
-        ocrResult = ""
-        ocrTextSegments = []
-        textSegmentRanges = []
-        audioData = nil
-        audioResponse = nil
-        intermediateResults = nil
-        isReMaking = false
 
         let scale = max(1, UIScreen.main.scale)
         let maxDimension = Constants.ImageDisplay.saveImageMaxPixel / scale
@@ -1005,6 +1017,7 @@ struct MakeView: View {
             }
 
             DispatchQueue.main.async {
+                guard self.makeContextID == contextID else { return }
                 self.isLoadingRecord = false
                 self.selectedImages = images
                 self.currentImageIndex = 0
@@ -1070,6 +1083,7 @@ struct MakeView: View {
     
     // 检查相机权限并拍照
     private func checkCameraPermissionAndTakePhoto() {
+        let contextID = makeContextID
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             appState.cameraOverlayImages = selectedImages
@@ -1077,6 +1091,7 @@ struct MakeView: View {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
+                    guard self.makeContextID == contextID else { return }
                     if granted {
                         self.appState.cameraOverlayImages = self.selectedImages
                         self.appState.fullScreenKind = .camera
@@ -1099,6 +1114,7 @@ struct MakeView: View {
 
 // MARK: - 照片处理视图
 struct PhotoProcessingView: View {
+    let isContextCurrent: () -> Bool
     let image: UIImage?
     let selectedImages: [UIImage]
     let currentImageIndex: Int
@@ -1316,6 +1332,7 @@ struct PhotoProcessingView: View {
                                                     let sourceIndex = Int(sourceIndexString) {
                                                         
                                                         DispatchQueue.main.async {
+                                                            guard isContextCurrent() else { return }
                                                             isProcessingReorder = true
                                                             os.Logger.makeView.debug("onDrop: 开始重排序")
                                                             
@@ -1327,6 +1344,7 @@ struct PhotoProcessingView: View {
                                                             
                                                             // 延迟重置拖拽状态，确保UI稳定
                                                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                                                guard isContextCurrent() else { return }
                                                                 dragSourceIndex = nil
                                                                 dragTargetIndex = nil
                                                                 isDragging = false

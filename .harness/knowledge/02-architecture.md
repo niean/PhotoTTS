@@ -14,7 +14,7 @@
 - Coordinator 依赖 NetworkService（协议）、SettingsManager、OCRService；密钥来自 SettingsManager
 - SessionRecord 由 SessionRecordManager 读写；各历史/日志由各自 Manager 管理
 - 跨界面状态集中 AppState，根视图与各 Tab 共享
-- 跨 Tab 协调：SessionRecordListView（管理页右上角菜单）写 AppState 标志 -> selectedTab=1 -> MakeView onAppear+onChange 消费
+- 跨 Tab 协调：SessionRecordListView 的记录制作/前台操作写 AppState.sessionIdToLoadIntoMake / makeTaskIdToReconnect -> selectedTab=1 -> MakeView onAppear+onChange 消费；新建拍照/选图在制作页右上角菜单直接发起
 - Tab 重置：离开 tab0/2/3 时 resetId 自增重建；tab1 不参与
 
 ## 关键约束

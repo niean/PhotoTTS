@@ -21,6 +21,9 @@
 | DEBT016 | 安全规范-项目仍声明 NSMicrophoneUsageDescription，但代码未发现麦克风使用且公开隐私/适龄文档未披露麦克风权限；需确认是否移除权限声明或补充说明 | medium | plan-260607-remove-siri | 2026-06-07 | open |
 | DEBT017 | 构建验证-Xcode 26.2 appintentsmetadataprocessor 输出 Metadata extraction skipped / No AppIntents.framework dependency found 警告，需确认是否可通过构建配置消除 | low | N/A | 2026-06-08 | open |
 | DEBT018 | 后台制作-JPEG 转换失败路径只标记内存任务失败，已落盘草稿仍可能保持 making 状态且不通知列表刷新，需统一失败落盘状态处理 | medium | N/A | 2026-06-10 | open |
+| DEBT019 | 制作页-loadRecordIntoMake 在 UI 调用路径同步执行 loadSession 文件读取，大记录可能阻塞主线程；既存逻辑，本次入口迁移未扩展其读取范围 | medium | plan-261018-move-make-entry | 2026-10-18 | open |
+| DEBT020 | 管理列表-avatar.jpg 缺失时直接读取原图生成头像，偏离列表仅读 metadata/头像规则；应改为后台修复头像或展示占位 | low | plan-261018-move-make-entry | 2026-10-18 | open |
+| DEBT021 | 日志规范-MakeView 保存/制作失败及 PhotoTTSApp 音频配置的既有错误日志缺少稳定错误码，部分仅记录 localizedDescription；应补 domain/code 与内部原因 | low | plan-261018-move-make-entry | 2026-10-18 | open |
 
 ---
 

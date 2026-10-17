@@ -563,20 +563,6 @@ struct SessionRecordListView: View {
                             }
                         }, trailing: {
                         Menu {
-                            // 发起新制作任务（多任务并发，上限 Constants.BackgroundMake.maxConcurrentTasks）
-                            Button(action: {
-                                appState.openCameraOnNextRecordAppear = true
-                                appState.selectedTab = 1
-                            }) {
-                                Label("拍照制作", systemImage: "camera")
-                            }
-                            Button(action: {
-                                appState.openPhotoPickerOnNextRecordAppear = true
-                                appState.selectedTab = 1
-                            }) {
-                                Label("选图制作", systemImage: "photo.on.rectangle")
-                            }
-                            Divider()
                             Button(action: { showImportPicker = true }) {
                                 Label("导入", systemImage: "square.and.arrow.down")
                             }

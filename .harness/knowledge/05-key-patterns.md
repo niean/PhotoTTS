@@ -5,7 +5,7 @@
 
 ## 模式一：管理页->制作跨 Tab 协调
 
-SessionRecordListView（manage+isRootTab 模式）写入 AppState 标志（openCameraOnNextRecordAppear/openPhotoPickerOnNextRecordAppear），设 selectedTab=1。MakeView 在 .onAppear 和 .onChange(of: selectedTab) 中同时检测并消费（立即置 false）。用户取消且本次从管理页发起时自动回 tab2。
+SessionRecordListView 的记录制作/前台操作写入 AppState.sessionIdToLoadIntoMake / makeTaskIdToReconnect，设 selectedTab=1。MakeView 在 .onAppear 和 .onChange(of: selectedTab) 中同时检测并消费（立即置 nil）。新建入口位于制作页右上角菜单，直接打开相机或选图，无需跨 Tab 标志；取消后留在空白制作页。
 
 陷阱：不能只在 onAppear 消费，Tab 切换时 onAppear 不一定触发（视图可能已存在），必须同时监听 onChange。
 
@@ -79,7 +79,9 @@ TTS 分段制作：`ImageToSpeechCoordinator.buildTTSSegments` 以单张图片�
 
 前台隔离：重连后台任务时，MakeView 会先清理 `failedSessionId`、错误态、OCR/TTS 结果和中间结果等前台态，再按当前 `sessionId` 从草稿记录恢复图片并同步进度。页面上的取消、继续制作、重试等操作都只以当前 `observingTaskId` 为目标，不应影响其它后台任务。
 
-入口：管理页（SessionRecordListView）顶导右上角"+"菜单提供"拍照制作/选图制作"作为新任务入口，通过 `appState.openCameraOnNextRecordAppear` / `openPhotoPickerOnNextRecordAppear` 切到制作 Tab 并弹起相机/选图；首页已无制作入口。
+入口：制作页（MakeView）右上角"+"菜单前两项依次为"拍照制作/选图制作"，随后分隔符及原有操作，制作中仍可新建。`beginNewMaking(useCamera:)` 先解除前台观察并完整清理状态，再打开相机或选图；不取消、不移除原后台任务，新任务不复用原 sessionId。首页和管理页均无新建制作入口。
+
+上下文隔离：MakeView 用 `makeContextID` 标识前台上下文，清空、新建、加载记录及重连时更新。记录图片加载、相机延迟提交、权限请求、草稿保存、手动保存、选图绑定读写与回调、拖拽回调均校验捕获的上下文，过期结果不更新前台。手动保存先快照数据，旧上下文保存与历史登记正常完成，但不清空或跳转新页面。`clearAllState` 同时清空中间结果、图片缓存、错误和保存状态。
 
 完成/失败持久化：完成后后台 `updateSessionWithResults` 更新 record.json/音频/makeStatus=completed，随后 addMakeEvent 写入制作历史事件（直接调用，绕过 recordSave 的名称过滤；loadEntries 聚合时按当前名称过滤）。失败时保留草稿并标记 `makeStatus=incomplete`（通过 updateDraftMakeStatus），不删除草稿；取消时删除草稿。
 
