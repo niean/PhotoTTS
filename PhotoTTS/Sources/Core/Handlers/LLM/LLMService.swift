@@ -65,8 +65,8 @@ struct LLMConfiguration {
 struct LLMConstants {
     /// LLM输入文本最大长度（字符数），超过则拒绝处理
     static let maxInputTextLength = 20000
-    /// 绘本名称需要过滤的特殊字符集
-    static let storyNameInvalidCharacters: CharacterSet = CharacterSet(charactersIn: "`'\"「」『』〔〕【】〖〗[]()（）")
+    /// 绘本名称需要过滤的字符集，统一定义在 Constants.storyNameInvalidCharacters
+    static let storyNameInvalidCharacters: CharacterSet = Constants.storyNameInvalidCharacters
 
     /// 去除字符串开头的数字编号模式（如 "1." "2." "3." 等）
     /// - Parameter text: 待处理的字符串

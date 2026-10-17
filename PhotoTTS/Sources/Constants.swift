@@ -15,6 +15,11 @@ struct Constants {
     /// 当OCR返回此字符串时，表示该图片没有识别到任何文字内容
     static let ocrEmptyResultIndicator = "空字符串"
     
+    // MARK: - 绘本标题
+    /// 绘本标题需要过滤的字符集：仅保留文字（含中英文）、数字和标准分隔符减号"-"，确定性剔除其它标点符号与特殊字符
+    /// 用于 LLM 生成标题解析和记录编辑页标题输入过滤
+    static let storyNameInvalidCharacters: CharacterSet = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-")).inverted
+
     // MARK: - 文本分隔符
     /// 多张图片OCR文本拼接时的分隔符
     /// 用于在拼接多张图片的识别结果时，在每张图片的文本之间插入分隔符

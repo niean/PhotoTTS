@@ -200,6 +200,12 @@ struct SessionRecordUnifiedView: View {
                             .textFieldStyle(.roundedBorder)
                             .focused($isTextFieldFocused)
                             .onChange(of: sessionNameSuffix) { _, newValue in
+                                // 标题禁止特殊字符：仅保留文字、数字和减号，确定性剔除标点符号等
+                                let filtered = newValue.components(separatedBy: Constants.storyNameInvalidCharacters).joined()
+                                if filtered != newValue {
+                                    sessionNameSuffix = filtered
+                                    return
+                                }
                                 // 同步更新 sessionName（前缀 + 空格 + 后缀）
                                 sessionName = sessionNamePrefix + " " + newValue
                             }
@@ -640,7 +646,9 @@ struct SessionRecordUnifiedView: View {
     private func performSave() {
         // 保存时自动补充空格：前缀 + 空格 + 后缀
         let fullPrefix = sessionNamePrefix + " "
-        let name = (fullPrefix + sessionNameSuffix).trimmingCharacters(in: .whitespaces)
+        // 防御性过滤：保存前再次剔除标题后缀中的特殊字符
+        let safeSuffix = sessionNameSuffix.components(separatedBy: Constants.storyNameInvalidCharacters).joined()
+        let name = (fullPrefix + safeSuffix).trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         let avatarIndex = min(max(0, selectedAvatarIndex), max(0, avatarImageCount() - 1))
         switch mode {
