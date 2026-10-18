@@ -200,12 +200,7 @@ struct SessionRecordUnifiedView: View {
                             .textFieldStyle(.roundedBorder)
                             .focused($isTextFieldFocused)
                             .onChange(of: sessionNameSuffix) { _, newValue in
-                                // 标题禁止特殊字符：仅保留文字、数字和减号，确定性剔除标点符号等
-                                let filtered = newValue.components(separatedBy: Constants.storyNameInvalidCharacters).joined()
-                                if filtered != newValue {
-                                    sessionNameSuffix = filtered
-                                    return
-                                }
+                                // 输入时保留拼音组词等组合文本，避免回写打断输入法；特殊字符在保存时统一过滤。
                                 // 同步更新 sessionName（前缀 + 空格 + 后缀）
                                 sessionName = sessionNamePrefix + " " + newValue
                             }
@@ -213,6 +208,11 @@ struct SessionRecordUnifiedView: View {
                     // 日期格式错误提示
                     if !sessionNamePrefix.isEmpty && !isDatePrefixValid {
                         Text("日期格式错误")
+                            .font(Constants.Fonts.caption)
+                            .foregroundColor(.red)
+                    }
+                    if sessionNameSuffix.rangeOfCharacter(from: Constants.storyNameInvalidCharacters) != nil {
+                        Text("标题仅支持文字、数字和减号，特殊字符将在保存时移除。")
                             .font(Constants.Fonts.caption)
                             .foregroundColor(.red)
                     }
@@ -646,7 +646,7 @@ struct SessionRecordUnifiedView: View {
     private func performSave() {
         // 保存时自动补充空格：前缀 + 空格 + 后缀
         let fullPrefix = sessionNamePrefix + " "
-        // 防御性过滤：保存前再次剔除标题后缀中的特殊字符
+        // 保存时剔除标题后缀中的特殊字符，输入过程中不改写输入法的组合文本。
         let safeSuffix = sessionNameSuffix.components(separatedBy: Constants.storyNameInvalidCharacters).joined()
         let name = (fullPrefix + safeSuffix).trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
