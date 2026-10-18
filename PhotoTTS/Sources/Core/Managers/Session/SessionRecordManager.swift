@@ -159,6 +159,11 @@ class SessionRecordManager {
     }
 
     private func shouldExcludeFromHome(_ metadata: SessionRecordMetadata) -> Bool {
+        Self.isUnnamedSession(metadata)
+    }
+
+    /// 未命名记录不展示在首页（excludeUnnamed 过滤条件）
+    private static func isUnnamedSession(_ metadata: SessionRecordMetadata) -> Bool {
         metadata.name.contains("未命名")
     }
     
@@ -905,6 +910,7 @@ class SessionRecordManager {
     ///   - readStatusFilter: 阅读状态筛选（按播放历史判断，nil 表示不过滤）
     ///   - completedOnly: 是否仅保留已完成记录
     ///   - sortMode: 首页排序模式
+    ///   - now: 当前时间基准（用于最近制作等时间筛选，测试可注入固定值）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 匹配的元数据列表
     func getFilteredSessionMetadata(
@@ -914,8 +920,42 @@ class SessionRecordManager {
         completedOnly: Bool = false,
         excludeUnnamed: Bool = false,
         sortMode: HomeSessionSortMode = .list,
+        now: Date = Date(),
         caller: String = ""
     ) -> [SessionRecordMetadata] {
+        let metadataList = Self.readSessionMetadataList(
+            from: sessionsDirectory,
+            defaultMetadataProvider: loadBundledDefaultSessionMetadata
+        )
+
+        let filteredList = Self.filterSessionMetadata(
+            metadataList,
+            searchKeyword: searchKeyword,
+            seriesFilter: seriesFilter,
+            readStatusFilter: readStatusFilter,
+            completedOnly: completedOnly,
+            excludeUnnamed: excludeUnnamed,
+            now: now,
+            playedSessionIdsProvider: { sessionIds in
+                Set(loadPlayStats(sessionIds: sessionIds).keys)
+            }
+        )
+
+        let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
+        logger.info("筛选了 \(filteredList.count) 条会话记录元数据\(callerTag)")
+
+        return Self.sortSessionMetadata(filteredList, by: sortMode)
+    }
+
+    // MARK: - 可测试的内部拆分实现（供单元测试注入目录与依赖）
+
+    /// 隔离读取：从指定目录枚举会话目录并解码 metadata.json，损坏文件跳过
+    /// 目录读取失败时记录日志并返回空数组（不触发默认会话回退）；列表为空时追加 defaultMetadataProvider 的内置默认会话
+    static func readSessionMetadataList(
+        from sessionsDirectory: URL,
+        defaultMetadataProvider: () -> SessionRecordMetadata?
+    ) -> [SessionRecordMetadata] {
+        let fileManager = FileManager.default
         var metadataList: [SessionRecordMetadata] = []
 
         do {
@@ -936,52 +976,91 @@ class SessionRecordManager {
                 }
             }
         } catch {
-            logger.error("读取会话记录列表失败: \(error.localizedDescription)")
+            os.Logger.sessionRecord.error("读取会话记录列表失败: \(error.localizedDescription)")
             return []
         }
 
         // 用户无记录时，展示内置默认会话
-        if metadataList.isEmpty, let bundledMetadata = loadBundledDefaultSessionMetadata() {
+        if metadataList.isEmpty, let bundledMetadata = defaultMetadataProvider() {
             metadataList.append(bundledMetadata)
         }
 
+        return metadataList
+    }
+
+    /// 共享过滤：按 excludeUnnamed -> 搜索关键词 -> 系列 -> 阅读状态 -> 完成状态 顺序过滤
+    /// readStatusFilter 为 nil 时不调用 playedSessionIdsProvider；hasPlayed = 已播放集合包含该 id
+    static func filterSessionMetadata(
+        _ metadataList: [SessionRecordMetadata],
+        searchKeyword: String,
+        seriesFilter: String?,
+        readStatusFilter: SessionReadStatusFilter?,
+        completedOnly: Bool,
+        excludeUnnamed: Bool,
+        now: Date,
+        playedSessionIdsProvider: ([String]) -> Set<String>
+    ) -> [SessionRecordMetadata] {
+        var resultList = metadataList
+
         if excludeUnnamed {
-            metadataList.removeAll(where: shouldExcludeFromHome)
+            resultList.removeAll(where: isUnnamedSession)
         }
 
         // 按搜索关键词过滤
         let trimmed = searchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
-            metadataList = metadataList.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+            resultList = resultList.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
         }
 
         // 按系列筛选
         if let seriesFilter = seriesFilter, !seriesFilter.isEmpty {
-            metadataList = metadataList.filter { $0.seriesName == seriesFilter }
+            resultList = resultList.filter { $0.seriesName == seriesFilter }
         }
 
         if let readStatusFilter {
-            let playStatsMap = loadPlayStats(sessionIds: metadataList.map(\.id))
-            metadataList = metadataList.filter { metadata in
-                let hasPlayed = playStatsMap[metadata.id] != nil
-                switch readStatusFilter {
-                case .read:
-                    return hasPlayed
-                case .unread:
-                    return !hasPlayed
+            switch readStatusFilter {
+            case .read, .unread:
+                let playedSessionIds = playedSessionIdsProvider(resultList.map(\.id))
+                resultList = resultList.filter { metadata in
+                    let hasPlayed = playedSessionIds.contains(metadata.id)
+                    return readStatusFilter == .read ? hasPlayed : !hasPlayed
                 }
+            case .recentMade:
+                // 最近制作按时间窗口过滤，不依赖播放历史
+                resultList = resultList.filter { isRecentlyMade($0, now: now) }
             }
         }
 
         // 仅保留已完成记录（首页不展示制作中和未完成记录）
         if completedOnly {
-            metadataList = metadataList.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
+            resultList = resultList.filter { $0.makeStatus == nil || $0.makeStatus == .completed }
         }
 
-        let callerTag = caller.isEmpty ? "" : " (caller=\(caller))"
-        logger.info("筛选了 \(metadataList.count) 条会话记录元数据\(callerTag)")
+        return resultList
+    }
 
-        return Self.sortSessionMetadata(metadataList, by: sortMode)
+    /// 最近制作判定：非内置默认会话，且制作时间在 [now - recentMakeWindow, now] 窗口内
+    static func isRecentlyMade(_ metadata: SessionRecordMetadata, now: Date) -> Bool {
+        metadata.id != Constants.DefaultSession.id
+            && metadata.createdAt >= now.addingTimeInterval(-Constants.SessionFilter.recentMakeWindow)
+            && metadata.createdAt <= now
+    }
+
+    /// 共享分页切片：页码从 1 开始，越界返回空页
+    static func paginateSessionMetadata(
+        _ metadataList: [SessionRecordMetadata],
+        page: Int,
+        pageSize: Int
+    ) -> (items: [SessionRecordMetadata], totalCount: Int) {
+        let totalCount = metadataList.count
+
+        let safePage = max(1, page)
+        let startIndex = (safePage - 1) * pageSize
+        guard startIndex < totalCount else {
+            return ([], totalCount)
+        }
+        let endIndex = min(startIndex + pageSize, totalCount)
+        return (Array(metadataList[startIndex..<endIndex]), totalCount)
     }
 
     /// 分页查询会话记录元数据（支持搜索过滤）
@@ -991,6 +1070,8 @@ class SessionRecordManager {
     ///   - searchKeyword: 搜索关键词（按名称模糊匹配，空字符串表示不过滤）
     ///   - seriesFilter: 系列筛选（按系列名精确匹配，nil 表示不过滤）
     ///   - readStatusFilter: 阅读状态筛选（按播放历史判断，nil 表示不过滤）
+    ///   - sortMode: 首页排序模式
+    ///   - now: 当前时间基准（透传给 getFilteredSessionMetadata，用于最近制作等时间筛选）
     ///   - caller: 调用方标识，用于日志
     /// - Returns: 当前页的元数据列表 + 匹配总数
     func getSessionMetadataPage(
@@ -1002,6 +1083,7 @@ class SessionRecordManager {
         completedOnly: Bool = false,
         excludeUnnamed: Bool = false,
         sortMode: HomeSessionSortMode = .list,
+        now: Date = Date(),
         caller: String = ""
     ) -> (items: [SessionRecordMetadata], totalCount: Int) {
         let metadataList = getFilteredSessionMetadata(
@@ -1011,21 +1093,14 @@ class SessionRecordManager {
             completedOnly: completedOnly,
             excludeUnnamed: excludeUnnamed,
             sortMode: sortMode,
+            now: now,
             caller: caller
         )
         
-        let totalCount = metadataList.count
-        
         // 计算分页切片
-        let safePage = max(1, page)
-        let startIndex = (safePage - 1) * pageSize
-        guard startIndex < totalCount else {
-            return ([], totalCount)
-        }
-        let endIndex = min(startIndex + pageSize, totalCount)
-        let pageItems = Array(metadataList[startIndex..<endIndex])
-        
-        return (pageItems, totalCount)
+        let paged = Self.paginateSessionMetadata(metadataList, page: page, pageSize: pageSize)
+
+        return (paged.items, paged.totalCount)
     }
 
     static func sortSessionMetadata(_ items: [SessionRecordMetadata], by mode: HomeSessionSortMode) -> [SessionRecordMetadata] {

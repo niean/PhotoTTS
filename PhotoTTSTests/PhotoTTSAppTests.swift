@@ -2141,6 +2141,535 @@ final class PhotoTTSAppTests: XCTestCase {
         }
     }
 
+    // MARK: - 最近制作筛选（recentMade）测试
+
+    /// 构造最近制作筛选测试用的元数据
+    private func makeRecentMadeMetadata(
+        id: String,
+        name: String,
+        createdAt: Date,
+        makeStatus: MakeStatus? = .completed
+    ) -> SessionRecordMetadata {
+        SessionRecordMetadata(
+            id: id,
+            name: name,
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            totalImageCount: 1,
+            validImageCount: 1,
+            textLength: 10,
+            audioDuration: 1.0,
+            avatarImageIndex: 0,
+            storageSize: 0,
+            makeStatus: makeStatus
+        )
+    }
+
+    /// 将元数据写入临时会话目录，返回目录根
+    private func makeRecentMadeFixture(_ metadataList: [SessionRecordMetadata]) throws -> URL {
+        let fileManager = FileManager.default
+        let tempRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("photo-tts-recent-made-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? fileManager.removeItem(at: tempRoot)
+        }
+        for metadata in metadataList {
+            let dir = tempRoot.appendingPathComponent(metadata.id, isDirectory: true)
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+            try JSONEncoder().encode(metadata)
+                .write(to: dir.appendingPathComponent("metadata.json"))
+        }
+        return tempRoot
+    }
+
+    /// 按生产管线（读取 -> 过滤 -> 排序）查询最近制作会话
+    private func queryRecentMade(from directory: URL, now: Date) -> [SessionRecordMetadata] {
+        queryRecentMadeFiltered(from: directory, now: now, sortMode: .list)
+    }
+
+    /// 按生产管线查询，支持附加筛选参数（供组合/分页/排序回归使用）
+    private func queryRecentMadeFiltered(
+        from directory: URL,
+        now: Date,
+        searchKeyword: String = "",
+        seriesFilter: String? = nil,
+        readStatusFilter: SessionReadStatusFilter? = .recentMade,
+        completedOnly: Bool = false,
+        excludeUnnamed: Bool = false,
+        sortMode: HomeSessionSortMode = .list
+    ) -> [SessionRecordMetadata] {
+        let metadataList = SessionRecordManager.readSessionMetadataList(from: directory) { nil }
+        let filtered = SessionRecordManager.filterSessionMetadata(
+            metadataList,
+            searchKeyword: searchKeyword,
+            seriesFilter: seriesFilter,
+            readStatusFilter: readStatusFilter,
+            completedOnly: completedOnly,
+            excludeUnnamed: excludeUnnamed,
+            now: now,
+            playedSessionIdsProvider: { _ in [] }
+        )
+        return SessionRecordManager.sortSessionMetadata(filtered, by: sortMode)
+    }
+
+    func testRecentMadeFilterIncludesBoundaryAndExcludesOutsideWindow() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let inHour = makeRecentMadeMetadata(id: "in-hour", name: "26.10.18 一小时前", createdAt: now.addingTimeInterval(-3600))
+        let inWindowEdge = makeRecentMadeMetadata(id: "in-edge", name: "26.10.18 窗口边界", createdAt: now.addingTimeInterval(-12 * 3600))
+        let atNow = makeRecentMadeMetadata(id: "at-now", name: "26.10.18 当前", createdAt: now)
+        let outPast = makeRecentMadeMetadata(id: "out-past", name: "26.10.18 窗口外", createdAt: now.addingTimeInterval(-12 * 3600 - 1))
+        let outFuture = makeRecentMadeMetadata(id: "out-future", name: "26.10.18 未来", createdAt: now.addingTimeInterval(1))
+
+        let directory = try makeRecentMadeFixture([inHour, inWindowEdge, atNow, outPast, outFuture])
+        let result = queryRecentMade(from: directory, now: now)
+
+        XCTAssertEqual(Set(result.map(\.id)), ["in-hour", "in-edge", "at-now"])
+    }
+
+    func testRecentMadeFilterExcludesDefaultSessionEvenWhenInWindow() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let defaultLike = makeRecentMadeMetadata(
+            id: Constants.DefaultSession.id,
+            name: "26.10.18 内置默认",
+            createdAt: now
+        )
+        let normal = makeRecentMadeMetadata(id: "normal", name: "26.10.18 普通会话", createdAt: now)
+
+        let directory = try makeRecentMadeFixture([defaultLike, normal])
+        let result = queryRecentMade(from: directory, now: now)
+
+        XCTAssertEqual(result.map(\.id), ["normal"])
+    }
+
+    func testRecentMadeFilterExcludesDefaultSessionProvidedOnEmptyList() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // 空目录触发默认会话回退，但默认会话即使落在时间窗口内也应被排除
+        let directory = try makeRecentMadeFixture([])
+        let metadataList = SessionRecordManager.readSessionMetadataList(from: directory) {
+            makeRecentMadeMetadata(id: Constants.DefaultSession.id, name: "26.10.18 内置默认", createdAt: now)
+        }
+        let result = SessionRecordManager.filterSessionMetadata(
+            metadataList,
+            searchKeyword: "",
+            seriesFilter: nil,
+            readStatusFilter: .recentMade,
+            completedOnly: false,
+            excludeUnnamed: false,
+            now: now,
+            playedSessionIdsProvider: { _ in [] }
+        )
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testRecentMadeFilterDoesNotInvokePlayedSessionIdsProvider() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = makeRecentMadeMetadata(id: "no-provider", name: "26.10.18 不查播放", createdAt: now)
+
+        var providerInvoked = false
+        let result = SessionRecordManager.filterSessionMetadata(
+            [metadata],
+            searchKeyword: "",
+            seriesFilter: nil,
+            readStatusFilter: .recentMade,
+            completedOnly: false,
+            excludeUnnamed: false,
+            now: now,
+            playedSessionIdsProvider: { _ in
+                providerInvoked = true
+                return []
+            }
+        )
+
+        XCTAssertFalse(providerInvoked, "recentMade 筛选不应调用播放历史提供者")
+        XCTAssertEqual(result.map(\.id), ["no-provider"])
+    }
+
+    // MARK: - 最近制作组合筛选（交集）测试
+
+    func testRecentMadeIntersectionWithSeriesFilter() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let redHood = makeRecentMadeMetadata(id: "red-hood", name: "26.10.18 小红帽-第一章", createdAt: now)
+        let pigs = makeRecentMadeMetadata(id: "pigs", name: "26.10.18 三只小猪-第一章", createdAt: now)
+        let noSeries = makeRecentMadeMetadata(id: "no-series", name: "26.10.18 孤本绘本", createdAt: now)
+        let outWindow = makeRecentMadeMetadata(id: "out-window", name: "26.10.18 小红帽-第二章", createdAt: now.addingTimeInterval(-12 * 3600 - 1))
+
+        let directory = try makeRecentMadeFixture([redHood, pigs, noSeries, outWindow])
+        let result = queryRecentMadeFiltered(from: directory, now: now, seriesFilter: "小红帽")
+
+        XCTAssertEqual(result.map(\.id), ["red-hood"], "recentMade 与系列精确匹配应只保留同系列且在窗口内的记录")
+    }
+
+    func testRecentMadeIntersectionWithSearchKeyword() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let redHood = makeRecentMadeMetadata(id: "red-hood", name: "26.10.18 小红帽-第一章", createdAt: now)
+        let pigs = makeRecentMadeMetadata(id: "pigs", name: "26.10.18 三只小猪-第一章", createdAt: now)
+        let outWindow = makeRecentMadeMetadata(id: "out-window", name: "26.10.18 小红帽-第二章", createdAt: now.addingTimeInterval(-12 * 3600 - 1))
+
+        let directory = try makeRecentMadeFixture([redHood, pigs, outWindow])
+        // 关键词含首尾空格与换行，应在过滤前被 trim
+        let result = queryRecentMadeFiltered(
+            from: directory,
+            now: now,
+            searchKeyword: "  小红帽\n "
+        )
+
+        XCTAssertEqual(result.map(\.id), ["red-hood"], "recentMade 与模糊搜索应先 trim 关键词再取交集")
+    }
+
+    func testRecentMadeIntersectionWithSeriesAndKeywordCombined() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let match = makeRecentMadeMetadata(id: "match", name: "26.10.18 小红帽-第一章", createdAt: now)
+        let wrongSeries = makeRecentMadeMetadata(id: "wrong-series", name: "26.10.18 三只小猪-小红帽篇", createdAt: now)
+        let wrongKeyword = makeRecentMadeMetadata(id: "wrong-keyword", name: "26.10.18 小红帽-第二章", createdAt: now.addingTimeInterval(-12 * 3600 - 1))
+
+        let directory = try makeRecentMadeFixture([match, wrongSeries, wrongKeyword])
+        let result = queryRecentMadeFiltered(
+            from: directory,
+            now: now,
+            searchKeyword: "第一章",
+            seriesFilter: "小红帽"
+        )
+
+        XCTAssertEqual(result.map(\.id), ["match"], "recentMade、系列、关键词三者应同时取交集")
+    }
+
+    func testRecentMadeClearingStatusFilterKeepsOtherConditions() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let match = makeRecentMadeMetadata(id: "match", name: "26.10.18 小红帽-第一章", createdAt: now)
+        let wrongSeries = makeRecentMadeMetadata(id: "wrong-series", name: "26.10.18 三只小猪-第一章", createdAt: now)
+        let wrongKeyword = makeRecentMadeMetadata(id: "wrong-keyword", name: "26.10.18 小红帽-序章", createdAt: now)
+        let outWindow = makeRecentMadeMetadata(id: "out-window", name: "26.10.18 小红帽-第一章", createdAt: now.addingTimeInterval(-12 * 3600 - 1))
+
+        let directory = try makeRecentMadeFixture([match, wrongSeries, wrongKeyword, outWindow])
+
+        // 只清除状态筛选，系列+关键词条件保留（outWindow 不再受时间窗口限制，但名称需同时满足）
+        let statusCleared = queryRecentMadeFiltered(
+            from: directory,
+            now: now,
+            searchKeyword: "第一章",
+            seriesFilter: "小红帽",
+            readStatusFilter: nil
+        )
+        XCTAssertEqual(
+            Set(statusCleared.map(\.id)),
+            ["match", "out-window"],
+            "清除状态筛选后系列与关键词条件应继续生效"
+        )
+
+        // 全部清除后恢复基线集合
+        let baseline = queryRecentMadeFiltered(
+            from: directory,
+            now: now,
+            searchKeyword: "",
+            seriesFilter: nil,
+            readStatusFilter: nil
+        )
+        XCTAssertEqual(
+            Set(baseline.map(\.id)),
+            ["match", "wrong-series", "wrong-keyword", "out-window"],
+            "清除全部筛选条件应恢复基线集合"
+        )
+    }
+
+    // MARK: - 最近制作与制作状态（makeStatus）测试
+
+    func testRecentMadeMakeStatusVariantsWithCompletedOnly() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let completed = makeRecentMadeMetadata(id: "completed", name: "26.10.18 完成书", createdAt: now, makeStatus: .completed)
+        let statusNil = makeRecentMadeMetadata(id: "status-nil", name: "26.10.18 无状态书", createdAt: now, makeStatus: nil)
+        let making = makeRecentMadeMetadata(id: "making", name: "26.10.18 制作中书", createdAt: now, makeStatus: .making)
+        let incomplete = makeRecentMadeMetadata(id: "incomplete", name: "26.10.18 未完成书", createdAt: now, makeStatus: .incomplete)
+
+        let directory = try makeRecentMadeFixture([completed, statusNil, making, incomplete])
+
+        // 管理页查询（completedOnly: false）：recentMade 只看时间窗口，四种状态均可见
+        let management = queryRecentMadeFiltered(from: directory, now: now)
+        XCTAssertEqual(
+            Set(management.map(\.id)),
+            ["completed", "status-nil", "making", "incomplete"],
+            "管理页查询应能看到窗口内全部制作状态"
+        )
+
+        // completedOnly: true：仅保留 completed 与 nil 状态
+        let home = queryRecentMadeFiltered(from: directory, now: now, completedOnly: true)
+        XCTAssertEqual(
+            Set(home.map(\.id)),
+            ["completed", "status-nil"],
+            "completedOnly 应排除 making 与 incomplete 状态"
+        )
+    }
+
+    func testRecentMadeExcludeUnnamedRemovesUnnamedRecords() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let normal = makeRecentMadeMetadata(id: "normal", name: "26.10.18 正常书", createdAt: now)
+        let unnamed = makeRecentMadeMetadata(id: "unnamed", name: "26.10.18 未命名会话", createdAt: now)
+        let draft = makeRecentMadeMetadata(id: "draft", name: "26.10.18 未命名-草稿", createdAt: now)
+
+        let directory = try makeRecentMadeFixture([normal, unnamed, draft])
+        let result = queryRecentMadeFiltered(from: directory, now: now, excludeUnnamed: true)
+
+        XCTAssertEqual(result.map(\.id), ["normal"], "excludeUnnamed 应剔除名称含未命名的记录")
+    }
+
+    // MARK: - 最近制作改名（rename）回归测试
+
+    func testRecentMadeRenameRewriteKeepsCreatedAtAndWindow() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let inWindow = makeRecentMadeMetadata(id: "rename-me", name: "26.10.18 旧书名", createdAt: now.addingTimeInterval(-3600))
+        let outWindowOld = makeRecentMadeMetadata(id: "out-window-old", name: "26.09.01 旧存档", createdAt: now.addingTimeInterval(-13 * 3600))
+
+        let directory = try makeRecentMadeFixture([inWindow, outWindowOld])
+        let fileManager = FileManager.default
+
+        // 读取后改名并回写（覆盖同一 metadata.json）
+        let original = SessionRecordManager.readSessionMetadataList(from: directory) { nil }
+        var renamedInWindow = original.first { $0.id == "rename-me" }!
+        renamedInWindow.name = "26.10.18 新书名"
+        renamedInWindow.updatedAt = now
+        let inWindowURL = directory.appendingPathComponent("rename-me", isDirectory: true)
+            .appendingPathComponent("metadata.json")
+        try JSONEncoder().encode(renamedInWindow).write(to: inWindowURL)
+
+        var renamedOutWindow = original.first { $0.id == "out-window-old" }!
+        renamedOutWindow.name = "26.10.18 今日命名"
+        renamedOutWindow.updatedAt = now
+        let outWindowURL = directory.appendingPathComponent("out-window-old", isDirectory: true)
+            .appendingPathComponent("metadata.json")
+        try JSONEncoder().encode(renamedOutWindow).write(to: outWindowURL)
+
+        // 重新查询
+        let reloaded = SessionRecordManager.readSessionMetadataList(from: directory) { nil }
+        let reloadedInWindow = reloaded.first { $0.id == "rename-me" }!
+        XCTAssertEqual(reloadedInWindow.name, "26.10.18 新书名", "改名后名称应更新")
+        XCTAssertEqual(reloadedInWindow.updatedAt, now, "改名后 updatedAt 应更新")
+        XCTAssertEqual(reloadedInWindow.createdAt, now.addingTimeInterval(-3600), "改名不应改变 createdAt")
+
+        let result = queryRecentMadeFiltered(from: directory, now: now)
+        XCTAssertEqual(
+            result.map(\.id),
+            ["rename-me"],
+            "改名后窗口内记录仍应保留；窗口外旧记录即使 updatedAt 为 now 且名称为今日前缀也不应纳入"
+        )
+    }
+
+    // MARK: - 已读/未读提供者回归测试
+
+    func testRecentMadeSiblingReadUnreadProviderInvocation() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let played = makeRecentMadeMetadata(id: "played", name: "26.10.18 已读书", createdAt: now)
+        let unplayed = makeRecentMadeMetadata(id: "unplayed", name: "26.10.18 未读书", createdAt: now)
+        let metadataList = [played, unplayed]
+
+        func queryProviderStatus(
+            _ filter: SessionReadStatusFilter?,
+            playedIds: Set<String>
+        ) -> (ids: [String], providerCount: Int) {
+            var providerCount = 0
+            let result = SessionRecordManager.filterSessionMetadata(
+                metadataList,
+                searchKeyword: "",
+                seriesFilter: nil,
+                readStatusFilter: filter,
+                completedOnly: false,
+                excludeUnnamed: false,
+                now: now,
+                playedSessionIdsProvider: { _ in
+                    providerCount += 1
+                    return playedIds
+                }
+            )
+            return (result.map(\.id), providerCount)
+        }
+
+        let read = queryProviderStatus(.read, playedIds: ["played"])
+        XCTAssertEqual(read.ids, ["played"], "已读筛选应只保留播放过的记录")
+        XCTAssertEqual(read.providerCount, 1, "已读筛选应调用一次播放历史提供者")
+
+        let unread = queryProviderStatus(.unread, playedIds: ["played"])
+        XCTAssertEqual(unread.ids, ["unplayed"], "未读筛选应只保留未播放的记录")
+        XCTAssertEqual(unread.providerCount, 1, "未读筛选应调用一次播放历史提供者")
+
+        let recentMade = queryProviderStatus(.recentMade, playedIds: ["played"])
+        XCTAssertEqual(Set(recentMade.ids), ["played", "unplayed"], "recentMade 不依赖播放历史")
+        XCTAssertEqual(recentMade.providerCount, 0, "recentMade 不应调用播放历史提供者")
+
+        let noFilter = queryProviderStatus(nil, playedIds: ["played"])
+        XCTAssertEqual(Set(noFilter.ids), ["played", "unplayed"], "无状态筛选不过滤播放状态")
+        XCTAssertEqual(noFilter.providerCount, 0, "nil 状态筛选不应调用播放历史提供者")
+    }
+
+    // MARK: - 最近制作排序与分页测试
+
+    func testRecentMadePaginationSlicingAndTotalCount() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // 恰好 5 条窗口内记录，日期前缀互不相同
+        let p1 = makeRecentMadeMetadata(id: "p1", name: "26.10.18 A系列-甲", createdAt: now.addingTimeInterval(-1 * 3600))
+        let p2 = makeRecentMadeMetadata(id: "p2", name: "26.10.17 B系列-乙", createdAt: now.addingTimeInterval(-2 * 3600))
+        let p3 = makeRecentMadeMetadata(id: "p3", name: "26.10.16 A系列-丙", createdAt: now.addingTimeInterval(-3 * 3600))
+        let p4 = makeRecentMadeMetadata(id: "p4", name: "26.10.15 C系列-丁", createdAt: now.addingTimeInterval(-4 * 3600))
+        let p5 = makeRecentMadeMetadata(id: "p5", name: "26.10.14 B系列-戊", createdAt: now.addingTimeInterval(-5 * 3600))
+        let outWindow = makeRecentMadeMetadata(id: "out-window", name: "26.10.18 出窗-己", createdAt: now.addingTimeInterval(-12 * 3600 - 1))
+        let defaultDecoy = makeRecentMadeMetadata(id: Constants.DefaultSession.id, name: "26.10.18 内置默认", createdAt: now)
+
+        let directory = try makeRecentMadeFixture([p1, p2, p3, p4, p5, outWindow, defaultDecoy])
+        let full = queryRecentMadeFiltered(from: directory, now: now)
+        XCTAssertEqual(full.count, 5, "窗口内应为恰好 5 条（排除出窗与内置默认）")
+
+        let page1 = SessionRecordManager.paginateSessionMetadata(full, page: 1, pageSize: 3)
+        let page2 = SessionRecordManager.paginateSessionMetadata(full, page: 2, pageSize: 3)
+        let page3 = SessionRecordManager.paginateSessionMetadata(full, page: 3, pageSize: 3)
+
+        XCTAssertEqual(page1.items.map(\.id), ["p1", "p2", "p3"])
+        XCTAssertEqual(page1.totalCount, 5)
+        XCTAssertEqual(page2.items.map(\.id), ["p4", "p5"])
+        XCTAssertEqual(page2.totalCount, 5, "总数字段不应随页码变化")
+        XCTAssertTrue(page3.items.isEmpty, "越界页应返回空页")
+
+        // 有序拼接等于同参数全量查询，且无重复 ID
+        let concatenated = page1.items + page2.items + page3.items
+        XCTAssertEqual(concatenated.map(\.id), full.map(\.id), "分页有序拼接应等于全量查询结果")
+        XCTAssertEqual(Set(concatenated.map(\.id)).count, concatenated.count, "分页不应产生重复记录")
+    }
+
+    func testRecentMadeSortOrderListAndSeries() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let p1 = makeRecentMadeMetadata(id: "p1", name: "26.10.18 A系列-甲", createdAt: now.addingTimeInterval(-1 * 3600))
+        let p2 = makeRecentMadeMetadata(id: "p2", name: "26.10.17 B系列-乙", createdAt: now.addingTimeInterval(-2 * 3600))
+        let p3 = makeRecentMadeMetadata(id: "p3", name: "26.10.16 A系列-丙", createdAt: now.addingTimeInterval(-3 * 3600))
+        let p4 = makeRecentMadeMetadata(id: "p4", name: "26.10.15 C系列-丁", createdAt: now.addingTimeInterval(-4 * 3600))
+        let p5 = makeRecentMadeMetadata(id: "p5", name: "26.10.14 B系列-戊", createdAt: now.addingTimeInterval(-5 * 3600))
+
+        let directory = try makeRecentMadeFixture([p1, p2, p3, p4, p5])
+
+        // list 模式：名称前缀日期降序
+        let listOrder = queryRecentMadeFiltered(from: directory, now: now, sortMode: .list)
+        XCTAssertEqual(listOrder.map(\.id), ["p1", "p2", "p3", "p4", "p5"], "list 排序应按名称前缀日期降序")
+
+        // series 模式：系列名升序，同系列内前缀日期降序
+        let seriesOrder = queryRecentMadeFiltered(from: directory, now: now, sortMode: .series)
+        XCTAssertEqual(seriesOrder.map(\.id), ["p1", "p3", "p2", "p5", "p4"], "series 排序应先按系列名升序、同系列内按前缀日期降序")
+    }
+
+    // MARK: - 最近制作时间基准重查测试
+
+    func testRecentMadeTimeRequeryUsesInjectedNow() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let later = now.addingTimeInterval(1)
+        let boundary = makeRecentMadeMetadata(id: "boundary", name: "26.10.18 边界书", createdAt: now.addingTimeInterval(-12 * 3600))
+        let stable = makeRecentMadeMetadata(id: "stable", name: "26.10.18 稳定书", createdAt: now.addingTimeInterval(-3600))
+
+        let directory = try makeRecentMadeFixture([boundary, stable])
+
+        let atNow = queryRecentMadeFiltered(from: directory, now: now)
+        XCTAssertEqual(Set(atNow.map(\.id)), ["boundary", "stable"], "now 基准下边界记录应可见")
+
+        let atLater = queryRecentMadeFiltered(from: directory, now: later)
+        XCTAssertEqual(atLater.map(\.id), ["stable"], "now+1s 基准下边界记录应滑出窗口")
+
+        // 分页路径同样使用注入的 now（经过滤后的分页切片）
+        let fullAtNow = SessionRecordManager.paginateSessionMetadata(
+            SessionRecordManager.filterSessionMetadata(
+                SessionRecordManager.readSessionMetadataList(from: directory) { nil },
+                searchKeyword: "",
+                seriesFilter: nil,
+                readStatusFilter: .recentMade,
+                completedOnly: false,
+                excludeUnnamed: false,
+                now: now,
+                playedSessionIdsProvider: { _ in [] }
+            ),
+            page: 1,
+            pageSize: 10
+        )
+        XCTAssertEqual(fullAtNow.totalCount, 2, "分页查询应使用注入的 now（边界记录计入）")
+
+        let fullAtLater = SessionRecordManager.paginateSessionMetadata(
+            SessionRecordManager.filterSessionMetadata(
+                SessionRecordManager.readSessionMetadataList(from: directory) { nil },
+                searchKeyword: "",
+                seriesFilter: nil,
+                readStatusFilter: .recentMade,
+                completedOnly: false,
+                excludeUnnamed: false,
+                now: later,
+                playedSessionIdsProvider: { _ in [] }
+            ),
+            page: 1,
+            pageSize: 10
+        )
+        XCTAssertEqual(fullAtLater.totalCount, 1, "分页查询应使用注入的 now（now+1s 后边界记录滑出）")
+    }
+
+    // MARK: - 隔离读取失败路径测试
+
+    func testRecentMadeDirectoryReadFailureReturnsEmpty() throws {
+        let fileManager = FileManager.default
+        // 不存在的目录：contentsOfDirectory 抛错，应返回空数组且不触发默认会话回退
+        let missingDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("photo-tts-missing-\(UUID().uuidString)", isDirectory: true)
+
+        var defaultInvoked = false
+        let result = SessionRecordManager.readSessionMetadataList(from: missingDirectory) {
+            defaultInvoked = true
+            return nil
+        }
+
+        XCTAssertTrue(result.isEmpty, "目录读取失败应返回空数组")
+        XCTAssertFalse(defaultInvoked, "读取失败路径不应调用内置默认会话提供者")
+    }
+
+    func testIsolatedMetadataReadHelperSkipsCorruptEntriesAndSkipsDefaultWhenListNonEmpty() throws {
+        let fileManager = FileManager.default
+        let tempRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("photo-tts-read-helper-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? fileManager.removeItem(at: tempRoot)
+        }
+
+        // 有效记录：目录 + 可解码 metadata.json
+        let validId = UUID().uuidString
+        let validDir = tempRoot.appendingPathComponent(validId, isDirectory: true)
+        try fileManager.createDirectory(at: validDir, withIntermediateDirectories: true)
+        let validMetadata = SessionRecordMetadata(
+            id: validId,
+            name: "26.10.18 小红帽",
+            createdAt: Date(),
+            updatedAt: Date(),
+            totalImageCount: 1,
+            validImageCount: 1,
+            textLength: 10,
+            audioDuration: 1.0,
+            avatarImageIndex: 0,
+            storageSize: 0,
+            makeStatus: .completed
+        )
+        try JSONEncoder().encode(validMetadata)
+            .write(to: validDir.appendingPathComponent("metadata.json"))
+
+        // 损坏记录：目录内 metadata.json 不是合法 JSON，应被跳过
+        let corruptId = UUID().uuidString
+        let corruptDir = tempRoot.appendingPathComponent(corruptId, isDirectory: true)
+        try fileManager.createDirectory(at: corruptDir, withIntermediateDirectories: true)
+        try Data("not-a-json".utf8)
+            .write(to: corruptDir.appendingPathComponent("metadata.json"))
+
+        // 非目录文件：应被跳过
+        try Data("plain".utf8).write(to: tempRoot.appendingPathComponent("plain-file.txt"))
+
+        var defaultInvoked = false
+        let result = SessionRecordManager.readSessionMetadataList(from: tempRoot) {
+            defaultInvoked = true
+            return nil
+        }
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.id, validId)
+        XCTAssertFalse(defaultInvoked, "列表非空时不应调用内置默认会话提供者")
+    }
+
     private func makeDate(_ value: String) -> Date {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"

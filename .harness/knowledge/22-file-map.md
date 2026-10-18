@@ -18,7 +18,7 @@
 - 要点图片管理：EndPictManagementView（PhotoTTS/Sources/UI/EndPictManagementView.swift），从我的 Tab 进入
 - 播放设置：PlaybackSettingsView（PhotoTTS/Sources/UI/PlaybackSettingsView.swift），从我的 Tab 进入
 - 分页控件：PaginationControl（PhotoTTS/Sources/UI/PaginationControl.swift），供 HomePageView/SessionRecordListView 复用
-- 搜索栏组件：SessionSearchBar（PhotoTTS/Sources/UI/SessionSearchBar.swift），可复用搜索栏，含系列筛选和关键词搜索
+- 搜索栏组件：SessionSearchBar（PhotoTTS/Sources/UI/SessionSearchBar.swift），可复用搜索栏，含系列筛选、状态筛选（已读/未读/最近制作，SessionReadStatusFilter）和关键词搜索
 
 ## 全屏与相机
 

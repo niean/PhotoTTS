@@ -210,6 +210,10 @@ extension Constants {
         static let bottomPadding: CGFloat = 4
         /// 搜索栏行最小高度（在 List 中作为独立行时使用）
         static let rowMinHeight: CGFloat = 44
+        /// 系列筛选标签宽度
+        static let seriesFilterWidth: CGFloat = 34
+        /// 状态筛选标签宽度（容纳四字「最近制作」+余量）
+        static let statusFilterWidth: CGFloat = 64
     }
     
     // MARK: - 分页配置
@@ -401,6 +405,12 @@ extension Constants {
         static let maxConcurrentTasks: Int = 10
         /// JPEG压缩质量
         static let jpegCompressionQuality: CGFloat = 0.8
+    }
+
+    // MARK: - 会话筛选
+    struct SessionFilter {
+        /// 最近制作筛选的时间窗口（秒），12 小时内制作的会话视为最近制作
+        static let recentMakeWindow: TimeInterval = 12 * 3600
     }
 
     // MARK: - 内置默认会话

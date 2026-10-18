@@ -1,4 +1,4 @@
-<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输(WiFi-Only门禁)/传输空间预检 -->
+<!-- SUMMARY: 关键模式：跨Tab协调/PlayView横竖屏/图片按需加载/OCR并发/全屏覆盖/多任务后台制作(OCR闸门)/默认会话保护/iPad适配/错误分层/防息屏/日志双写/播放记录传输(WiFi-Only门禁)/传输空间预检/记录筛选统一查询(最近制作) -->
 # 关键代码模式
 
 项目中反复出现但不易从单个文件推断的模式，供新功能实现时参照。
@@ -95,7 +95,7 @@ TTS 分段制作：`ImageToSpeechCoordinator.buildTTSSegments` 以单张图片�
 
 1. Model 层：SessionRecordMetadata.isDefault 计算属性（id == Constants.DefaultSession.id），UI 层统一判断入口
 2. UI 层：SessionRecordListView 构建 SessionRecordRow 时，isDefault 为 true 则除 onLoad（播放）外所有闭包传 nil（onView/onEdit/onExport/onDelete/onLoadToMake），更多菜单自动隐藏
-3. Manager 层：SessionRecordManager.updateSession/exportSession 开头拦截默认会话（isBundledDefaultSession），返回失败 + 警告日志；loadAllSessionHistories 跳过默认会话，使其不出现在播放历史和制作历史中
+3. Manager 层：SessionRecordManager.updateSession/exportSession 开头拦截默认会话（isBundledDefaultSession），返回失败 + 警告日志；loadAllSessionHistories 跳过默认会话，使其不出现在播放历史和制作历史中；「最近制作」筛选（isRecentlyMade）显式排除默认会话（见模式十四）
 
 新增默认会话限制应在这三层同步添加防护。
 
@@ -183,3 +183,17 @@ os.Logger 在非调试环境（设备独立运行、不连接 Xcode）下，`.in
 涉及文件：PeerTransferManager.swift（TransferMode / mode 字段 / invitePeerWithStats / invitePeerPlayOnly / sendPlayHistory / 模式分支）、SessionRecordManager.swift（packageHistoryFilesOnly / applyHistoryPackage）、SessionRecordListView.swift（菜单入口）、DeviceTransferView.swift（transferMode 参数）、TransferReceiverModifier.swift（按模式切换 UI 文案）。
 
 新增设备间数据同步场景应优先复用 PeerTransferManager 传输通道，通过扩展 TransferMode 或新增上下文字段区分，避免另起独立的 MCP 连接。
+
+## 模式十四：记录筛选统一查询（含最近制作时间窗口）
+
+首页与管理页共用 SessionSearchBar 的筛选（系列/状态/关键词），全部收敛到 SessionRecordManager 统一查询链路：
+
+- SessionReadStatusFilter 枚举承载状态下拉（已读/未读/最近制作 recentMade），单选互斥；下拉标题与占位维持「状态」
+- 查询链路：getFilteredSessionMetadata / getSessionMetadataPage（分页透传同一 now）-> 内部静态 helper（readSessionMetadataList -> filterSessionMetadata -> sortSessionMetadata / paginateSessionMetadata），helper 通过参数注入目录、默认 metadata provider、播放统计 provider、now，供测试用临时目录隔离验证，生产路径实际复用同一实现
+- recentMade 过滤：isRecentlyMade 谓词 `id != Constants.DefaultSession.id && createdAt ∈ [now - Constants.SessionFilter.recentMakeWindow(12h), now]`，闭区间、排除未来时间戳；按 createdAt（首次创建）判定，编辑/重制/导入不改变判定
+- recentMade 分支不读取播放统计（playedSessionIdsProvider 仅 read/unread 分支求值）；默认会话显式排除（模式九 Manager 层防护的扩展）
+- 时间基准为查询时快照：每次重载重新取 now，静置不自动刷新、跨 12h 边界不自动消失
+
+涉及文件：SessionRecord.swift（SessionReadStatusFilter）、SessionRecordManager.swift（查询与 helper）、SessionSearchBar.swift（状态标签宽度 Constants.SearchBar.statusFilterWidth）、Constants.swift（SessionFilter.recentMakeWindow）、HomePageView.swift / SessionRecordListView.swift（调用方）。
+
+新增记录筛选维度应扩展 SessionReadStatusFilter 或查询参数并走统一链路，禁止在页面层自行过滤。

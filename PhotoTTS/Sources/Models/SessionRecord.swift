@@ -62,6 +62,7 @@ struct PlayStatInfo {
 enum SessionReadStatusFilter: String, CaseIterable {
     case read
     case unread
+    case recentMade
 
     var label: String {
         switch self {
@@ -69,6 +70,8 @@ enum SessionReadStatusFilter: String, CaseIterable {
             return "已读"
         case .unread:
             return "未读"
+        case .recentMade:
+            return "最近制作"
         }
     }
 }

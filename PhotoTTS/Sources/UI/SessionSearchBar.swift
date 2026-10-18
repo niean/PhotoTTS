@@ -58,7 +58,7 @@ struct SessionSearchBar: View {
                     }
                 }
             } label: {
-                filterMenuLabel(title: selectedSeries ?? "系列", isSelected: selectedSeries != nil, width: 34)
+                filterMenuLabel(title: selectedSeries ?? "系列", isSelected: selectedSeries != nil, width: Constants.SearchBar.seriesFilterWidth)
             }
             .buttonStyle(.plain)
 
@@ -89,7 +89,7 @@ struct SessionSearchBar: View {
                     }
                 }
             } label: {
-                filterMenuLabel(title: selectedReadStatus?.label ?? "状态", isSelected: selectedReadStatus != nil, width: 34)
+                filterMenuLabel(title: selectedReadStatus?.label ?? "状态", isSelected: selectedReadStatus != nil, width: Constants.SearchBar.statusFilterWidth)
             }
             .buttonStyle(.plain)
 

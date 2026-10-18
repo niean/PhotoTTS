@@ -24,6 +24,7 @@
 | DEBT019 | 制作页-loadRecordIntoMake 在 UI 调用路径同步执行 loadSession 文件读取，大记录可能阻塞主线程；既存逻辑，本次入口迁移未扩展其读取范围 | medium | plan-261018-move-make-entry | 2026-10-18 | open |
 | DEBT020 | 管理列表-avatar.jpg 缺失时直接读取原图生成头像，偏离列表仅读 metadata/头像规则；应改为后台修复头像或展示占位 | low | plan-261018-move-make-entry | 2026-10-18 | open |
 | DEBT021 | 日志规范-MakeView 保存/制作失败及 PhotoTTSApp 音频配置的既有错误日志缺少稳定错误码，部分仅记录 localizedDescription；应补 domain/code 与内部原因 | low | plan-261018-move-make-entry | 2026-10-18 | open |
+| DEBT022 | 命名语义-SessionReadStatusFilter 枚举名与 selectedReadStatus binding 名保留「阅读状态」语义，实际已含时间类筛选 recentMade；本次按改动面控制不重命名，后续可考虑改为通用筛选命名 | low | plan-261018-recent-make-filter | 2026-10-18 | open |
 
 ---
 
