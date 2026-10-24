@@ -4056,7 +4056,11 @@ public struct EndPictQueueInfo {
     /// 向指定会话追加一条播放事件
     func addPlayEvent(sessionId: String, timestamp: Date = Date(), identity: String) {
         // 内置默认会话不记录事件
-        if isBundledDefaultSession(sessionId) { return }
+        if isBundledDefaultSession(sessionId) {
+            // [Diag] 播放完成诊断：默认会话跳过
+            DebugLogManager.shared.directLog("播放事件跳过: 内置默认会话 sessionId=\(sessionId)")
+            return
+        }
         var history = loadSessionHistory(sessionId: sessionId)
         history.playEvents.append(SessionHistoryEvent(timestamp: timestamp, identity: identity))
         history.playEvents.sort { $0.timestamp > $1.timestamp }
@@ -4064,6 +4068,9 @@ public struct EndPictQueueInfo {
         if history.playEvents.count > Constants.maxPlayHistoryRecords {
             history.playEvents = Array(history.playEvents.prefix(Constants.maxPlayHistoryRecords))
         }
+        // [Diag] 播放完成诊断：写盘前状态
+        let sessionDirExists = fileManager.fileExists(atPath: sessionsDirectory.appendingPathComponent(sessionId, isDirectory: true).path)
+        DebugLogManager.shared.directLog("播放事件写盘: sessionId=\(sessionId), 目录存在=\(sessionDirExists), 事件数=\(history.playEvents.count)")
         saveSessionHistory(sessionId: sessionId, history: history)
     }
 

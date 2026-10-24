@@ -38,6 +38,8 @@ class PlayHistoryManager {
     /// 记录一次播放（写入对应会话的 history.json）
     func recordPlay(sessionId: String, name: String, playedAt: Date = Date()) {
         let identity = SettingsManager.shared.identityName
+        // [Diag] 播放完成诊断：记录播放入口
+        DebugLogManager.shared.directLog("记录播放入口: sessionId=\(sessionId), name=\(name)")
         SessionRecordManager.shared.addPlayEvent(sessionId: sessionId, timestamp: playedAt, identity: identity)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy.MM.dd HH:mm:ss"

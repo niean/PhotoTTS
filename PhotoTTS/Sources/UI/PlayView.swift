@@ -455,6 +455,8 @@ struct PlayView: View {
                             playbackTimer?.invalidate()
                             playbackTimer = nil
                             isPlaying = false
+                            // [Diag] 播放完成诊断：手动下一条路径
+                            DebugLogManager.shared.directLog("手动下一条: recordId=\(record.id), 队列位置=\(currentQueueIndex + 1)/\(queueRecordIds.count)")
                             PlayHistoryManager.shared.recordPlay(sessionId: record.id, name: record.name, playedAt: Date())
                             advanceToNextRecord()
                         }
@@ -960,6 +962,8 @@ struct PlayView: View {
         playbackProgress = 1.0
         playbackTimer?.invalidate()
         playbackTimer = nil
+        // [Diag] 播放完成诊断：定位计划内播完后状态未更新问题
+        DebugLogManager.shared.directLog("播放完成回调: recordId=\(record?.id ?? "nil"), 队列位置=\(currentQueueIndex + 1)/\(queueRecordIds.count)")
         if let r = record {
             PlayHistoryManager.shared.recordPlay(sessionId: r.id, name: r.name, playedAt: Date())
         }

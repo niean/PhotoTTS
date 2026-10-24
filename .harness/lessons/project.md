@@ -84,3 +84,9 @@ AI 自主维护，人工可通过提示或建议触发新增/修正。
 - NWPathMonitor 检测 Wi-Fi 接口已关联（availableInterfaces 含 .wifi），局域网即可、不要求互联网；AWDL（Wi-Fi 开但无 LAN）测不到，若需支持无 LAN 点对点要改用 Network framework + Bonjour
 
 来源：2026-08-03 仅蓝牙下设备传输失败、改全链路 WiFi-Only
+
+### P006: 首页待办状态实时刷新不能只更新播放统计
+- 现象：播放计划内 2 本绘本，只播完第 1 本，退出播放器后首页第 1 本卡片仍显示未读（日期样式），与实际已播不符
+- 根因：HomePageView 收到 playHistoryDidUpdate 后仅合并 playStatsMap；todoRecordIds 只在全量刷新（applySort）或整日播完（checkAndMarkTodoDateIfNeeded）时才重算；且卡片 playStatsText 中 isTodo 分支优先于 playStats 分支，待办样式遮蔽了已播状态
+- 教训：派生状态（todoRecordIds）与源数据（playStatsMap）分离存放时，任何源数据实时更新路径都必须同步重算派生状态；展示层多状态分支要明确优先级（实际状态 > 计划样式）
+- 来源：2026-10-24 prd/03-prd-specs.md 播放 Issue（2个计划只听第1个状态未更新）

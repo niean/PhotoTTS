@@ -16,6 +16,11 @@ enum HomePagePlayPlanHelper {
         sortMode == .list && playPlanEnabled && isTodoRecord
     }
 
+    /// 从待办集合中剔除已产生播放统计的记录（播放事件写入后的实时状态同步）
+    static func removingPlayedIds(from todoIds: Set<String>, statsMap: [String: PlayStatInfo]) -> Set<String> {
+        todoIds.filter { statsMap[$0] == nil }
+    }
+
     static func hasVisiblePlayStatsChange(
         visibleItems: [SessionRecordMetadata],
         currentStatsMap: [String: PlayStatInfo],
@@ -450,6 +455,8 @@ struct HomePageView: View {
                 ) else { return }
                 self.playStatsMap.merge(latestStatsMap) { _, new in new }
                 self.checkAndMarkTodoDateIfNeeded()
+                // 已播记录实时移出待办集合，与全量刷新语义一致（部分播完时不等整日完成）
+                self.todoRecordIds = HomePagePlayPlanHelper.removingPlayedIds(from: self.todoRecordIds, statsMap: self.playStatsMap)
             }
         }
     }
@@ -646,16 +653,12 @@ private struct SessionRecordCard: View {
     }()
 
     private var playStatsText: String {
-        if isTodo {
-            // 待办卡片：只显示日期
-            return Self.playStatsDateFormatter.string(from: metadata.namePrefixDate)
-        } else if let stats = playStats {
-            // 有播放记录：展示 "MM.dd/N"
+        // 有播放记录优先展示 "MM.dd/N"（已播的待办卡片也显示播放次数，避免被待办样式遮蔽成未读）
+        if let stats = playStats {
             return "\(Self.playStatsDateFormatter.string(from: metadata.namePrefixDate))/\(stats.playCount)"
-        } else {
-            // 无播放记录：只展示 "MM.dd"
-            return Self.playStatsDateFormatter.string(from: metadata.namePrefixDate)
         }
+        // 待办或无播放记录：只展示 "MM.dd"
+        return Self.playStatsDateFormatter.string(from: metadata.namePrefixDate)
     }
 
     private func scaled(_ value: CGFloat) -> CGFloat {

@@ -128,6 +128,24 @@ final class ContinuousPlaybackTests: XCTestCase {
         XCTAssertEqual(queue, ["a", "b"])
     }
 
+    /// 测试：播放统计出现后，待办集合应实时剔除已播记录
+    func testRemovingPlayedIdsFromTodoIds() {
+        let stat = PlayStatInfo(lastPlayedAt: Date(), playCount: 1)
+        let todoIds: Set<String> = ["a", "b"]
+
+        // a 已播、b 未播：仅剔除 a
+        let updated = HomePagePlayPlanHelper.removingPlayedIds(from: todoIds, statsMap: ["a": stat])
+        XCTAssertEqual(updated, ["b"])
+
+        // 全部已播：待办清空
+        let allPlayed = HomePagePlayPlanHelper.removingPlayedIds(from: todoIds, statsMap: ["a": stat, "b": stat])
+        XCTAssertTrue(allPlayed.isEmpty)
+
+        // 无播放统计：保持不变
+        let nonePlayed = HomePagePlayPlanHelper.removingPlayedIds(from: todoIds, statsMap: [:])
+        XCTAssertEqual(nonePlayed, todoIds)
+    }
+
     // MARK: - Helper
 
     private func makeMetadata(id: String, name: String, createdAt: Date? = nil, makeStatus: MakeStatus? = nil) -> SessionRecordMetadata {
