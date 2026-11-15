@@ -68,6 +68,13 @@ struct DailyBookCount: Identifiable, Hashable {
     let bookCount: Int
 }
 
+// MARK: - 天级时长统计
+struct DailyDuration: Identifiable, Hashable {
+    let date: Date
+    let duration: TimeInterval
+    var id: Date { date }
+}
+
 // MARK: - 小时时段听书本数统计
 struct HourlyBookCount: Identifiable, Hashable {
     let id = UUID()
@@ -86,6 +93,7 @@ struct ReadingReportStats {
     let near30DaysDuration: TimeInterval
     let recentListening: [RecentListeningItem]
     let dailyBookCounts: [DailyBookCount]
+    let dailyDurations: [DailyDuration]
     let hourlyBookCounts: [HourlyBookCount]
 
     var formattedDuration: String {
@@ -150,10 +158,42 @@ class ReadingReportManager {
     func calculateStats(period: ReportPeriod) -> ReadingReportStats {
         let now = Date()
         let calendar = Calendar.current
-        let range = Self.periodRange(period: period, now: now, calendar: calendar)
 
         let allHistories = SessionRecordManager.shared.loadAllSessionHistories()
         let allMetadata = SessionRecordManager.shared.getAllSessionMetadata(caller: "阅读报告")
+
+        // 构建 sessionId -> audioDuration 映射（非正数或非有限值不参与统计）
+        var durationBySessionId: [String: TimeInterval] = [:]
+        for meta in allMetadata {
+            if meta.audioDuration > 0 && meta.audioDuration.isFinite {
+                durationBySessionId[meta.id] = meta.audioDuration
+            }
+        }
+
+        return Self.calculateStats(
+            period: period,
+            allHistories: allHistories,
+            durationBySessionId: durationBySessionId,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    /// 纯函数统计入口：注入 histories/duration 映射/now/calendar 快照，不依赖磁盘单例
+    static func calculateStats(
+        period: ReportPeriod,
+        allHistories: [(id: String, name: String, history: SessionHistory)],
+        durationBySessionId: [String: TimeInterval],
+        now: Date,
+        calendar: Calendar
+    ) -> ReadingReportStats {
+        let range = Self.periodRange(period: period, now: now, calendar: calendar)
+
+        // 校验注入映射：非正数或非有限值不参与统计
+        var validDurationBySessionId: [String: TimeInterval] = [:]
+        for (id, duration) in durationBySessionId where duration > 0 && duration.isFinite {
+            validDurationBySessionId[id] = duration
+        }
 
         // 全部时段：扫描最早播放日期，计算动态天数（第一个播放记录至今，首记录为今天则 N=1，无记录 N=0）
         var periodDays = period.days
@@ -162,6 +202,8 @@ class ReadingReportManager {
             var earliest: Date? = nil
             for item in allHistories {
                 for event in item.history.playEvents {
+                    // 明日及以后的事件不参与起点扫描（spec: 避免未来事件导致负范围崩溃）
+                    guard Self.contains(event.timestamp, in: range) else { continue }
                     if earliest == nil || event.timestamp < earliest! {
                         earliest = event.timestamp
                     }
@@ -177,14 +219,6 @@ class ReadingReportManager {
             }
         }
 
-        // 构建 sessionId -> audioDuration 映射
-        var durationBySessionId: [String: TimeInterval] = [:]
-        for meta in allMetadata {
-            if meta.audioDuration > 0 {
-                durationBySessionId[meta.id] = meta.audioDuration
-            }
-        }
-
         // 筛选周期内的播放事件
         var playEventsInPeriod: [(sessionId: String, name: String, timestamp: Date)] = []
         for item in allHistories {
@@ -195,11 +229,15 @@ class ReadingReportManager {
             }
         }
 
-        // 计算总播放时长
+        // 计算总播放时长（累加前检查溢出，失败跳过该贡献）
         var totalDuration: TimeInterval = 0
         for event in playEventsInPeriod {
-            if let duration = durationBySessionId[event.sessionId] {
-                totalDuration += duration
+            guard let duration = validDurationBySessionId[event.sessionId] else { continue }
+            let candidate = totalDuration + duration
+            if candidate.isFinite {
+                totalDuration = candidate
+            } else {
+                os.Logger.readingReport.error("[TOTAL_DURATION_OVERFLOW] 总时长累加溢出，跳过贡献 sessionId=***\(String(event.sessionId.suffix(4)), privacy: .public)")
             }
         }
 
@@ -218,19 +256,40 @@ class ReadingReportManager {
         }
 
         // 计算听读天数（按周期过滤）
-        let listeningDays = calculateTotalListeningDays(allHistories: allHistories, durationBySessionId: durationBySessionId, period: period)
+        let listeningDays = Self.calculateTotalListeningDays(allHistories: allHistories, durationBySessionId: validDurationBySessionId, range: range, calendar: calendar)
 
-        // 计算近N天累计时长（Follow周期选项）
-        let near30DaysDuration = calculateNearPeriodDuration(allHistories: allHistories, durationBySessionId: durationBySessionId, period: period)
+        // 计算近N天累计时长（Follow周期选项，累加前检查溢出）
+        let near30DaysDuration = Self.calculateNearPeriodDuration(allHistories: allHistories, durationBySessionId: validDurationBySessionId, range: range)
 
         // 计算最近收听列表
-        let recentListening = calculateRecentListening(allHistories: allHistories, period: period)
+        let recentListening = Self.calculateRecentListening(allHistories: allHistories, range: range)
+
+        // 共享日期桶（天级本数/天级时长共用同一 now 快照）
+        let dayStarts: [Date]
+        if period.isAll {
+            if let start = allPeriodEarliestDayStart {
+                let todayStart = calendar.startOfDay(for: now)
+                let dayCount = calendar.dateComponents([.day], from: start, to: todayStart).day ?? 0
+                if dayCount >= 0 {
+                    dayStarts = (0...dayCount).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+                } else {
+                    dayStarts = [] // 防御：起点晚于今天时不崩溃
+                }
+            } else {
+                dayStarts = []
+            }
+        } else {
+            dayStarts = Self.periodDayStarts(period: period, now: now, calendar: calendar)
+        }
 
         // 计算天级听书本数
-        let dailyBookCounts = calculateDailyBookCounts(allHistories: allHistories, period: period, allPeriodStart: allPeriodEarliestDayStart)
+        let dailyBookCounts = Self.calculateDailyBookCounts(allHistories: allHistories, dayStarts: dayStarts, calendar: calendar)
+
+        // 计算天级时长
+        let dailyDurations = Self.calculateDailyDurations(allHistories: allHistories, durationBySessionId: validDurationBySessionId, dayStarts: dayStarts, calendar: calendar)
 
         // 计算小时时段听书本数
-        let hourlyBookCounts = calculateHourlyBookCounts(allHistories: allHistories, period: period)
+        let hourlyBookCounts = Self.calculateHourlyBookCounts(allHistories: allHistories, range: range, calendar: calendar)
 
         return ReadingReportStats(
             period: period,
@@ -242,19 +301,17 @@ class ReadingReportManager {
             near30DaysDuration: near30DaysDuration,
             recentListening: recentListening,
             dailyBookCounts: dailyBookCounts,
+            dailyDurations: dailyDurations,
             hourlyBookCounts: hourlyBookCounts
         )
     }
 
-    private func calculateTotalListeningDays(
+    private static func calculateTotalListeningDays(
         allHistories: [(id: String, name: String, history: SessionHistory)],
         durationBySessionId: [String: TimeInterval],
-        period: ReportPeriod
+        range: PeriodRange,
+        calendar: Calendar
     ) -> Int {
-        let now = Date()
-        let calendar = Calendar.current
-        let range = Self.periodRange(period: period, now: now, calendar: calendar)
-
         var playDates: Set<Date> = []
         for item in allHistories {
             for event in item.history.playEvents {
@@ -268,35 +325,33 @@ class ReadingReportManager {
         return playDates.count
     }
 
-    private func calculateNearPeriodDuration(
+    private static func calculateNearPeriodDuration(
         allHistories: [(id: String, name: String, history: SessionHistory)],
         durationBySessionId: [String: TimeInterval],
-        period: ReportPeriod
+        range: PeriodRange
     ) -> TimeInterval {
-        let now = Date()
-        let calendar = Calendar.current
-        let range = Self.periodRange(period: period, now: now, calendar: calendar)
-
         var totalDuration: TimeInterval = 0
         for item in allHistories {
             guard let duration = durationBySessionId[item.id] else { continue }
             for event in item.history.playEvents {
                 if Self.contains(event.timestamp, in: range) {
-                    totalDuration += duration
+                    let candidate = totalDuration + duration
+                    if candidate.isFinite {
+                        totalDuration = candidate
+                    } else {
+                        // 累加溢出，跳过该次贡献
+                        os.Logger.readingReport.error("[NEAR_PERIOD_DURATION_OVERFLOW] 近N天时长累加溢出，跳过贡献 sessionId=***\(String(item.id.suffix(4)), privacy: .public)")
+                    }
                 }
             }
         }
         return totalDuration
     }
 
-    private func calculateRecentListening(
+    private static func calculateRecentListening(
         allHistories: [(id: String, name: String, history: SessionHistory)],
-        period: ReportPeriod
+        range: PeriodRange
     ) -> [RecentListeningItem] {
-        let now = Date()
-        let calendar = Calendar.current
-        let range = Self.periodRange(period: period, now: now, calendar: calendar)
-
         var items: [RecentListeningItem] = []
         for item in allHistories {
             for event in item.history.playEvents {
@@ -314,23 +369,11 @@ class ReadingReportManager {
         return items.sorted { $0.timestamp > $1.timestamp }
     }
 
-    private func calculateDailyBookCounts(
+    private static func calculateDailyBookCounts(
         allHistories: [(id: String, name: String, history: SessionHistory)],
-        period: ReportPeriod,
-        allPeriodStart: Date? = nil
+        dayStarts: [Date],
+        calendar: Calendar
     ) -> [DailyBookCount] {
-        let now = Date()
-        let calendar = Calendar.current
-        let dayStarts: [Date]
-        if period.isAll {
-            guard let start = allPeriodStart else { return [] }
-            let todayStart = calendar.startOfDay(for: now)
-            let dayCount = calendar.dateComponents([.day], from: start, to: todayStart).day ?? 0
-            dayStarts = (0...dayCount).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-        } else {
-            dayStarts = Self.periodDayStarts(period: period, now: now, calendar: calendar)
-        }
-
         var result: [DailyBookCount] = []
 
         for dayStart in dayStarts {
@@ -351,14 +394,42 @@ class ReadingReportManager {
         return result
     }
 
-    private func calculateHourlyBookCounts(
+    /// 天级时长统计：单次播放事件贡献所属记录当前 audioDuration（估算法），按事件次数累加、不去重
+    static func calculateDailyDurations(
         allHistories: [(id: String, name: String, history: SessionHistory)],
-        period: ReportPeriod
-    ) -> [HourlyBookCount] {
-        let now = Date()
-        let calendar = Calendar.current
-        let range = Self.periodRange(period: period, now: now, calendar: calendar)
+        durationBySessionId: [String: TimeInterval],
+        dayStarts: [Date],
+        calendar: Calendar
+    ) -> [DailyDuration] {
+        guard !dayStarts.isEmpty else { return [] }
 
+        let allowedDays = Set(dayStarts)
+        var durationByDay: [Date: TimeInterval] = [:]
+        for item in allHistories {
+            guard let duration = durationBySessionId[item.id], duration > 0, duration.isFinite else { continue }
+            for event in item.history.playEvents {
+                let dayStart = calendar.startOfDay(for: event.timestamp)
+                guard allowedDays.contains(dayStart) else { continue }
+                let updated = (durationByDay[dayStart] ?? 0) + duration
+                if updated.isFinite {
+                    durationByDay[dayStart] = updated
+                } else {
+                    // 累加溢出，跳过该次贡献
+                    os.Logger.readingReport.error("[DURATION_SUM_OVERFLOW] 天级时长累加溢出，跳过贡献 sessionId=***\(String(item.id.suffix(4)), privacy: .public)")
+                }
+            }
+        }
+
+        return dayStarts.map { start in
+            DailyDuration(date: start, duration: durationByDay[start] ?? 0)
+        }
+    }
+
+    private static func calculateHourlyBookCounts(
+        allHistories: [(id: String, name: String, history: SessionHistory)],
+        range: PeriodRange,
+        calendar: Calendar
+    ) -> [HourlyBookCount] {
         // 收集周期内所有播放事件，按小时聚合
         var sessionsByHour: [Int: Set<String>] = [:]
 

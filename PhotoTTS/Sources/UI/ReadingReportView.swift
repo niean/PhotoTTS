@@ -32,6 +32,7 @@ struct ReadingReportView: View {
                     periodPicker
                         .id("reportTop")
                     metricsCards
+                    dailyDurationChartSection
                     dailyChartSection
                     hourlyChartSection
                     topBooksSection
@@ -100,6 +101,63 @@ struct ReadingReportView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 天级时长直方图
+    private var dailyDurationChartSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("天级时长")
+                .font(Constants.Fonts.headline)
+                .foregroundStyle(.primary)
+
+            Chart(stats.dailyDurations) { item in
+                BarMark(
+                    x: .value("日期", item.date, unit: .day),
+                    y: .value("时长（分钟）", item.duration / 60)
+                )
+                .foregroundStyle(item.duration > 0 ? Color.accentColor : Color(.systemGray4))
+                .cornerRadius(3)
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisValueLabel()
+                    AxisGridLine()
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel {
+                        if let minutes = value.as(Double.self) {
+                            Text(Self.formatAxisMinutes(minutes))
+                                .font(Constants.Fonts.caption)
+                        }
+                    }
+                    AxisGridLine()
+                }
+            }
+            .chartYScale(domain: dailyDurationYDomain)
+            .frame(height: 140)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    // 全零/空数据时给非零 Y 轴范围，避免空轴与 NaN
+    private var dailyDurationYDomain: ClosedRange<Double> {
+        let maxMinutes = (stats.dailyDurations.map { $0.duration / 60 }.max() ?? 0)
+        return 0...max(maxMinutes, 1)
+    }
+
+    /// Y 轴标签：分钟单位，先按 0.1 分钟档四舍五入，最多 1 位小数去尾零
+    static func formatAxisMinutes(_ minutes: Double) -> String {
+        guard minutes.isFinite, minutes >= 0 else { return "0" }
+        let rounded = (minutes * 10).rounded() / 10
+        return rounded.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", locale: Locale(identifier: "en_US_POSIX"), rounded)
+            : String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), rounded)
     }
 
     // MARK: - 天级听书本数直方图
@@ -299,6 +357,7 @@ struct ReadingReportViewWithBar: View {
     @Environment(\.dismiss) private var dismiss
     @State private var period: ReportPeriod = .weekly
     @State private var stats: ReadingReportStats?
+    @State private var loadRequestId = 0
 
     private func scaled(_ value: CGFloat) -> CGFloat {
         Constants.DeviceScale.adaptiveSize(iPhone: value)
@@ -332,9 +391,13 @@ struct ReadingReportViewWithBar: View {
     }
 
     private func loadStats() {
+        loadRequestId += 1
+        let requestId = loadRequestId
+        let currentPeriod = period
         DispatchQueue.global(qos: .userInitiated).async {
-            let calculated = ReadingReportManager.shared.calculateStats(period: period)
+            let calculated = ReadingReportManager.shared.calculateStats(period: currentPeriod)
             DispatchQueue.main.async {
+                guard requestId == loadRequestId else { return }
                 stats = calculated
             }
         }
